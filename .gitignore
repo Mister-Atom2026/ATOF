@@ -216,5 +216,8 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+# Local PyCharm project settings
+.idea/
+
 # Streamlit
 .streamlit/secrets.toml
