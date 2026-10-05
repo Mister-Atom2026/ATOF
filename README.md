@@ -1,7 +1,12 @@
 # ATOF
 Game About Mister Atom
 
-## Version 0.0.4 — “Talking Beaver!”
+## Version 0.0.5 Alpha 1 — In development
+
+- Adds a **Settings** app to the in-game phone.
+- Lets the player choose from five phone colors; the choice is saved between sessions.
+
+## Previous version: 0.0.4 — “Talking Beaver!”
 
 This is a major update for ATOF.
 

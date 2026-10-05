@@ -1077,6 +1077,11 @@ def settings_sub_menu(screen, font, settings, trans_dict, languages, controls=No
         if not any(rect.collidepoint(mouse_pos) for rect in rects):
             last_hovered = None
 
+        studio_credit = pygame.font.SysFont("Arial", 16, bold=True).render(
+            "Nayra Studio", True, (150, 150, 150)
+        )
+        screen.blit(studio_credit, studio_credit.get_rect(center=(screen_width // 2, screen_height - 24)))
+
         pygame.display.flip()
         clock.tick(FPS)
 
@@ -1461,31 +1466,43 @@ PHONE_TRANSLATIONS = {
         "bank": "Triple1 Bank", "history": "Recent transactions:",
         "start": "Starting balance", "guard": "By the guard", "bridge": "By the bridge",
         "repair": "Repair", "nightstand": "Nightstand", "sofa": "On the sofa",
+        "settings_app": "Settings", "phone_settings": "Phone settings", "phone_color": "Phone color",
+        "choose_color": "Press 1–5 to choose", "colors": ["Black", "Silver", "Blue", "Gold", "Pink"],
     },
     "Українська": {
         "bank": "Банк Triple1", "history": "Останні транзакції:",
         "start": "Стартовий баланс", "guard": "Біля охоронця", "bridge": "Коло мосту",
         "repair": "Ремонт", "nightstand": "Тумбочка", "sofa": "На дивані",
+        "settings_app": "Налаштування", "phone_settings": "Налаштування телефона", "phone_color": "Колір телефона",
+        "choose_color": "Натисни 1–5, щоб вибрати", "colors": ["Чорний", "Сріблястий", "Синій", "Золотий", "Рожевий"],
     },
     "Русский": {
         "bank": "Банк Triple1", "history": "Последние транзакции:",
         "start": "Стартовый баланс", "guard": "У охранника", "bridge": "У моста",
         "repair": "Ремонт", "nightstand": "Тумбочка", "sofa": "На диване",
+        "settings_app": "Настройки", "phone_settings": "Настройки телефона", "phone_color": "Цвет телефона",
+        "choose_color": "Нажми 1–5 для выбора", "colors": ["Чёрный", "Серебристый", "Синий", "Золотой", "Розовый"],
     },
     "Español": {
         "bank": "Banco Triple1", "history": "Transacciones recientes:",
         "start": "Saldo inicial", "guard": "Junto al guardia", "bridge": "Junto al puente",
         "repair": "Reparación", "nightstand": "Mesita de noche", "sofa": "En el sofá",
+        "settings_app": "Ajustes", "phone_settings": "Ajustes del teléfono", "phone_color": "Color del teléfono",
+        "choose_color": "Pulsa 1–5 para elegir", "colors": ["Negro", "Plateado", "Azul", "Dorado", "Rosa"],
     },
     "Deutsch": {
         "bank": "Triple1 Bank", "history": "Letzte Transaktionen:",
         "start": "Anfangsguthaben", "guard": "Beim Wachmann", "bridge": "Bei der Brücke",
         "repair": "Reparatur", "nightstand": "Nachttisch", "sofa": "Auf dem Sofa",
+        "settings_app": "Einstellungen", "phone_settings": "Telefoneinstellungen", "phone_color": "Telefonfarbe",
+        "choose_color": "1–5 zum Auswählen", "colors": ["Schwarz", "Silber", "Blau", "Gold", "Pink"],
     },
     "Français": {
         "bank": "Banque Triple1", "history": "Transactions récentes :",
         "start": "Solde initial", "guard": "Près du garde", "bridge": "Près du pont",
         "repair": "Réparation", "nightstand": "Table de chevet", "sofa": "Sur le canapé",
+        "settings_app": "Réglages", "phone_settings": "Réglages du téléphone", "phone_color": "Couleur du téléphone",
+        "choose_color": "Appuie sur 1–5", "colors": ["Noir", "Argent", "Bleu", "Or", "Rose"],
     },
 }
 
@@ -1529,6 +1546,14 @@ def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_s
         name_surf = pygame.font.SysFont("Arial", 12, bold=True).render("Triple1", True, (220, 220, 220))
         screen.blit(name_surf, (icon_x, icon_y + 50))
 
+        settings_x = display_rect.x + 95
+        pygame.draw.rect(screen, (55, 105, 100), (settings_x, icon_y, 45, 45), border_radius=10)
+        screen.blit(font_small.render("2", True, (255, 255, 255)), (settings_x + 15, icon_y + 10))
+        settings_name = pygame.font.SysFont("Arial", 11, bold=True).render(
+            labels["settings_app"], True, (220, 220, 220)
+        )
+        screen.blit(settings_name, (settings_x, icon_y + 50))
+
     elif current_app == 1:
         # Position all text relative to display_rect.y.
         bank_label = font_small.render(labels["bank"], True, (255, 215, 0))
@@ -1548,3 +1573,35 @@ def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_s
             label = labels.get(item[1], item[1])
             txt = pygame.font.SysFont("Arial", 12).render(f"{item[0]} - {label}", True, (200, 200, 200))
             screen.blit(txt, (display_rect.x + 15, y_hist))
+
+    elif current_app == 2:
+        title = pygame.font.SysFont("Arial", 16, bold=True).render(
+            labels["phone_settings"], True, (255, 255, 255)
+        )
+        screen.blit(title, (display_rect.x + 15, display_rect.y + 45))
+
+        category = pygame.font.SysFont("Arial", 13, bold=True).render(
+            labels["phone_color"], True, (190, 190, 190)
+        )
+        screen.blit(category, (display_rect.x + 15, display_rect.y + 90))
+
+        selected_idx = phone_settings["case_idx"]
+        swatch_y = display_rect.y + 125
+        for idx, color in enumerate(CASE_PALETTE):
+            swatch = pygame.Rect(display_rect.x + 16 + idx * 35, swatch_y, 27, 27)
+            pygame.draw.rect(screen, color, swatch, border_radius=6)
+            border_color = (255, 215, 0) if idx == selected_idx else (180, 180, 180)
+            border_width = 3 if idx == selected_idx else 1
+            pygame.draw.rect(screen, border_color, swatch, border_width, border_radius=6)
+            number = pygame.font.SysFont("Arial", 11, bold=True).render(str(idx + 1), True, (235, 235, 235))
+            screen.blit(number, (swatch.x + 10, swatch.bottom + 5))
+
+        selected_name = pygame.font.SysFont("Arial", 14, bold=True).render(
+            labels["colors"][selected_idx], True, (255, 255, 255)
+        )
+        screen.blit(selected_name, (display_rect.x + 15, display_rect.y + 175))
+
+        hint = pygame.font.SysFont("Arial", 11).render(
+            labels["choose_color"], True, (165, 165, 165)
+        )
+        screen.blit(hint, (display_rect.x + 15, display_rect.y + 220))

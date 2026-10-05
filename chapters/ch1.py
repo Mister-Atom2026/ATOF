@@ -281,10 +281,26 @@ def run(screen, settings):
                             phone_active = False  # Close the phone.
                             phone_click_sfx.play()
 
-                    # Open Triple1 only from the phone menu.
+                    # Open phone apps from the home screen.
                     elif current_app == 0:
                         if keyboard.matches(event, pygame.K_1) or event.key == pygame.K_KP1:
                             current_app = 1
+                            phone_click_sfx.play()
+                        elif keyboard.matches(event, pygame.K_2) or event.key == pygame.K_KP2:
+                            current_app = 2
+                            phone_click_sfx.play()
+                    elif current_app == 2:
+                        # Number keys select one of the available phone case colors.
+                        phone_color_keys = {
+                            pygame.K_1: 0, pygame.K_KP1: 0,
+                            pygame.K_2: 1, pygame.K_KP2: 1,
+                            pygame.K_3: 2, pygame.K_KP3: 2,
+                            pygame.K_4: 3, pygame.K_KP4: 3,
+                            pygame.K_5: 4, pygame.K_KP5: 4,
+                        }
+                        if event.key in phone_color_keys:
+                            phone_settings["case_idx"] = phone_color_keys[event.key]
+                            engine.save_phone_settings(phone_settings)
                             phone_click_sfx.play()
                 if event.key == pygame.K_F3:
                     show_debug = not show_debug
