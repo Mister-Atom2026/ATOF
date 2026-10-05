@@ -1,11 +1,11 @@
 # ATOF
 Game About Mister Atom
 
-## Version 0.4.1 Beta 1 — In development
+## Version 0.4.1 Beta 2 — In development
 
-- Plays the crash sound for every collision, including collisions with police cars.
-- Matches traffic car collisions to visible sprite pixels so angled 2107 cars no longer have oversized hitboxes.
-- Fixes PyCharm warnings for unused imports, unresolved display constants, optional pygame types, settings key merging, and coordinate access.
+- Removes the unused NEAT training script, model, and runtime loader; traffic now follows its built-in routes.
+- Fixes PyCharm type warnings in traffic and settings normalization and marks intentional repeated menu patterns.
+- Beta 1 fixed crash sounds for every collision and oversized rotated 2107 collision boxes.
 - Alpha 2 added high-speed drifting when turning above 40 km/h, with visible tire marks.
 - Alpha 1 added a **Settings** app to the in-game phone, with five saved phone colors, and the **Nayra Studio** settings credit.
 

@@ -728,6 +728,7 @@ def pause_menu(screen, font, small_font, settings, trans_dict, languages, contro
         clock.tick(FPS)
 
 
+# noinspection DuplicatedCode
 def _audio_settings_menu(screen, font, settings, trans_dict, languages, controls=None, on_change=None):
     volume_keys = ("music_volume", "npc_volume", "crash_volume", "button_volume", "footsteps_volume")
     title_keys = ("music_vol", "npc_vol", "crash_vol", "button_vol", "footsteps_vol")
@@ -862,6 +863,7 @@ def _audio_settings_menu(screen, font, settings, trans_dict, languages, controls
         clock.tick(FPS)
 
 
+# noinspection DuplicatedCode
 def _video_settings_menu(screen, font, settings, trans_dict, languages, controls=None, on_change=None):
     fps_values = (0, 30, 60, 75, 90, 120, 144, 165, 240)
     resolutions = _available_resolutions(settings)
@@ -988,6 +990,7 @@ def _video_settings_menu(screen, font, settings, trans_dict, languages, controls
         clock.tick(FPS)
 
 
+# noinspection DuplicatedCode
 def settings_sub_menu(screen, font, settings, trans_dict, languages, controls=None, on_change=None):
     selected_index = 0
     clock = pygame.time.Clock()

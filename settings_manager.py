@@ -4,6 +4,13 @@ from pathlib import Path
 
 SETTINGS_PATH = Path(__file__).resolve().parent / "config.json"
 STATISTICS_PATH = Path(__file__).resolve().parent / "statistics.json"
+DEFAULT_KEYS: dict[str, int] = {
+    "up": 1073741906,
+    "down": 1073741905,
+    "left": 1073741904,
+    "right": 1073741903,
+    "map": 9,
+}
 DEFAULT_SETTINGS = {
     "music_volume": 20,
     "npc_volume": 100,
@@ -14,26 +21,12 @@ DEFAULT_SETTINGS = {
     "video_width": 1280,
     "video_height": 720,
     "fps_limit": 60,
-    "keys": {
-        "up": 1073741906,
-        "down": 1073741905,
-        "left": 1073741904,
-        "right": 1073741903,
-        "map": 9,
-    },
+    "keys": DEFAULT_KEYS,
 }
 _VOLUME_KEYS = ("music_volume", "npc_volume", "crash_volume", "button_volume", "footsteps_volume")
 _LANGUAGE_COUNT = 6
 _FPS_LIMITS = (0, 30, 60, 75, 90, 120, 144, 165, 240)
-DEFAULT_STATISTICS: dict[str, int | str] = {
-    "money": 0,
-    "earned": 0,
-    "spent": 0,
-    "time": "00:00",
-    "treasures": 0,
-}
-
-
+_STATISTICS_NUMBER_KEYS = ("money", "earned", "spent", "treasures")
 def _bounded_int(value, default, minimum, maximum):
     try:
         number = int(value)
@@ -42,9 +35,27 @@ def _bounded_int(value, default, minimum, maximum):
     return max(minimum, min(maximum, number))
 
 
+def _normalize_statistics(values: dict) -> dict[str, int | str]:
+    statistics: dict[str, int | str] = {
+        "money": 0,
+        "earned": 0,
+        "spent": 0,
+        "time": "00:00",
+        "treasures": 0,
+    }
+    if not isinstance(values, dict):
+        return statistics
+
+    for key in _STATISTICS_NUMBER_KEYS:
+        statistics[key] = _bounded_int(values.get(key), 0, 0, 2**31 - 1)
+    game_time = values.get("time")
+    statistics["time"] = game_time if isinstance(game_time, str) else "00:00"
+    return statistics
+
+
 def _normalize_settings(values):
     settings = dict(DEFAULT_SETTINGS)
-    settings["keys"] = dict(DEFAULT_SETTINGS["keys"])
+    settings["keys"] = DEFAULT_KEYS.copy()
 
     if isinstance(values, dict):
         settings.update(values)
@@ -52,11 +63,11 @@ def _normalize_settings(values):
             settings["music_volume"] = values["volume"]
         raw_keys = values.get("keys")
         if isinstance(raw_keys, dict):
-            merged_keys = dict(DEFAULT_SETTINGS["keys"])
+            merged_keys = DEFAULT_KEYS.copy()
             merged_keys.update(raw_keys)
             settings["keys"] = merged_keys
         else:
-            settings["keys"] = dict(DEFAULT_SETTINGS["keys"])
+            settings["keys"] = DEFAULT_KEYS.copy()
 
     for key in _VOLUME_KEYS:
         settings[key] = _bounded_int(settings.get(key), DEFAULT_SETTINGS[key], 0, 100)
@@ -96,22 +107,11 @@ def load_statistics():
     except (OSError, json.JSONDecodeError):
         values = {}
 
-    if not isinstance(values, dict):
-        values = {}
-    statistics = dict(DEFAULT_STATISTICS)
-    for key in ("money", "earned", "spent", "treasures"):
-        statistics[key] = _bounded_int(values.get(key), DEFAULT_STATISTICS[key], 0, 2**31 - 1)
-    game_time = values.get("time", DEFAULT_STATISTICS["time"])
-    statistics["time"] = game_time if isinstance(game_time, str) else DEFAULT_STATISTICS["time"]
-    return statistics
+    return _normalize_statistics(values)
 
 
 def save_statistics(statistics):
-    normalized = dict(DEFAULT_STATISTICS)
-    for key in ("money", "earned", "spent", "treasures"):
-        normalized[key] = _bounded_int(statistics.get(key), DEFAULT_STATISTICS[key], 0, 2**31 - 1)
-    game_time = statistics.get("time", DEFAULT_STATISTICS["time"])
-    normalized["time"] = game_time if isinstance(game_time, str) else DEFAULT_STATISTICS["time"]
+    normalized = _normalize_statistics(statistics)
 
     temporary_path = STATISTICS_PATH.with_suffix(".json.tmp")
     temporary_path.write_text(

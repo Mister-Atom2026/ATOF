@@ -1,10 +1,9 @@
-"""Runtime road traffic and police AI. Training lives outside the game loop."""
+"""Runtime road traffic and police behavior."""
 
 import math
 import os
-import pickle
 import random
-from typing import Protocol
+from typing import Optional
 
 import pygame
 
@@ -12,17 +11,9 @@ import pygame
 ROOT = os.path.dirname(os.path.abspath(__file__))
 image_cache: dict[tuple[str, int], pygame.Surface] = {}
 mask_cache: dict[tuple[str, int], pygame.Mask] = {}
-base_traffic_img: pygame.Surface | None = None
-base_police_img: pygame.Surface | None = None
-beep_sound: pygame.mixer.Sound | None = None
-
-
-class ActivatableNetwork(Protocol):
-    def activate(self, inputs: list[float]) -> list[float]: ...
-
-
-bot_brain: ActivatableNetwork | None = None
-brain_load_attempted = False
+base_traffic_img: Optional[pygame.Surface] = None
+base_police_img: Optional[pygame.Surface] = None
+beep_sound: Optional[pygame.mixer.Sound] = None
 _npc_volume = 1.0
 
 
@@ -95,54 +86,6 @@ def configure_audio(settings):
     _npc_volume = max(0, min(100, volume)) / 100
 
 
-def try_load_brain() -> ActivatableNetwork | None:
-    """Load the supplied NEAT brain once; continue with route-following if absent."""
-    global bot_brain, brain_load_attempted
-    if brain_load_attempted:
-        return bot_brain
-    brain_load_attempted = True
-
-    brain_path = os.path.join(ROOT, "best_brain.pkl")
-    config_path = os.path.join(ROOT, "config-feedforward.txt")
-    if not (os.path.isfile(brain_path) and os.path.isfile(config_path)):
-        return None
-
-    try:
-        from neat.config import Config
-        from neat.genome import DefaultGenome
-        from neat.nn import FeedForwardNetwork
-        from neat.reproduction import DefaultReproduction
-        from neat.species import DefaultSpeciesSet
-        from neat.stagnation import DefaultStagnation
-
-        config = Config(
-            DefaultGenome,
-            DefaultReproduction,
-            DefaultSpeciesSet,
-            DefaultStagnation,
-            config_path,
-        )
-        with open(brain_path, "rb") as brain_file:
-            genome = pickle.load(brain_file)
-        bot_brain = FeedForwardNetwork.create(genome, config)
-        print("Traffic brain loaded.")
-    except (
-        ImportError,
-        OSError,
-        EOFError,
-        pickle.UnpicklingError,
-        ValueError,
-        TypeError,
-        AttributeError,
-        KeyError,
-        NameError,
-        RuntimeError,
-    ) as exc:
-        print(f"Traffic brain could not be loaded: {exc}")
-        bot_brain = None
-    return bot_brain
-
-
 def _car_image(car):
     if getattr(car, "is_police", False):
         return get_rotated_police_resources(car.angle), ("police", int(car.angle % 360))
@@ -150,7 +93,7 @@ def _car_image(car):
         return get_rotated_resources(car.angle), ("traffic", int(car.angle % 360))
     else:
         image = getattr(car, "image", None)
-        if image is None:
+        if not isinstance(image, pygame.Surface):
             image = pygame.Surface((96, 48), pygame.SRCALPHA)
         angle = int(getattr(car, "angle", 0) % 360)
         return pygame.transform.rotate(image, -angle), ("player", angle)
@@ -251,19 +194,6 @@ class TrafficCar:
         self.image = get_rotated_resources(self.angle)
         _load_horn()
 
-    def get_sensors(self, other_traffic, player_car):
-        sensors = [200.0] * 5
-        for index, offset in enumerate((0, -30, 30, -60, 60)):
-            ray = pygame.Vector2(1, 0).rotate(self.angle + 180 + offset)
-            for other in [*other_traffic, player_car]:
-                if other is self or not getattr(other, "is_alive", True):
-                    continue
-                vector = other.pos - self.pos
-                distance = vector.length()
-                if 0 < distance < 200 and ray.dot(vector.normalize()) > 0.9:
-                    sensors[index] = min(sensors[index], distance)
-        return sensors
-
     def _has_vehicle_ahead(self, other_traffic, player_car):
         forward = _forward(self.angle)
         for other in [*other_traffic, player_car]:
@@ -284,24 +214,12 @@ class TrafficCar:
                 self.is_arrested = False
             return
 
-        brain = try_load_brain()
         distance_to_node, angle_diff = _route_heading(self)
         blocked_ahead = self._has_vehicle_ahead(other_traffic, player_car)
-        steering = 0.0
         desired_speed = self.max_speed
 
-        if brain is not None and not blocked_ahead:
-            try:
-                outputs = brain.activate(self.get_sensors(other_traffic, player_car))
-                if outputs:
-                    steering = float(outputs[0]) * 3.0
-                if len(outputs) > 1 and outputs[1] <= 0:
-                    desired_speed *= 0.5
-            except (ValueError, IndexError, TypeError):
-                pass
-
         turn_step = self.rotation_speed * frame_scale
-        self.angle += max(-turn_step, min(turn_step, angle_diff + steering))
+        self.angle += max(-turn_step, min(turn_step, angle_diff))
         next_speed = 0.0 if blocked_ahead else desired_speed
         if blocked_ahead:
             self.stuck_timer += frame_scale
@@ -372,14 +290,14 @@ class PoliceTrafficCar(TrafficCar):
         target = min(candidates, key=lambda car: self.pos.distance_squared_to(car.pos))
         return target if self.pos.distance_to(target.pos) < 260 else None
 
-    def _move_toward(self, target_pos, speed, obstacles, col_mask, turn_rate, steering=0.0, frame_scale=1.0):
+    def _move_toward(self, target_pos, speed, obstacles, col_mask, turn_rate, frame_scale=1.0):
         vector = target_pos - self.pos
         if vector.length_squared() == 0:
             return False
         desired_angle = math.degrees(math.atan2(vector.y, vector.x)) + 180
         difference = (desired_angle - self.angle + 180) % 360 - 180
         turn_step = turn_rate * frame_scale
-        self.angle += max(-turn_step, min(turn_step, difference + steering))
+        self.angle += max(-turn_step, min(turn_step, difference))
         candidate = self.pos + _forward(self.angle) * speed * frame_scale
         if can_move_to(self, candidate, obstacles, col_mask):
             self.pos = candidate
@@ -394,16 +312,6 @@ class PoliceTrafficCar(TrafficCar):
                 self.is_arrested = False
             return
 
-        brain_steering = 0.0
-        brain = try_load_brain()
-        if brain is not None:
-            try:
-                outputs = brain.activate(self.get_sensors(other_traffic, player_car))
-                if outputs:
-                    brain_steering = float(outputs[0]) * 2.0
-            except (ValueError, IndexError, TypeError):
-                pass
-
         obstacles = [*other_traffic, player_car]
         if self.state == "patrol":
             distance, _ = _route_heading(self)
@@ -416,7 +324,6 @@ class PoliceTrafficCar(TrafficCar):
                     obstacles,
                     col_mask,
                     3.0,
-                    brain_steering,
                     frame_scale,
                 )
             self.target_car = self._find_target(other_traffic)
@@ -430,13 +337,12 @@ class PoliceTrafficCar(TrafficCar):
                 self.state = "patrol"
             else:
                 distance = self.pos.distance_to(target.pos)
-                # Stop just before the vehicles' rotated sprite bounds can touch.
+                # Stop just before the visible vehicle sprites can touch.
                 if distance <= _safe_stopping_distance(self, target):
                     self.state = "stopping"
                 else:
                     self._move_toward(
-                        target.pos, self.max_speed + 0.5, obstacles, col_mask, 4.5, brain_steering,
-                        frame_scale,
+                        target.pos, self.max_speed + 0.5, obstacles, col_mask, 4.5, frame_scale
                     )
 
         elif self.state == "stopping":
