@@ -117,7 +117,7 @@ def _base_vehicle_size(car):
     if getattr(car, "is_police", False) or hasattr(car, "target_node"):
         return 96, 39
     image = getattr(car, "image", None)
-    return image.get_size() if image is not None else (96, 48)
+    return image.get_size() if isinstance(image, pygame.Surface) else (96, 48)
 
 
 def _safe_stopping_distance(first_car, second_car):
