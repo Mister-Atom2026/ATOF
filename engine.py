@@ -269,6 +269,7 @@ class Car:
         self.accel = 0.08
         self.friction = 0.04
         self.brake_force = 0.3
+        self.motion_velocity = pygame.Vector2()
 
         self.skid_marks = []
         self.just_hit = False
@@ -299,6 +300,8 @@ class Car:
             self.image.fill((0, 0, 255))
 
     def update(self, keys, col_mask, active, npc_cars=None, frame_scale=1.0):
+        left_pressed = False
+        right_pressed = False
         # A broken car does not respond to acceleration.
         if self.is_broken:
             active = False
@@ -329,14 +332,30 @@ class Car:
                 self.speed *= 0.97 ** frame_scale
 
             # 2. Steering.
+            left_pressed = keys[pygame.K_a] or keys[pygame.K_LEFT]
+            right_pressed = keys[pygame.K_d] or keys[pygame.K_RIGHT]
             if abs(self.speed) > 0.5:
                 steer = 5.0 - (min(abs(self.speed) / 2, 1.0))
                 direction = 1 if self.speed > 0 else -1
-                if keys[pygame.K_a] or keys[pygame.K_LEFT]: self.angle += steer * direction * frame_scale
-                if keys[pygame.K_d] or keys[pygame.K_RIGHT]: self.angle -= steer * direction * frame_scale
+                if left_pressed: self.angle += steer * direction * frame_scale
+                if right_pressed: self.angle -= steer * direction * frame_scale
 
-        # 3. Movement and collision.
-        velocity = pygame.Vector2(self.speed, 0).rotate(-self.angle + 180)
+        # 3. Movement and collision. At higher speed the car's momentum
+        # follows steering more slowly, so it slides sideways during turns.
+        current_kmh = abs(self.speed) * 8
+        is_turning = left_pressed != right_pressed
+        is_drifting = active and current_kmh > 40 and is_turning
+        desired_velocity = pygame.Vector2(self.speed, 0).rotate(-self.angle + 180)
+        if is_drifting:
+            drift_intensity = min((current_kmh - 40) / 80, 1.0)
+            grip = 0.40 - 0.24 * drift_intensity
+        elif current_kmh > 40:
+            grip = 0.38
+        else:
+            grip = 0.65
+        blend = 1 - (1 - grip) ** max(frame_scale, 0)
+        self.motion_velocity += (desired_velocity - self.motion_velocity) * blend
+        velocity = self.motion_velocity
         next_pos = self.pos + velocity * frame_scale
         # 1. Update existing smoke particles, even while the car is stationary.
         self.update_smoke_particles(frame_scale)
@@ -401,16 +420,17 @@ class Car:
                     self.is_broken = True
             # -------------------------
 
-            self.speed = -self.speed * 0.6
             if velocity.length() > 0:
                 self.pos -= velocity.normalize() * 5 * frame_scale
+            self.speed = -self.speed * 0.6
+            self.motion_velocity *= -0.6
         else:
             old_pos = pygame.Vector2(self.pos.x, self.pos.y)
             self.pos = next_pos
 
             # Tire tracks.
             is_braking = active and ((keys[pygame.K_s] and self.speed > 2) or (keys[pygame.K_w] and self.speed < -2))
-            if is_braking:
+            if is_braking or is_drifting:
                 forward_vec = pygame.Vector2(1, 0).rotate(-self.angle + 180)
                 off_l = pygame.Vector2(0, 16).rotate(-self.angle + 180)
                 off_r = pygame.Vector2(0, -16).rotate(-self.angle + 180)

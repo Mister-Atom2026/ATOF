@@ -1,12 +1,12 @@
 # ATOF
 Game About Mister Atom
 
-## Version 0.0.5 Alpha 1 — In development
+## Version 0.4.1 Alpha 2 — In development
 
-- Adds a **Settings** app to the in-game phone.
-- Lets the player choose from five phone colors; the choice is saved between sessions.
+- Adds high-speed drifting when turning above 40 km/h, with visible tire marks.
+- Alpha 1 added a **Settings** app to the in-game phone, with five saved phone colors, and the **Nayra Studio** settings credit.
 
-## Previous version: 0.0.4 — “Talking Beaver!”
+## Previous tagged version: 0.0.4 — “Talking Beaver!”
 
 This is a major update for ATOF.
 
