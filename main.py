@@ -7,7 +7,7 @@ import pygame
 from settings_manager import load_settings, load_statistics, save_settings
 
 VERSION = "0.0.4"
-RELEASE_NAME = "Говорящий Бобер!"
+RELEASE_NAME = "Talking Beaver!"
 LANGUAGES = ["English", "Українська", "Русский", "Español", "Deutsch", "Français"]
 APP_SETTINGS = load_settings()
 

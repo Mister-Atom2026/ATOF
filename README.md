@@ -1,7 +1,7 @@
 # ATOF
 Game About Mister Atom
 
-## Version 0.0.4 — «Говорящий Бобер!»
+## Version 0.0.4 — “Talking Beaver!”
 
 This is a major update for ATOF.
 
