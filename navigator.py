@@ -5,6 +5,7 @@ from __future__ import annotations
 import heapq
 import math
 from pathlib import Path
+from typing import Optional
 
 import pygame
 
@@ -23,7 +24,7 @@ class GPS:
             map_path = Path(__file__).resolve().parent / map_path
 
         try:
-            self.mask_img: pygame.Surface | None = pygame.image.load(str(map_path)).convert()
+            self.mask_img: Optional[pygame.Surface] = pygame.image.load(str(map_path)).convert()
         except (pygame.error, OSError) as exc:
             print(f"[GPS] Не вдалося завантажити карту {map_path}: {exc}")
             self.mask_img = None

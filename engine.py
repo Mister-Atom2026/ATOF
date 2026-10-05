@@ -3,14 +3,18 @@ import math
 import random
 from pathlib import Path
 import sys
+from typing import Optional
 
 import pygame
 
 import constants as _constants
-from constants import WIDTH, HEIGHT, FPS
 
-_menu_sounds: dict[str, pygame.mixer.Sound | None] = {}
-_house_icon: pygame.Surface | None = None
+WIDTH = _constants.WIDTH
+HEIGHT = _constants.HEIGHT
+FPS = _constants.FPS
+
+_menu_sounds: dict[str, Optional[pygame.mixer.Sound]] = {}
+_house_icon: Optional[pygame.Surface] = None
 _house_icon_load_attempted = False
 _AUDIO_DEFAULTS = {
     "music_volume": 20,
@@ -131,8 +135,9 @@ def play_menu_sound(kind):
     if kind not in _menu_sounds:
         path = Path(__file__).resolve().parent / "sounds" / sound_paths[kind]
         try:
-            _menu_sounds[kind] = pygame.mixer.Sound(str(path))
-            _menu_sounds[kind].set_volume(_MENU_SOUND_LEVELS[kind] * _audio_settings["button_volume"])
+            sound = pygame.mixer.Sound(str(path))
+            sound.set_volume(_MENU_SOUND_LEVELS[kind] * _audio_settings["button_volume"])
+            _menu_sounds[kind] = sound
         except pygame.error:
             _menu_sounds[kind] = None
     sound = _menu_sounds[kind]
@@ -140,7 +145,7 @@ def play_menu_sound(kind):
         sound.play()
 
 
-def _get_house_icon() -> pygame.Surface | None:
+def _get_house_icon() -> Optional[pygame.Surface]:
     global _house_icon, _house_icon_load_attempted
     if _house_icon_load_attempted:
         return _house_icon
@@ -161,8 +166,8 @@ class Player:
         self.angle = 0  # 0 degrees points south (down) by default.
         self.is_moving = False
 
-        self.original_image: pygame.Surface | None = None
-        self.image: pygame.Surface | None = None
+        self.original_image: Optional[pygame.Surface] = None
+        self.image: Optional[pygame.Surface] = None
         try:
             path = Path(__file__).resolve().parent / "characters" / "atom.png"
             raw = pygame.image.load(str(path)).convert_alpha()
@@ -662,11 +667,11 @@ def pause_menu(screen, font, small_font, settings, trans_dict, languages, contro
         if index == 0:
             return "CONTINUE"
         if index == 1:
-            result = stats_dialog(screen, font, small_font, translations, stats, controls)
-            return "EXIT" if result == "EXIT" else None
+            stats_result = stats_dialog(screen, font, small_font, translations, stats, controls)
+            return "EXIT" if stats_result == "EXIT" else None
         if index == 2:
-            result = settings_sub_menu(screen, font, settings, trans_dict, languages, controls, on_change)
-            return result if result in ("EXIT", "VIDEO_CHANGED") else None
+            settings_result = settings_sub_menu(screen, font, settings, trans_dict, languages, controls, on_change)
+            return settings_result if settings_result in ("EXIT", "VIDEO_CHANGED") else None
         elif index == 3 and confirm_dialog(screen, font, small_font, translations, controls):
             return "MENU"
         return None
@@ -1195,15 +1200,14 @@ def draw_debug_coords(screen, target, mode_label):
     if target is None:
         return
     position = getattr(target, "pos", None)
-    if position is None:
+    if not isinstance(position, pygame.Vector2):
         return
     try:
         debug_f = pygame.font.SysFont("Consolas", 20, bold=True)
     except pygame.error:
         debug_f = pygame.font.SysFont("Arial", 20)
 
-    curr_x = int(position.x)
-    curr_y = int(position.y)
+    curr_x, curr_y = map(int, position)
 
     debug_text = f"X: {curr_x} Y: {curr_y} | MODE: {mode_label}"
     txt_surf = debug_f.render(debug_text, True, (255, 255, 0))
@@ -1376,6 +1380,12 @@ def handle_surface_footsteps(keys, in_car, game_state, pos, col_mask, sounds, ch
     if target_sound and not channel.get_busy():
         channel.play(target_sound)
 def handle_car_audio(car, in_car, sounds, e_chan, c_chan, controls=None):
+    if getattr(car, 'just_hit', False):
+        crash_sound = sounds.get('crash')
+        if crash_sound is not None:
+            c_chan.play(crash_sound)
+        car.just_hit = False
+
     if not in_car:
         e_chan.stop()
         return
@@ -1396,11 +1406,6 @@ def handle_car_audio(car, in_car, sounds, e_chan, c_chan, controls=None):
         if not pygame.mixer.Channel(4).get_busy():
             pygame.mixer.Channel(4).play(sounds['beep'])
 
-    # 3. Crash audio.
-    if getattr(car, 'just_hit', False):
-        if not c_chan.get_busy():
-            c_chan.play(sounds['crash'])
-        car.just_hit = False
 
 def get_ambient_color(game_time_minutes):
     """
@@ -1411,10 +1416,10 @@ def get_ambient_color(game_time_minutes):
 
     # Daytime (08:00–18:00) is fully lit.
     if 8 <= h < 18:
-        return (0, 0, 0, 0)
+        return 0, 0, 0, 0
     # Night (21:00–05:00) uses a dark blue overlay.
     elif h >= 21 or h < 5:
-        return (15, 15, 40, 160)
+        return 15, 15, 40, 160
     # Dawn and dusk use a gradual transition.
     else:
         if 5 <= h < 8:  # Morning.
@@ -1424,7 +1429,7 @@ def get_ambient_color(game_time_minutes):
 
         # A lower factor produces a darker overlay.
         alpha = int(160 * (1.0 - factor))
-        return (15, 15, 40, alpha)
+        return 15, 15, 40, alpha
 def draw_car_smoke(screen, car, off_x, off_y):
     """Draw the car smoke particles using the camera offset."""
     # Use a temporary surface for alpha blending.

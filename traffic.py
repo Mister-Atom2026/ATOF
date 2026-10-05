@@ -11,6 +11,7 @@ import pygame
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 image_cache: dict[tuple[str, int], pygame.Surface] = {}
+mask_cache: dict[tuple[str, int], pygame.Mask] = {}
 base_traffic_img: pygame.Surface | None = None
 base_police_img: pygame.Surface | None = None
 beep_sound: pygame.mixer.Sound | None = None
@@ -142,47 +143,72 @@ def try_load_brain() -> ActivatableNetwork | None:
     return bot_brain
 
 
-def _rotated_car_rect(car, center):
+def _car_image(car):
     if getattr(car, "is_police", False):
-        image = get_rotated_police_resources(car.angle)
+        return get_rotated_police_resources(car.angle), ("police", int(car.angle % 360))
     elif hasattr(car, "target_node"):
-        image = get_rotated_resources(car.angle)
+        return get_rotated_resources(car.angle), ("traffic", int(car.angle % 360))
     else:
         image = getattr(car, "image", None)
         if image is None:
             image = pygame.Surface((96, 48), pygame.SRCALPHA)
-        else:
-            image = pygame.transform.rotate(image, -getattr(car, "angle", 0))
+        angle = int(getattr(car, "angle", 0) % 360)
+        return pygame.transform.rotate(image, -angle), ("player", angle)
+
+
+def _rotated_car_rect(car, center):
+    image, _ = _car_image(car)
     return image.get_rect(center=(round(center.x), round(center.y)))
 
 
+def _vehicle_mask(car):
+    image, key = _car_image(car)
+    mask = mask_cache.get(key)
+    if mask is None:
+        mask = pygame.mask.from_surface(image)
+        mask_cache[key] = mask
+    return mask
+
+
+def _base_vehicle_size(car):
+    if getattr(car, "is_police", False) or hasattr(car, "target_node"):
+        return 96, 39
+    image = getattr(car, "image", None)
+    return image.get_size() if image is not None else (96, 48)
+
+
 def _safe_stopping_distance(first_car, second_car):
-    first_rect = _rotated_car_rect(first_car, first_car.pos)
-    second_rect = _rotated_car_rect(second_car, second_car.pos)
-    first_radius = math.hypot(first_rect.width, first_rect.height) / 2
-    second_radius = math.hypot(second_rect.width, second_rect.height) / 2
+    first_radius = math.hypot(*_base_vehicle_size(first_car)) / 2
+    second_radius = math.hypot(*_base_vehicle_size(second_car)) / 2
     return first_radius + second_radius + 4
 
 
 def can_move_to(car, position, other_cars, col_mask=None):
-    """Prevent sprite overlap with every live vehicle and stop at map obstacles."""
+    """Prevent visible sprite overlap with vehicles and stop at map obstacles."""
     candidate_rect = _rotated_car_rect(car, position)
+    candidate_mask = _vehicle_mask(car)
     for other in other_cars:
         if other is car or not getattr(other, "is_alive", True):
             continue
-        if candidate_rect.colliderect(_rotated_car_rect(other, other.pos)):
-            return False
+        other_rect = _rotated_car_rect(other, other.pos)
+        if candidate_rect.colliderect(other_rect):
+            offset = (other_rect.left - candidate_rect.left, other_rect.top - candidate_rect.top)
+            if candidate_mask.overlap(_vehicle_mask(other), offset) is not None:
+                return False
 
     if col_mask is not None:
         mask_w, mask_h = col_mask.get_size()
-        # Test center and inset corners so the full vehicle stays on the road.
-        points = [
-            candidate_rect.center,
-            (candidate_rect.left + 5, candidate_rect.top + 5),
-            (candidate_rect.right - 6, candidate_rect.top + 5),
-            (candidate_rect.left + 5, candidate_rect.bottom - 6),
-            (candidate_rect.right - 6, candidate_rect.bottom - 6),
-        ]
+        # Check the center and the rotated corners of the actual car footprint.
+        half_width, half_height = (size / 2 - 2 for size in _base_vehicle_size(car))
+        angle = -getattr(car, "angle", 0)
+        local_corners = (
+            (-half_width, -half_height), (half_width, -half_height),
+            (-half_width, half_height), (half_width, half_height),
+        )
+        points = [candidate_rect.center]
+        for corner in local_corners:
+            rotated = pygame.Vector2(corner).rotate(angle)
+            points.append((round(position.x + rotated.x), round(position.y + rotated.y)))
         for x, y in points:
             if not (0 <= x < mask_w and 0 <= y < mask_h):
                 return False

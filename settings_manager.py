@@ -25,7 +25,7 @@ DEFAULT_SETTINGS = {
 _VOLUME_KEYS = ("music_volume", "npc_volume", "crash_volume", "button_volume", "footsteps_volume")
 _LANGUAGE_COUNT = 6
 _FPS_LIMITS = (0, 30, 60, 75, 90, 120, 144, 165, 240)
-DEFAULT_STATISTICS = {
+DEFAULT_STATISTICS: dict[str, int | str] = {
     "money": 0,
     "earned": 0,
     "spent": 0,
@@ -52,7 +52,9 @@ def _normalize_settings(values):
             settings["music_volume"] = values["volume"]
         raw_keys = values.get("keys")
         if isinstance(raw_keys, dict):
-            settings["keys"] = {**DEFAULT_SETTINGS["keys"], **raw_keys}
+            merged_keys = dict(DEFAULT_SETTINGS["keys"])
+            merged_keys.update(raw_keys)
+            settings["keys"] = merged_keys
         else:
             settings["keys"] = dict(DEFAULT_SETTINGS["keys"])
 

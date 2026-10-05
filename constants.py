@@ -1,5 +1,3 @@
-import pygame
-
 # constants.py
 WIDTH, HEIGHT = 1280, 720  # Keep the window size fixed.
 WORLD_WIDTH, WORLD_HEIGHT = 1280 * 4, 720 * 4  # Full world-map dimensions.
