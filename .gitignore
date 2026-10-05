@@ -225,3 +225,5 @@ __marimo__/
 # Per-user game preferences
 /config.json
 /config.json.tmp
+/statistics.json
+/statistics.json.tmp

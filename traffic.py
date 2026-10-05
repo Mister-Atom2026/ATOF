@@ -248,12 +248,12 @@ class TrafficCar:
                 return True
         return False
 
-    def update(self, col_mask, player_car, other_traffic, _traffic_state):
+    def update(self, col_mask, player_car, other_traffic, _traffic_state, frame_scale=1.0):
         if not self.is_alive:
             return
         if self.is_arrested:
             self.current_speed = self.speed = 0
-            self.arrest_timer -= 1
+            self.arrest_timer -= frame_scale
             if self.arrest_timer <= 0:
                 self.is_arrested = False
             return
@@ -274,25 +274,26 @@ class TrafficCar:
             except (ValueError, IndexError, TypeError):
                 pass
 
-        self.angle += max(-self.rotation_speed, min(self.rotation_speed, angle_diff + steering))
+        turn_step = self.rotation_speed * frame_scale
+        self.angle += max(-turn_step, min(turn_step, angle_diff + steering))
         next_speed = 0.0 if blocked_ahead else desired_speed
         if blocked_ahead:
-            self.stuck_timer += 1
-            if self.stuck_timer > 40 and random.random() < 0.02:
+            self.stuck_timer += frame_scale
+            if self.stuck_timer > 40 and random.random() < 1 - (1 - 0.02) ** frame_scale:
                 self.play_horn(player_car)
         else:
             self.stuck_timer = 0
 
         forward = _forward(self.angle)
-        candidate = self.pos + forward * next_speed
+        candidate = self.pos + forward * next_speed * frame_scale
         obstacles = [*other_traffic, player_car]
         if next_speed > 0 and can_move_to(self, candidate, obstacles, col_mask):
             self.pos = candidate
             self.current_speed = self.speed = next_speed
         elif next_speed > 0:
-            self.current_speed *= 0.6
+            self.current_speed *= 0.6 ** frame_scale
             self.speed = self.current_speed
-            self.stuck_timer += 1
+            self.stuck_timer += frame_scale
         else:
             self.current_speed = self.speed = 0
 
@@ -345,23 +346,24 @@ class PoliceTrafficCar(TrafficCar):
         target = min(candidates, key=lambda car: self.pos.distance_squared_to(car.pos))
         return target if self.pos.distance_to(target.pos) < 260 else None
 
-    def _move_toward(self, target_pos, speed, obstacles, col_mask, turn_rate, steering=0.0):
+    def _move_toward(self, target_pos, speed, obstacles, col_mask, turn_rate, steering=0.0, frame_scale=1.0):
         vector = target_pos - self.pos
         if vector.length_squared() == 0:
             return False
         desired_angle = math.degrees(math.atan2(vector.y, vector.x)) + 180
         difference = (desired_angle - self.angle + 180) % 360 - 180
-        self.angle += max(-turn_rate, min(turn_rate, difference + steering))
-        candidate = self.pos + _forward(self.angle) * speed
+        turn_step = turn_rate * frame_scale
+        self.angle += max(-turn_step, min(turn_step, difference + steering))
+        candidate = self.pos + _forward(self.angle) * speed * frame_scale
         if can_move_to(self, candidate, obstacles, col_mask):
             self.pos = candidate
             return True
         return False
 
-    def update(self, col_mask, player_car, other_traffic, _traffic_state):
+    def update(self, col_mask, player_car, other_traffic, _traffic_state, frame_scale=1.0):
         if self.is_arrested:
             self.current_speed = self.speed = 0
-            self.arrest_timer -= 1
+            self.arrest_timer -= frame_scale
             if self.arrest_timer <= 0:
                 self.is_arrested = False
             return
@@ -389,6 +391,7 @@ class PoliceTrafficCar(TrafficCar):
                     col_mask,
                     3.0,
                     brain_steering,
+                    frame_scale,
                 )
             self.target_car = self._find_target(other_traffic)
             if self.target_car is not None:
@@ -406,7 +409,8 @@ class PoliceTrafficCar(TrafficCar):
                     self.state = "stopping"
                 else:
                     self._move_toward(
-                        target.pos, self.max_speed + 0.5, obstacles, col_mask, 4.5, brain_steering
+                        target.pos, self.max_speed + 0.5, obstacles, col_mask, 4.5, brain_steering,
+                        frame_scale,
                     )
 
         elif self.state == "stopping":

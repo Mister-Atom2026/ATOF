@@ -16,7 +16,7 @@ class HousePlayer:
         except (pygame.error, OSError) as exc:
             print(f"Помилка завантаження characters/atom.png для хати: {exc}")
 
-    def update(self, keys, col_mask):
+    def update(self, keys, col_mask, frame_scale=1.0):
         move = pygame.Vector2(0, 0)
 
         if keys[pygame.K_w] or keys[pygame.K_UP]:
@@ -32,7 +32,7 @@ class HousePlayer:
             return
 
         # Normalize the movement vector.
-        move = move.normalize() * self.speed
+        move = move.normalize() * self.speed * frame_scale
         new_pos = self.pos + move
 
         # --- Collision check ---

@@ -1,7 +1,16 @@
 # ATOF
 Game About Mister Atom
 
-## Version 0.0.3
+## Version 0.0.4 — «Говорящий Бобер!»
+
+This is a major update for ATOF.
+
+- Adds Spanish, German, and French translations for menus, gameplay, phone, settings, and statistics.
+- Adds last-session statistics for balance, time, treasures found, money earned, and money spent; the main menu opens them from **Additional Content**.
+- Adds a resizable window with selectable display resolutions and a configurable FPS limit in the **Video** settings tab. The title-bar square maximizes the window; the FPS limit does not change the monitor's refresh rate.
+- Saves video settings in `config.json` and displays the game version in the window title.
+
+## Previous version: 0.0.3
 
 - Adds separate volume controls for music, NPCs, crashes, buttons, and footsteps, including in the pause menu.
 - Saves audio, language, and key settings in `config.json`, validates saved values, and reads the previous music-volume setting.
@@ -15,6 +24,11 @@ Game About Mister Atom
 - Uses physical letter-key positions for movement and in-game shortcuts on any keyboard layout; arrow keys remain supported.
 - Includes English, Ukrainian, and Russian text for the menus, repair prompt, exit confirmation, and phone banking screen.
 - Plays a soft sound when navigating menus and a click sound when selecting options.
+
+## Languages
+
+The game includes English, Ukrainian, Russian, Spanish, German, and French text.
+The main menu's **Additional Content** page shows statistics from the last session.
 
 ## Menu sound credits
 

@@ -2,10 +2,12 @@ import json
 import math
 import random
 from pathlib import Path
+import sys
 
 import pygame
 
-from constants import WIDTH, HEIGHT
+import constants as _constants
+from constants import WIDTH, HEIGHT, FPS
 
 _menu_sounds: dict[str, pygame.mixer.Sound | None] = {}
 _house_icon: pygame.Surface | None = None
@@ -39,6 +41,84 @@ def configure_audio(settings):
             pygame.mixer.music.set_volume(_audio_settings["music_volume"])
         except pygame.error:
             pass
+
+
+def _sync_display_state(surface, settings):
+    global WIDTH, HEIGHT, FPS
+    width, height = surface.get_size()
+    fps_limit = int(settings.get("fps_limit", 60))
+    settings["video_width"] = width
+    settings["video_height"] = height
+    _constants.WIDTH, _constants.HEIGHT, _constants.FPS = width, height, fps_limit
+    WIDTH, HEIGHT, FPS = width, height, fps_limit
+    for module_name in ("main", "chapters.ch1"):
+        module = sys.modules.get(module_name)
+        if module is not None:
+            module.WIDTH = width
+            module.HEIGHT = height
+            module.FPS = fps_limit
+    return surface
+
+
+def apply_video_settings(settings):
+    """Apply saved window settings and refresh modules that imported constants."""
+    width = int(settings.get("video_width", 1280))
+    height = int(settings.get("video_height", 720))
+    try:
+        surface = pygame.display.set_mode((width, height), pygame.RESIZABLE)
+    except pygame.error:
+        settings.update({"video_width": 1280, "video_height": 720})
+        surface = pygame.display.set_mode((1280, 720), pygame.RESIZABLE)
+    return _sync_display_state(surface, settings)
+
+
+def apply_window_resize(size, settings):
+    """Keep the game surface and imported dimensions in sync with the OS window."""
+    width = max(800, min(7680, int(size[0])))
+    height = max(600, min(4320, int(size[1])))
+    surface = pygame.display.get_surface()
+    if surface is None or surface.get_size() != (width, height):
+        try:
+            surface = pygame.display.set_mode((width, height), pygame.RESIZABLE)
+        except pygame.error:
+            surface = pygame.display.get_surface()
+    return _sync_display_state(surface, settings)
+
+
+def _available_resolutions(settings):
+    resolutions = set()
+    try:
+        modes = pygame.display.list_modes(0, pygame.FULLSCREEN)
+    except pygame.error:
+        modes = []
+    if isinstance(modes, (list, tuple)):
+        resolutions.update(tuple(map(int, size)) for size in modes if len(size) == 2)
+
+    desktop_sizes = []
+    try:
+        desktop_sizes = pygame.display.get_desktop_sizes()
+        resolutions.update(tuple(map(int, size)) for size in desktop_sizes if len(size) == 2)
+    except (AttributeError, pygame.error):
+        pass
+
+    max_width = max((size[0] for size in desktop_sizes), default=1920)
+    max_height = max((size[1] for size in desktop_sizes), default=1080)
+    standard_modes = (
+        (800, 600), (1024, 768), (1280, 720), (1280, 800),
+        (1366, 768), (1600, 900), (1920, 1080), (2560, 1440),
+        (3840, 2160),
+    )
+    resolutions.update(
+        size for size in standard_modes
+        if size[0] <= max_width and size[1] <= max_height
+    )
+
+    resolutions.add((int(settings.get("video_width", 1280)), int(settings.get("video_height", 720))))
+    resolutions = {
+        size for size in resolutions
+        if 800 <= size[0] <= 7680 and 600 <= size[1] <= 4320
+    }
+    return sorted(resolutions, key=lambda size: (size[0] * size[1], size[0])) or [(1280, 720)]
 
 
 def play_menu_sound(kind):
@@ -91,7 +171,7 @@ class Player:
         except (pygame.error, OSError) as exc:
             print(f"Не вдалося завантажити characters/atom.png: {exc}")
 
-    def update(self, keys, col_mask, car_obj=None, npc_cars=None):
+    def update(self, keys, col_mask, car_obj=None, npc_cars=None, frame_scale=1.0):
         move = pygame.Vector2(0, 0)
 
         if keys[pygame.K_w] or keys[pygame.K_UP]:
@@ -127,7 +207,7 @@ class Player:
             elif move.x == -1:
                 self.angle = 90
 
-            move = move.normalize() * self.speed
+            move = move.normalize() * self.speed * frame_scale
             new_pos = self.pos + move
 
             can_move = True
@@ -218,7 +298,7 @@ class Car:
             self.image = pygame.Surface((96, 48))
             self.image.fill((0, 0, 255))
 
-    def update(self, keys, col_mask, active, npc_cars=None):
+    def update(self, keys, col_mask, active, npc_cars=None, frame_scale=1.0):
         # A broken car does not respond to acceleration.
         if self.is_broken:
             active = False
@@ -226,39 +306,40 @@ class Car:
 
         if not active:
             if abs(self.speed) > 0.1:
-                self.speed *= 0.95
+                self.speed *= 0.95 ** frame_scale
             else:
                 self.speed = 0
         else:
             # 1. Speed control.
-            current_accel = self.accel
+            current_accel = self.accel * frame_scale
             if abs(self.speed) > 10: current_accel = self.accel / 3
+            if abs(self.speed) > 10: current_accel *= frame_scale
 
             if keys[pygame.K_w] or keys[pygame.K_UP]:
                 if self.speed < 0:
-                    self.speed += self.brake_force
+                    self.speed += self.brake_force * frame_scale
                 else:
                     self.speed = min(self.speed + current_accel, self.max_speed)
             elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
                 if self.speed > 0:
-                    self.speed -= self.brake_force
+                    self.speed -= self.brake_force * frame_scale
                 else:
                     self.speed = max(self.speed - current_accel, -self.max_speed / 2)
             else:
-                self.speed *= 0.97
+                self.speed *= 0.97 ** frame_scale
 
             # 2. Steering.
             if abs(self.speed) > 0.5:
                 steer = 5.0 - (min(abs(self.speed) / 2, 1.0))
                 direction = 1 if self.speed > 0 else -1
-                if keys[pygame.K_a] or keys[pygame.K_LEFT]: self.angle += steer * direction
-                if keys[pygame.K_d] or keys[pygame.K_RIGHT]: self.angle -= steer * direction
+                if keys[pygame.K_a] or keys[pygame.K_LEFT]: self.angle += steer * direction * frame_scale
+                if keys[pygame.K_d] or keys[pygame.K_RIGHT]: self.angle -= steer * direction * frame_scale
 
         # 3. Movement and collision.
         velocity = pygame.Vector2(self.speed, 0).rotate(-self.angle + 180)
-        next_pos = self.pos + velocity
+        next_pos = self.pos + velocity * frame_scale
         # 1. Update existing smoke particles, even while the car is stationary.
-        self.update_smoke_particles()  # <-- This method is defined below.
+        self.update_smoke_particles(frame_scale)
 
         # 2. Create new particles when the car is damaged.
         # Emit smoke only when health is below 50%.
@@ -271,7 +352,7 @@ class Car:
                 spawn_chance = 2  # Very frequently.
 
             # Add randomness so smoke does not look continuous.
-            if pygame.time.get_ticks() % spawn_chance == 0:
+            if random.random() < min(1.0, frame_scale / spawn_chance):
                 self.create_smoke_particle()  # <-- This method is defined below.
 
         def check_at_pos(test_pos):
@@ -322,7 +403,7 @@ class Car:
 
             self.speed = -self.speed * 0.6
             if velocity.length() > 0:
-                self.pos -= velocity.normalize() * 5
+                self.pos -= velocity.normalize() * 5 * frame_scale
         else:
             old_pos = pygame.Vector2(self.pos.x, self.pos.y)
             self.pos = next_pos
@@ -354,13 +435,13 @@ class Car:
             random.randint(40, 70)  # 5: lifetime
         ]
         self.smoke_particles.append(particle)
-    def update_smoke_particles(self):
+    def update_smoke_particles(self, frame_scale=1.0):
         """Update all existing smoke particles."""
         for p in self.smoke_particles[:]:
-            p[1] -= p[4]  # Move the particle upward by changing y.
-            p[2] += 0.3  # Increase the radius as the particle expands.
-            p[3] -= 3  # Reduce opacity (alpha).
-            p[5] -= 1  # Decrease the remaining lifetime.
+            p[1] -= p[4] * frame_scale  # Move the particle upward by changing y.
+            p[2] += 0.3 * frame_scale  # Increase the radius as the particle expands.
+            p[3] -= 3 * frame_scale  # Reduce opacity (alpha).
+            p[5] -= frame_scale  # Decrease the remaining lifetime.
 
             # Remove particles when they fade out or expire.
             if p[3] <= 0 or p[5] <= 0:
@@ -379,7 +460,7 @@ class Car:
         screen.blit(rotated, rect)
 
     def draw_speedometer(self, screen):
-        center = (self.ui_x, self.ui_y)
+        center = (screen.get_width() - 330, screen.get_height() - 120)
         r = self.ui_radius
 
         # Draw the health bar above the speedometer.
@@ -513,8 +594,11 @@ def stats_dialog(screen, font, small_font, t, stats=None, controls=None):
             t.get("stats_treasures", "Treasures: {treasures}").format(
                 treasures=stats.get("treasures", 0)
             ),
-            t.get("stats_traffic", "Traffic: {traffic}").format(
-                traffic=stats.get("traffic", 0), police=stats.get("police", 0)
+            t.get("stats_earned", "Total earned: {amount} UAH").format(
+                amount=stats.get("earned", 0)
+            ),
+            t.get("stats_spent", "Total spent: {amount} UAH").format(
+                amount=stats.get("spent", 0)
             ),
         ]
         for index, line in enumerate(lines):
@@ -545,7 +629,7 @@ def stats_dialog(screen, font, small_font, t, stats=None, controls=None):
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and back_rect.collidepoint(event.pos):
                 play_menu_sound("click")
                 return "BACK"
-        clock.tick(60)
+        clock.tick(FPS)
 
 
 def pause_menu(screen, font, small_font, settings, trans_dict, languages, controls=None, stats=None, on_change=None):
@@ -562,7 +646,7 @@ def pause_menu(screen, font, small_font, settings, trans_dict, languages, contro
             return "EXIT" if result == "EXIT" else None
         if index == 2:
             result = settings_sub_menu(screen, font, settings, trans_dict, languages, controls, on_change)
-            return "EXIT" if result == "EXIT" else None
+            return result if result in ("EXIT", "VIDEO_CHANGED") else None
         elif index == 3 and confirm_dialog(screen, font, small_font, translations, controls):
             return "MENU"
         return None
@@ -616,7 +700,7 @@ def pause_menu(screen, font, small_font, settings, trans_dict, languages, contro
             last_hovered = None
 
         pygame.display.flip()
-        clock.tick(60)
+        clock.tick(FPS)
 
 
 def _audio_settings_menu(screen, font, settings, trans_dict, languages, controls=None, on_change=None):
@@ -750,7 +834,133 @@ def _audio_settings_menu(screen, font, settings, trans_dict, languages, controls
         )
 
         pygame.display.flip()
-        clock.tick(60)
+        clock.tick(FPS)
+
+
+def _video_settings_menu(screen, font, settings, trans_dict, languages, controls=None, on_change=None):
+    fps_values = (0, 30, 60, 75, 90, 120, 144, 165, 240)
+    resolutions = _available_resolutions(settings)
+    selected_index = 1
+    changed = False
+    mouse_control_active = False
+    last_hovered = None
+    clock = pygame.time.Clock()
+    hint_font = pygame.font.Font(None, 20)
+
+    def adjust(direction):
+        nonlocal changed
+        if selected_index == 1:
+            current = (settings["video_width"], settings["video_height"])
+            try:
+                current_index = resolutions.index(current)
+            except ValueError:
+                current_index = 0
+            settings["video_width"], settings["video_height"] = resolutions[
+                (current_index + direction) % len(resolutions)
+            ]
+        elif selected_index == 2:
+            current_index = fps_values.index(settings.get("fps_limit", 60))
+            settings["fps_limit"] = fps_values[(current_index + direction) % len(fps_values)]
+        else:
+            return
+        changed = True
+        if on_change is not None:
+            on_change(settings)
+        play_menu_sound("click")
+
+    while True:
+        language = languages[settings["lang_idx"]]
+        text = trans_dict.get(language, {})
+        screen_width, screen_height = screen.get_size()
+        row_step = min(112, max(78, (screen_height - 180) // 4))
+        row_height = min(64, row_step - 8)
+        first_y = max(62, (screen_height - (row_step * 3 + row_height)) // 2)
+        row_rects = [
+            pygame.Rect(40, first_y + index * row_step, screen_width - 80, row_height)
+            for index in range(4)
+        ]
+        back_rect = pygame.Rect(screen_width // 2 - 110, screen_height - 90, 220, 48)
+        mouse_pos = pygame.mouse.get_pos()
+
+        for event in pygame.event.get():
+            if controls is not None:
+                controls.process_event(event)
+            if event.type == pygame.MOUSEMOTION:
+                mouse_control_active = True
+            elif event.type == pygame.KEYDOWN:
+                mouse_control_active = False
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_control_active = True
+            if event.type == pygame.QUIT:
+                return "EXIT"
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    play_menu_sound("click")
+                    return "VIDEO_CHANGED" if changed else "BACK"
+                if event.key == pygame.K_UP:
+                    selected_index = (selected_index - 1) % 4
+                    play_menu_sound("hover")
+                elif event.key == pygame.K_DOWN:
+                    selected_index = (selected_index + 1) % 4
+                    play_menu_sound("hover")
+                elif event.key in (pygame.K_LEFT, pygame.K_RIGHT) and 0 < selected_index < 3:
+                    adjust(-1 if event.key == pygame.K_LEFT else 1)
+                elif event.key == pygame.K_RETURN:
+                    if selected_index == 3:
+                        return "VIDEO_CHANGED" if changed else "BACK"
+                    adjust(1)
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if back_rect.collidepoint(event.pos):
+                    play_menu_sound("click")
+                    return "VIDEO_CHANGED" if changed else "BACK"
+                for index, rect in enumerate(row_rects):
+                    if rect.collidepoint(event.pos):
+                        selected_index = index
+                        if index == 3:
+                            return "VIDEO_CHANGED" if changed else "BACK"
+                        adjust(1)
+                        break
+
+        screen.fill((20, 20, 20))
+        page_title = font.render(text.get("video", "Video"), True, (220, 220, 220))
+        screen.blit(page_title, page_title.get_rect(center=(screen_width // 2, 38)))
+        values = (
+            text.get("window_mode_value", "Resizable"),
+            f'{settings["video_width"]} × {settings["video_height"]}',
+            text.get("fps_unlimited", "Unlimited")
+            if settings.get("fps_limit", 60) == 0
+            else f'{settings.get("fps_limit", 60)} FPS',
+        )
+        labels = (
+            text.get("window_mode", "Window mode"),
+            text.get("resolution", "Resolution"),
+            text.get("fps_limit", "Frame rate limit"),
+            text.get("back", "Back"),
+        )
+        for index, rect in enumerate(row_rects):
+            hovered = mouse_control_active and rect.collidepoint(mouse_pos)
+            if hovered and last_hovered != index:
+                play_menu_sound("hover")
+            if hovered:
+                selected_index = index
+                last_hovered = index
+            color = (65, 50, 40) if index == selected_index else (38, 38, 38)
+            pygame.draw.rect(screen, color, rect, border_radius=8)
+            label = font.render(labels[index], True, (255, 255, 255))
+            screen.blit(label, (rect.x + 18, rect.centery - label.get_height() // 2))
+            if index < 3:
+                value = font.render(values[index], True, (255, 255, 255))
+                screen.blit(value, value.get_rect(midright=(rect.right - 18, rect.centery)))
+        if not any(rect.collidepoint(mouse_pos) for rect in row_rects):
+            last_hovered = None
+
+        pygame.draw.rect(screen, (70, 70, 70), back_rect, border_radius=8)
+        rendered_back = font.render(text.get("back", "Back"), True, (255, 255, 255))
+        screen.blit(rendered_back, rendered_back.get_rect(center=back_rect.center))
+        hint = hint_font.render(text.get("video_hint", "FPS is a frame limit, not monitor Hz."), True, (170, 170, 170))
+        screen.blit(hint, hint.get_rect(center=(screen_width // 2, screen_height - 20)))
+        pygame.display.flip()
+        clock.tick(FPS)
 
 
 def settings_sub_menu(screen, font, settings, trans_dict, languages, controls=None, on_change=None):
@@ -771,6 +981,7 @@ def settings_sub_menu(screen, font, settings, trans_dict, languages, controls=No
         options = [
             text.get("volume", "Volume"),
             f'{text.get("lang", "Language")}: < {language} >',
+            text.get("video", "Video"),
             text.get("back", "Back"),
         ]
         screen.fill((20, 20, 20))
@@ -818,6 +1029,12 @@ def settings_sub_menu(screen, font, settings, trans_dict, languages, controls=No
                     elif selected_index == 1:
                         settings["lang_idx"] = (settings["lang_idx"] + 1) % len(languages)
                         apply_change()
+                    elif selected_index == 2:
+                        result = _video_settings_menu(
+                            screen, font, settings, trans_dict, languages, controls, on_change
+                        )
+                        if result in ("EXIT", "VIDEO_CHANGED"):
+                            return result
                     else:
                         play_menu_sound("click")
                         return "BACK"
@@ -836,6 +1053,12 @@ def settings_sub_menu(screen, font, settings, trans_dict, languages, controls=No
                     elif index == 1:
                         settings["lang_idx"] = (settings["lang_idx"] + 1) % len(languages)
                         apply_change()
+                    elif index == 2:
+                        result = _video_settings_menu(
+                            screen, font, settings, trans_dict, languages, controls, on_change
+                        )
+                        if result in ("EXIT", "VIDEO_CHANGED"):
+                            return result
                     else:
                         play_menu_sound("click")
                         return "BACK"
@@ -855,7 +1078,7 @@ def settings_sub_menu(screen, font, settings, trans_dict, languages, controls=No
             last_hovered = None
 
         pygame.display.flip()
-        clock.tick(60)
+        clock.tick(FPS)
 
 
 def confirm_dialog(screen, font, small_font, t, controls=None):
@@ -941,7 +1164,7 @@ def confirm_dialog(screen, font, small_font, t, controls=None):
                     play_menu_sound("click")
                     return False
 
-        clock.tick(30)
+        clock.tick(FPS)
 def draw_debug_coords(screen, target, mode_label):
     """Draw the target's world coordinates for debugging."""
     if target is None:
@@ -1039,7 +1262,7 @@ def full_screen_map(screen, map_img, target, world_w, world_h, house_pos=(7738, 
         pygame.draw.circle(screen, (255, 255, 255), (px, py), int(8 * map_zoom), 2)
 
         pygame.display.flip()
-        clock.tick(60)
+        clock.tick(FPS)
 
 def draw_city_hints(screen, small_font, atom, car, t):
     """Draw interaction hints near the car and house in the city."""
@@ -1248,6 +1471,21 @@ PHONE_TRANSLATIONS = {
         "bank": "Банк Triple1", "history": "Последние транзакции:",
         "start": "Стартовый баланс", "guard": "У охранника", "bridge": "У моста",
         "repair": "Ремонт", "nightstand": "Тумбочка", "sofa": "На диване",
+    },
+    "Español": {
+        "bank": "Banco Triple1", "history": "Transacciones recientes:",
+        "start": "Saldo inicial", "guard": "Junto al guardia", "bridge": "Junto al puente",
+        "repair": "Reparación", "nightstand": "Mesita de noche", "sofa": "En el sofá",
+    },
+    "Deutsch": {
+        "bank": "Triple1 Bank", "history": "Letzte Transaktionen:",
+        "start": "Anfangsguthaben", "guard": "Beim Wachmann", "bridge": "Bei der Brücke",
+        "repair": "Reparatur", "nightstand": "Nachttisch", "sofa": "Auf dem Sofa",
+    },
+    "Français": {
+        "bank": "Banque Triple1", "history": "Transactions récentes :",
+        "start": "Solde initial", "guard": "Près du garde", "bridge": "Près du pont",
+        "repair": "Réparation", "nightstand": "Table de chevet", "sofa": "Sur le canapé",
     },
 }
 

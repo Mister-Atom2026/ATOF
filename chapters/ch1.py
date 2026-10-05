@@ -1,10 +1,11 @@
 import os
+import time
 import pygame
 import engine
 from engine import Car, Player
 from house import HousePlayer
 from controls import KeyboardState
-from settings_manager import save_settings
+from settings_manager import save_settings, save_statistics
 import traffic  # Import the traffic module.
 from constants import *
 
@@ -25,6 +26,8 @@ def run(screen, settings):
     phone_click_sfx.set_volume(0.4)  # Keep the sound volume comfortable.
     current_app = 0  # 0 is the phone menu; 1–9 are apps.
     money = 100  # Starting cash.
+    total_earned = 0
+    total_spent = 0
     money_history = [("+100", "start")]
     # Keep track of collected treasures so they cannot be collected repeatedly.
     collected_treasures = set()
@@ -80,7 +83,7 @@ def run(screen, settings):
     foot_chan = pygame.mixer.Channel(5)
     atom_img = pygame.image.load('characters/atom.png').convert_alpha()
     clock = pygame.time.Clock()
-    languages = ["English", "Українська", "Русский"]
+    languages = ["English", "Українська", "Русский", "Español", "Deutsch", "Français"]
 
     MAP_SCALE = 4.0
     CURR_WORLD_W, CURR_WORLD_H = int(WORLD_WIDTH * MAP_SCALE), int(WORLD_HEIGHT * MAP_SCALE)
@@ -135,7 +138,7 @@ def run(screen, settings):
             "confirm_w": "Progress in this session will be lost.", "yes": "YES", "no": "NO",
             "stats_title": "Session statistics", "stats_money": "Money: {money} UAH",
             "stats_time": "Time: {time}", "stats_treasures": "Treasures found: {treasures}",
-            "stats_traffic": "Traffic: {traffic} (police: {police})", "stats_hint": "Press Esc or Enter to return"
+            "stats_earned": "Total earned: {amount} UAH", "stats_spent": "Total spent: {amount} UAH", "stats_hint": "Press Esc or Enter to return"
         },
         "Українська": {
             "hint": "[А] Сісти в авто", "enter": "[У] Увійти в дім", "exit": "[У] Вийти з дому",
@@ -149,7 +152,7 @@ def run(screen, settings):
             "confirm_w": "Прогрес цієї сесії буде втрачено.", "yes": "ТАК", "no": "НІ",
             "stats_title": "Статистика сесії", "stats_money": "Гроші: {money} UAH",
             "stats_time": "Час: {time}", "stats_treasures": "Знайдено скарбів: {treasures}",
-            "stats_traffic": "Трафік: {traffic} (поліції: {police})", "stats_hint": "Натисніть Esc або Enter, щоб повернутися"
+            "stats_earned": "Всього зароблено: {amount} UAH", "stats_spent": "Всього витрачено: {amount} UAH", "stats_hint": "Натисніть Esc або Enter, щоб повернутися"
         },
         "Русский": {
             "hint": "[А] Сесть в авто", "enter": "[У] Войти в дом", "exit": "[У] Выйти из дома",
@@ -163,36 +166,104 @@ def run(screen, settings):
             "confirm_w": "Прогресс этой сессии будет потерян.", "yes": "ДА", "no": "НЕТ",
             "stats_title": "Статистика сессии", "stats_money": "Деньги: {money} UAH",
             "stats_time": "Время: {time}", "stats_treasures": "Найдено сокровищ: {treasures}",
-            "stats_traffic": "Трафик: {traffic} (полиции: {police})", "stats_hint": "Нажмите Esc или Enter, чтобы вернуться"
+            "stats_earned": "Всего заработано: {amount} UAH", "stats_spent": "Всего потрачено: {amount} UAH", "stats_hint": "Нажмите Esc или Enter, чтобы вернуться"
+        },
+        "Español": {
+            "hint": "[F] Subir al coche", "enter": "[E] Entrar en casa", "exit": "[E] Salir de casa",
+            "resume": "Reanudar", "stats": "Estadísticas", "settings": "Ajustes", "menu": "Volver al menú",
+            "vol": "Volumen", "lang": "Idioma", "back": "Atrás",
+            "volume": "Volumen", "music_vol": "Volumen de la música", "npc_vol": "Volumen de los NPC",
+            "crash_vol": "Volumen de choques", "button_vol": "Volumen de botones",
+            "footsteps_vol": "Volumen de pasos",
+            "audio_hint": "↑/↓ elegir sonido; ←/→ ajustar volumen; Esc para volver",
+            "repair": "Mantén [R] para reparar", "confirm_q": "¿Salir del juego?",
+            "confirm_w": "Se perderá el progreso de esta sesión.", "yes": "SÍ", "no": "NO",
+            "stats_title": "Estadísticas de la sesión", "stats_money": "Dinero: {money} UAH",
+            "stats_time": "Tiempo: {time}", "stats_treasures": "Tesoros encontrados: {treasures}",
+            "stats_earned": "Total ganado: {amount} UAH", "stats_spent": "Total gastado: {amount} UAH",
+            "stats_hint": "Pulsa Esc o Enter para volver",
+        },
+        "Deutsch": {
+            "hint": "[F] Ins Auto steigen", "enter": "[E] Haus betreten", "exit": "[E] Haus verlassen",
+            "resume": "Fortsetzen", "stats": "Statistik", "settings": "Einstellungen", "menu": "Zum Hauptmenü",
+            "vol": "Lautstärke", "lang": "Sprache", "back": "Zurück",
+            "volume": "Lautstärke", "music_vol": "Musiklautstärke", "npc_vol": "NPC-Lautstärke",
+            "crash_vol": "Lautstärke für Unfälle", "button_vol": "Tastenlautstärke",
+            "footsteps_vol": "Schrittlautstärke",
+            "audio_hint": "↑/↓ Ton wählen; ←/→ Lautstärke ändern; Esc zurück",
+            "repair": "[R] zum Reparieren halten", "confirm_q": "Spiel verlassen?",
+            "confirm_w": "Der Fortschritt dieser Sitzung geht verloren.", "yes": "JA", "no": "NEIN",
+            "stats_title": "Sitzungsstatistik", "stats_money": "Geld: {money} UAH",
+            "stats_time": "Zeit: {time}", "stats_treasures": "Gefundene Schätze: {treasures}",
+            "stats_earned": "Insgesamt verdient: {amount} UAH", "stats_spent": "Insgesamt ausgegeben: {amount} UAH",
+            "stats_hint": "Esc oder Enter drücken, um zurückzukehren",
+        },
+        "Français": {
+            "hint": "[F] Monter en voiture", "enter": "[E] Entrer dans la maison", "exit": "[E] Sortir de la maison",
+            "resume": "Reprendre", "stats": "Statistiques", "settings": "Paramètres", "menu": "Menu principal",
+            "vol": "Volume", "lang": "Langue", "back": "Retour",
+            "volume": "Volume", "music_vol": "Volume de la musique", "npc_vol": "Volume des PNJ",
+            "crash_vol": "Volume des collisions", "button_vol": "Volume des boutons",
+            "footsteps_vol": "Volume des pas",
+            "audio_hint": "↑/↓ choisir le son ; ←/→ régler le volume ; Échap pour revenir",
+            "repair": "Maintenir [R] pour réparer", "confirm_q": "Quitter la partie ?",
+            "confirm_w": "La progression de cette session sera perdue.", "yes": "OUI", "no": "NON",
+            "stats_title": "Statistiques de la session", "stats_money": "Argent : {money} UAH",
+            "stats_time": "Temps : {time}", "stats_treasures": "Trésors trouvés : {treasures}",
+            "stats_earned": "Total gagné : {amount} UAH", "stats_spent": "Total dépensé : {amount} UAH",
+            "stats_hint": "Appuyez sur Échap ou Entrée pour revenir",
         }
     }
 
+    def save_last_session_stats():
+        save_statistics({
+            "money": money,
+            "earned": total_earned,
+            "spent": total_spent,
+            "time": f"{int(game_time / 60):02d}:{int(game_time % 60):02d}",
+            "treasures": len(collected_treasures),
+        })
+
     running = True
+    last_frame_time = time.perf_counter()
     while running:
+        clock.tick(FPS)
+        now = time.perf_counter()
+        frame_scale = (now - last_frame_time) * 60
+        last_frame_time = now
+        frame_scale = max(0.05, min(frame_scale, 3.0))
         target = car if in_car else atom
         off_x = off_y = 0
-        traffic_timer += 1 / 60  # Advance the timer at 60 FPS.
+        traffic_timer += frame_scale / 60
         if traffic_timer > 5:  # Switch the traffic-light phase every five seconds.
             traffic_state = "GREEN" if traffic_state == "RED" else "RED"
             traffic_timer = 0
-        phone_y_offset += (target_y - phone_y_offset) / 6.0
+        phone_y_offset += (target_y - phone_y_offset) * (1 - (5 / 6) ** frame_scale)
         # Update the phone slide animation before drawing it.
         target_y = 0.0 if phone_active else 450.0
         current_lang_name = languages[settings['lang_idx']]
         t = translations.get(current_lang_name, translations["English"])
         keys = keyboard
         # Advance game time by one second per real second at 60 FPS.
-        game_time += 1 / 60
+        game_time += frame_scale / 60
         if game_time >= 1440: game_time = 0
 
-        frame_count += 1
-        if frame_count % 60 == 0:
+        frame_count += frame_scale
+        if frame_count >= 60:
             traffic.analyze_traffic_jams(npc_cars)
+            frame_count %= 60
 
         # 1. Process events.
         for event in pygame.event.get():
             keyboard.process_event(event)
-            if event.type == pygame.QUIT: return "EXIT"
+            if event.type == pygame.VIDEORESIZE:
+                screen = engine.apply_window_resize(event.size, settings)
+                full_map_img = pygame.transform.scale(original_nav_map, (WIDTH, HEIGHT))
+                night_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+                save_settings(settings)
+            if event.type == pygame.QUIT:
+                save_last_session_stats()
+                return "EXIT"
             if event.type == pygame.KEYDOWN:
                 # --- Phone controls ---
                 if keyboard.matches(event, pygame.K_m):
@@ -227,15 +298,23 @@ def run(screen, settings):
                         screen, game_font, small_font, settings, translations, languages, keyboard,
                         {
                             "money": money,
+                            "earned": total_earned,
+                            "spent": total_spent,
                             "time": f"{int(game_time / 60):02d}:{int(game_time % 60):02d}",
                             "treasures": len(collected_treasures),
-                            "traffic": len(npc_cars),
-                            "police": sum(1 for npc in npc_cars if npc.is_police),
                         },
                         on_change=save_settings,
                     )
                     apply_audio_settings()
-                    if res in ["MENU", "EXIT"]: return res
+                    if res == "VIDEO_CHANGED":
+                        screen = engine.apply_video_settings(settings)
+                        full_map_img = pygame.transform.scale(original_nav_map, (WIDTH, HEIGHT))
+                        night_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+                    clock.tick(0)
+                    last_frame_time = time.perf_counter()
+                    if res in ["MENU", "EXIT"]:
+                        save_last_session_stats()
+                        return res
                 if keyboard.matches(event, pygame.K_f) and game_state == "CITY":
                     old_in_car = in_car  # Save the previous state before toggling.
                     in_car = engine.handle_car_logic(atom, car, in_car)
@@ -265,34 +344,37 @@ def run(screen, settings):
             # 1. Update traffic and police.
             for npc in npc_cars:
                 # Pass the arguments used by traffic.py.
-                npc.update(col_mask, car, npc_cars, traffic_state)
+                npc.update(col_mask, car, npc_cars, traffic_state, frame_scale)
             if in_car:
-                car.update(keys, col_mask, True, npc_cars)
+                car.update(keys, col_mask, True, npc_cars, frame_scale)
                 atom.pos = pygame.Vector2(car.pos)
             else:
-                atom.update(keys, col_mask, car, npc_cars)
-                car.update(keys, col_mask, False, npc_cars)
+                atom.update(keys, col_mask, car, npc_cars, frame_scale)
+                car.update(keys, col_mask, False, npc_cars, frame_scale)
 
                 # Treasures and secrets.
                 if "guard" not in collected_treasures and atom.pos.distance_to(pygame.Vector2(8909, 1139)) < 60:
                     money += 100
+                    total_earned += 100
                     money_history.append(("+100", "guard"))
                     collected_treasures.add("guard")
 
                 if "exit" not in collected_treasures and atom.pos.distance_to(pygame.Vector2(4549, 5245)) < 60:
                     money += 111
+                    total_earned += 111
                     money_history.append(("+111", "bridge"))
                     collected_treasures.add("exit")
 
                 # Repair logic.
                 if car.is_broken and atom.pos.distance_to(car.pos) < 100:
                     if money >= 50 and keys[pygame.K_r]:
-                        car.repair_progress += 1
+                        car.repair_progress += frame_scale
                         if car.repair_progress >= 180:  # Three seconds at 60 FPS.
                             car.health = car.max_health
                             car.is_broken = False
                             car.repair_progress = 0
                             money -= 50
+                            total_spent += 50
                             money_history.append(("-50", "repair"))
                     else:
                         car.repair_progress = 0
@@ -302,16 +384,18 @@ def run(screen, settings):
             off_x = max(-(CURR_WORLD_W - WIDTH), min(0, WIDTH // 2 - target.pos.x))
             off_y = max(-(CURR_WORLD_H - HEIGHT), min(0, HEIGHT // 2 - target.pos.y))
         else:
-            atom_h.update(keys, house_collision)
+            atom_h.update(keys, house_collision, frame_scale)
             if "nightstand" not in collected_treasures:
                 if atom_h.pos.distance_to(pygame.Vector2(206, 199)) < 40:
                     money += 200
+                    total_earned += 200
                     money_history.append(("+200", "nightstand"))
                     collected_treasures.add("nightstand")
 
             if "sofa" not in collected_treasures:
                 if atom_h.pos.distance_to(pygame.Vector2(723, 128)) < 40:
                     money += 300
+                    total_earned += 300
                     money_history.append(("+300", "sofa"))
                     collected_treasures.add("sofa")
             engine.handle_surface_footsteps(keys, in_car, game_state, atom_h.pos, None, step_sounds, foot_chan)
@@ -369,6 +453,6 @@ def run(screen, settings):
                                      current_lang_name)
 
         pygame.display.flip()
-        clock.tick(FPS)
 
+    save_last_session_stats()
     return "EXIT"
