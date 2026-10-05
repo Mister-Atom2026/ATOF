@@ -42,7 +42,8 @@ class KeyboardState:
         except (IndexError, TypeError):
             return False
 
-    def matches(self, event, key):
+    @staticmethod
+    def matches(event, key):
         """Match a KEYDOWN to its US-layout key position or its reported key."""
         if getattr(event, "key", None) == key:
             return True

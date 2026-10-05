@@ -1,231 +1,228 @@
 import pygame
-import sys
 
-# Спроба імпорту глави
+# Try to import the game chapter.
 try:
     import chapters.ch1 as ch1
 except ImportError:
     ch1 = None
 
-# Ініціалізація
+from settings_manager import load_settings, save_settings
+
 pygame.init()
 pygame.mixer.init()
 import engine
-VERSION = "0.0.2"
 
-# Налаштування екрану
+VERSION = "0.0.2"
 WIDTH, HEIGHT = 1280, 720
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption(f"ATOF v{VERSION}")
 
-# Кольори та шрифти
 COLOR_BG = (0, 0, 0)
 COLOR_WHITE = (255, 255, 255)
 COLOR_ORANGE = (212, 91, 18)
 COLOR_BROWN = (60, 40, 30)
-
 font_path = "static.ttf"
 try:
     logo_font = pygame.font.Font(font_path, 150)
     menu_font = pygame.font.Font(font_path, 70)
-except:
+    settings_font = pygame.font.Font(font_path, 42)
+except (pygame.error, OSError):
     logo_font = pygame.font.SysFont("Arial", 150)
     menu_font = pygame.font.SysFont("Arial", 70)
+    settings_font = pygame.font.SysFont("Arial", 42)
 
-# Глобальні змінні
-current_screen = "MAIN"
-volume = 20
-languages = ["English", "Українська", "Русский"]
-lang_idx = 1
+LANGUAGES = ["English", "Українська", "Русский"]
+APP_SETTINGS = load_settings()
+engine.configure_audio(APP_SETTINGS)
 
-# Музика
 try:
     pygame.mixer.music.load("6729032246362112.wav")
-    pygame.mixer.music.set_volume(volume / 100)
     pygame.mixer.music.play(-1)
-except:
+    engine.configure_audio(APP_SETTINGS)
+except (pygame.error, OSError):
     print("Файл музики не знайдено!")
 
 translations = {
-        "English": {
-            "play": "Play",
-            "settings": "Settings",
-            "exit": "Exit",
-            "hint": "[F] Enter Car",
-            "enter": "[E] Enter House",
-            "exit_h": "[E] Exit House",
-            "resume": "Resume",
-            "stats": "Stats",
-            "menu": "To Menu",
-            "vol": "Volume",
-            "lang": "Language",
-            "back": "BACK"
-        },
-        "Українська": {
-            "play": "Грати",
-            "settings": "Налаштування",
-            "exit": "Вихід",
-            "hint": "[F] Сісти в авто",
-            "enter": "[E] Увійти в дім",
-            "exit_h": "[E] Вийти з дому",
-            "resume": "Продовжити",
-            "stats": "Статистика",
-            "menu": "В меню",
-            "vol": "Гучність",
-            "lang": "Мова",
-            "back": "Назад"
-        },
-        "Русский": {
-            "play": "Играть",
-            "settings": "Настройки",
-            "exit": "Выход",
-            "hint": "[F] Сесть в авто",
-            "enter": "[E] Войти в дом",
-            "exit_h": "[E] Выйти из дома",
-            "resume": "Продолжить",
-            "stats": "Статистика",
-            "menu": "В меню",
-            "vol": "Громкость",
-            "lang": "Язык",
-            "back": "Назад"
-        }
-    }
+    "English": {
+        "play": "Play",
+        "settings": "Settings",
+        "exit": "Exit",
+        "hint": "[F] Enter Car",
+        "enter": "[E] Enter House",
+        "exit_h": "[E] Exit House",
+        "resume": "Resume",
+        "stats": "Stats",
+        "menu": "To Menu",
+        "music_vol": "Music Volume",
+        "npc_vol": "NPC Volume",
+        "crash_vol": "Crash Volume",
+        "button_vol": "Button Volume",
+        "footsteps_vol": "Footsteps Volume",
+        "volume": "Volume",
+        "audio_hint": "Up/Down selects a sound; Left/Right adjusts it; Esc returns",
+        "lang": "Language",
+        "back": "Back",
+        "confirm_q": "Exit the game?",
+        "confirm_w": "The game will close.",
+        "yes": "YES",
+        "no": "NO",
+    },
+    "Українська": {
+        "play": "Грати",
+        "settings": "Налаштування",
+        "exit": "Вихід",
+        "hint": "[F] Сісти в авто",
+        "enter": "[E] Увійти в дім",
+        "exit_h": "[E] Вийти з дому",
+        "resume": "Продовжити",
+        "stats": "Статистика",
+        "menu": "В меню",
+        "music_vol": "Гучність музики",
+        "npc_vol": "Гучність НПС",
+        "crash_vol": "Гучність аварій",
+        "button_vol": "Гучність кнопок",
+        "footsteps_vol": "Гучність кроків",
+        "volume": "Гучність",
+        "audio_hint": "←/→ змінює гучність; ↑/↓ обирає звук; Esc — назад",
+        "lang": "Мова",
+        "back": "Назад",
+        "confirm_q": "Вийти з гри?",
+        "confirm_w": "Гру буде закрито.",
+        "yes": "ТАК",
+        "no": "НІ",
+    },
+    "Русский": {
+        "play": "Играть",
+        "settings": "Настройки",
+        "exit": "Выход",
+        "hint": "[F] Сесть в авто",
+        "enter": "[E] Войти в дом",
+        "exit_h": "[E] Выйти из дома",
+        "resume": "Продолжить",
+        "stats": "Статистика",
+        "menu": "В меню",
+        "music_vol": "Громкость музыки",
+        "npc_vol": "Громкость НПС",
+        "crash_vol": "Громкость аварий",
+        "button_vol": "Громкость кнопок",
+        "footsteps_vol": "Громкость шагов",
+        "volume": "Громкость",
+        "audio_hint": "←/→ меняет громкость; ↑/↓ выбирает звук; Esc — назад",
+        "lang": "Язык",
+        "back": "Назад",
+        "confirm_q": "Выйти из игры?",
+        "confirm_w": "Игра будет закрыта.",
+        "yes": "ДА",
+        "no": "НЕТ",
+    },
+}
+
+
 def draw_logo():
-    ato_surf = logo_font.render("ATO", True, COLOR_ORANGE)
-    f_surf = logo_font.render("F", True, COLOR_BROWN)
-    screen.blit(ato_surf, (50, 50))
-    screen.blit(f_surf, (50 + ato_surf.get_width(), 50))
+    atom_surface = logo_font.render("ATO", True, COLOR_ORANGE)
+    f_surface = logo_font.render("F", True, COLOR_BROWN)
+    screen.blit(atom_surface, (50, 50))
+    screen.blit(f_surface, (50 + atom_surface.get_width(), 50))
+
 
 def get_menu_rects(options):
-    return [pygame.Rect(50, 250 + i * 100, 700, 70) for i in range(len(options))]
+    return [pygame.Rect(50, 250 + index * 100, 700, 70) for index, _ in enumerate(options)]
+
+
+def activate_menu_option(index):
+    if index == 0:
+        if ch1 is None:
+            return True
+        pygame.mixer.music.stop()
+        result = ch1.run(screen, APP_SETTINGS)
+        engine.configure_audio(APP_SETTINGS)
+        if result == "EXIT":
+            return False
+        pygame.mixer.music.play(-1)
+        engine.configure_audio(APP_SETTINGS)
+        return True
+
+    if index == 1:
+        result = engine.settings_sub_menu(
+            screen,
+            settings_font,
+            APP_SETTINGS,
+            translations,
+            LANGUAGES,
+            on_change=save_settings,
+        )
+        return result != "EXIT"
+
+    language = LANGUAGES[APP_SETTINGS["lang_idx"]]
+    return not engine.confirm_dialog(
+        screen,
+        settings_font,
+        settings_font,
+        translations[language],
+    )
+
 
 def main():
-    global current_screen, volume, lang_idx
     selected_index = 0
     last_hover_key = None
-    running = True
 
-    while running:
-        lang = languages[lang_idx]
-        t = translations[lang]
+    try:
+        while True:
+            language = LANGUAGES[APP_SETTINGS["lang_idx"]]
+            text = translations[language]
+            options = [text["play"], text["settings"], text["exit"]]
 
-        if current_screen == "MAIN":
-            options = [t["play"], t["settings"], t["exit"]]
-        else:
-            options = [f"{t['vol']}: < {volume}% >", f"{t['lang']}: < {lang} >", t["back"]]
+            screen.fill(COLOR_BG)
+            draw_logo()
+            rects = get_menu_rects(options)
+            mouse_pos = pygame.mouse.get_pos()
+            hovered_index = next(
+                (index for index, rect in enumerate(rects) if rect.collidepoint(mouse_pos)),
+                None,
+            )
+            hover_key = (hovered_index,)
+            if hovered_index is not None and hover_key != last_hover_key:
+                engine.play_menu_sound("hover")
+            last_hover_key = hover_key
 
-        screen.fill(COLOR_BG)
-        draw_logo()
+            for index, option in enumerate(options):
+                highlighted = rects[index].collidepoint(mouse_pos) or index == selected_index
+                color = COLOR_ORANGE if highlighted else COLOR_WHITE
+                rendered = menu_font.render(option, True, color)
+                screen.blit(rendered, (50, 250 + index * 100))
 
-        rects = get_menu_rects(options)
-        mouse_pos = pygame.mouse.get_pos()
-        hovered_index = next((i for i, rect in enumerate(rects) if rect.collidepoint(mouse_pos)), None)
-        hover_key = (current_screen, hovered_index)
-        if hovered_index is not None and hover_key != last_hover_key:
-            engine.play_menu_sound("hover")
-        last_hover_key = hover_key
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return
 
-        for i, text in enumerate(options):
-            color = COLOR_ORANGE if (rects[i].collidepoint(mouse_pos) or i == selected_index) else COLOR_WHITE
-            surf = menu_font.render(text, True, color)
-            screen.blit(surf, (50, 250 + i * 100))
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    for index, rect in enumerate(rects):
+                        if rect.collidepoint(event.pos):
+                            selected_index = index
+                            engine.play_menu_sound("click")
+                            if not activate_menu_option(index):
+                                return
+                            break
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                for i, rect in enumerate(rects):
-                    if rect.collidepoint(event.pos):
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_UP:
+                        selected_index = (selected_index - 1) % len(options)
+                        engine.play_menu_sound("hover")
+                    elif event.key == pygame.K_DOWN:
+                        selected_index = (selected_index + 1) % len(options)
+                        engine.play_menu_sound("hover")
+                    elif event.key == pygame.K_RETURN:
                         engine.play_menu_sound("click")
-                        if current_screen == "MAIN":
-                            if i == 0:  # PLAY
-                                if ch1:
-                                    # ПЕРЕДАЄМО ГУЧНІСТЬ ТА МОВУ
-                                    game_settings = {"volume": volume, "lang_idx": lang_idx}
+                        if not activate_menu_option(selected_index):
+                            return
 
-                                    pygame.mixer.music.stop()
-                                    res = ch1.run(screen, game_settings)
+            pygame.display.flip()
+    finally:
+        try:
+            save_settings(APP_SETTINGS)
+        finally:
+            pygame.quit()
 
-                                    # ПРИЙМАЄМО ОНОВЛЕНІ НАЛАШТУВАННЯ
-                                    volume = game_settings["volume"]
-                                    lang_idx = game_settings["lang_idx"]
-
-                                    if res == "EXIT":
-                                        pygame.quit()
-                                        sys.exit()
-
-                                    pygame.mixer.music.play(-1)
-                                    pygame.mixer.music.set_volume(volume / 100)
-
-                            elif i == 1:
-                                current_screen = "SETTINGS"
-                                selected_index = 0
-                            elif i == 2:
-                                pygame.quit()
-                                sys.exit()
-
-                        else:  # SETTINGS кліки
-                            if i == 0:
-                                mid = rect.x + (rect.width / 2)
-                                volume = min(100, volume + 5) if event.pos[0] > mid else max(0, volume - 5)
-                                pygame.mixer.music.set_volume(volume / 100)
-                            elif i == 1:
-                                lang_idx = (lang_idx + 1) % len(languages)
-                            elif i == 2:
-                                current_screen = "MAIN"
-                                selected_index = 1
-
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_UP:
-                    selected_index = (selected_index - 1) % len(options)
-                    engine.play_menu_sound("hover")
-                elif event.key == pygame.K_DOWN:
-                    selected_index = (selected_index + 1) % len(options)
-                    engine.play_menu_sound("hover")
-
-                if current_screen == "SETTINGS":
-                    if selected_index == 0:
-                        if event.key == pygame.K_RIGHT:
-                            volume = min(100, volume + 5)
-                            engine.play_menu_sound("click")
-                        if event.key == pygame.K_LEFT:
-                            volume = max(0, volume - 5)
-                            engine.play_menu_sound("click")
-                        pygame.mixer.music.set_volume(volume / 100)
-                    elif selected_index == 1:
-                        if event.key == pygame.K_RIGHT:
-                            lang_idx = (lang_idx + 1) % len(languages)
-                            engine.play_menu_sound("click")
-                        if event.key == pygame.K_LEFT:
-                            lang_idx = (lang_idx - 1) % len(languages)
-                            engine.play_menu_sound("click")
-
-                if event.key == pygame.K_RETURN:
-                    engine.play_menu_sound("click")
-                    if current_screen == "MAIN":
-                        if selected_index == 0:
-                            if ch1:
-                                game_settings = {"volume": volume, "lang_idx": lang_idx}
-                                pygame.mixer.music.stop()
-                                res = ch1.run(screen, game_settings)
-                                volume = game_settings["volume"]
-                                lang_idx = game_settings["lang_idx"]
-                                if res == "EXIT": pygame.quit(); sys.exit()
-                                pygame.mixer.music.play(-1)
-                                pygame.mixer.music.set_volume(volume / 100)
-                        elif selected_index == 1:
-                            current_screen = "SETTINGS"
-                            selected_index = 0
-                        elif selected_index == 2:
-                            pygame.quit()
-                            sys.exit()
-                    else:
-                        if selected_index == 2:
-                            current_screen = "MAIN"
-                            selected_index = 1
-
-        pygame.display.flip()
 
 if __name__ == "__main__":
     main()

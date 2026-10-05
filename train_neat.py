@@ -1,9 +1,18 @@
-import os
 import math
 import random
 import pygame
-import neat
 import pickle
+from pathlib import Path
+
+from neat.config import Config
+from neat.genome import DefaultGenome
+from neat.nn import FeedForwardNetwork
+from neat.population import Population
+from neat.reporting import StdOutReporter
+from neat.reproduction import DefaultReproduction
+from neat.species import DefaultSpeciesSet
+from neat.statistics import StatisticsReporter
+from neat.stagnation import DefaultStagnation
 
 from traffic import TRAFFIC_NODES, get_rotated_resources
 
@@ -50,7 +59,7 @@ class NEATCar:
 
         return sensors
 
-    def update(self, outputs, other_cars):
+    def update(self, outputs):
         if not self.is_alive:
             return
 
@@ -93,9 +102,9 @@ def eval_genomes(genomes, config):
 
     nodes_list = list(TRAFFIC_NODES.keys())
 
-    for genome_id, genome in genomes:
+    for _genome_id, genome in genomes:
         genome.fitness = 0.0
-        net = neat.nn.FeedForwardNetwork.create(genome, config)
+        net = FeedForwardNetwork.create(genome, config)
 
         start_node = random.choice(nodes_list)
         car = NEATCar(start_node, len(cars))
@@ -107,15 +116,14 @@ def eval_genomes(genomes, config):
     clock = pygame.time.Clock()
     frame_count = 0
 
-    run = True
-    while run and frame_count < 600:
+    while frame_count < 600:
         frame_count += 1
         clock.tick(60)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
-                exit()
+                raise SystemExit
 
         alive_count = 0
         for i, car in enumerate(cars):
@@ -125,7 +133,7 @@ def eval_genomes(genomes, config):
             alive_count += 1
             sensors = car.get_sensors(cars)
             outputs = nets[i].activate(sensors)
-            car.update(outputs, cars)
+            car.update(outputs)
 
             ge[i].fitness += car.speed * 0.1
 
@@ -149,25 +157,25 @@ def eval_genomes(genomes, config):
 
 
 def run_neat():
-    local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, "config-feedforward.txt")
+    config_path = str(Path(__file__).resolve().with_name("config-feedforward.txt"))
 
-    config = neat.config.Config(
-        neat.DefaultGenome,
-        neat.DefaultReproduction,
-        neat.DefaultSpeciesSet,
-        neat.DefaultStagnation,
+    config = Config(
+        DefaultGenome,
+        DefaultReproduction,
+        DefaultSpeciesSet,
+        DefaultStagnation,
         config_path,
     )
 
-    p = neat.Population(config)
-    p.add_reporter(neat.StdOutReporter(True))
-    stats = neat.StatisticsReporter()
+    p = Population(config)
+    p.add_reporter(StdOutReporter(True))
+    stats = StatisticsReporter()
     p.add_reporter(stats)
 
     winner = p.run(eval_genomes, 30)
 
-    with open("best_brain.pkl", "wb") as f:
+    output_path = Path(__file__).resolve().with_name("best_brain.pkl")
+    with output_path.open("wb") as f:
         pickle.dump(winner, f)
     print("\n✅ Навчання завершено! Найкращий мозок збережено у 'best_brain.pkl'")
 

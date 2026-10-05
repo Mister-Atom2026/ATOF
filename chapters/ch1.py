@@ -4,7 +4,8 @@ import engine
 from engine import Car, Player
 from house import HousePlayer
 from controls import KeyboardState
-import traffic  # Імпортуємо твій новий файл
+from settings_manager import save_settings
+import traffic  # Import the traffic module.
 from constants import *
 
 os.environ['SDL_VIDEO_CENTERED'] = '1'
@@ -12,28 +13,27 @@ os.environ['SDL_VIDEO_CENTERED'] = '1'
 
 def run(screen, settings):
     traffic_timer = 0
-    traffic_state = "RED"  # RED — стоїть потік N, GREEN — стоїть потік A1
+    traffic_state = "RED"  # RED pauses route N; GREEN pauses route A1.
     frame_count = 0
     keyboard = KeyboardState()
-    # Створюємо 3 ботів на нашому маршруті
+    # Spawn the configured traffic and police at game start.
     npc_cars = traffic.init_traffic(11)
-    # У блоці ресурсів додаємо:
+    # Load the game resources.
     target_y = 450.0
     phone_y_offset = 450.0
     phone_click_sfx = pygame.mixer.Sound("sounds/click.wav")
-    phone_click_sfx.set_volume(0.4)  # Щоб не лупило по вухах
-    current_app = 0  # 0 - меню, 1-9 - додатки
-    money = 100  # Твоє бабло
+    phone_click_sfx.set_volume(0.4)  # Keep the sound volume comfortable.
+    current_app = 0  # 0 is the phone menu; 1–9 are apps.
+    money = 100  # Starting cash.
     money_history = [("+100", "start")]
-    # Список уже зібраних скарбів, щоб не брати їх нескінченно
+    # Keep track of collected treasures so they cannot be collected repeatedly.
     collected_treasures = set()
-    phone_active = False  # Стан телефону
+    phone_active = False  # Phone state.
     phone_settings = engine.get_phone_settings()
-    notifications = []  # Список активних сповіщень
-    # --- СИСТЕМА ЧАСУ ТА ОСВІТЛЕННЯ ---
+    # --- Time and lighting ---
     game_time = 480
     night_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-    # Ресурси
+    # Load resources.
     car_sfx = {
         'engine': pygame.mixer.Sound("sounds/car_engine.wav"),
         'crash': pygame.mixer.Sound("sounds/car_crash.wav"),
@@ -42,7 +42,7 @@ def run(screen, settings):
         'door_close': pygame.mixer.Sound("sounds/cd_close.wav")
     }
 
-    # Налаштування гучності для кожного звуку
+    # Set each sound volume.
     car_sfx['engine'].set_volume(0.3)
     car_sfx['crash'].set_volume(0.5)
     car_sfx['beep'].set_volume(0.4)
@@ -58,7 +58,24 @@ def run(screen, settings):
         'grass': pygame.mixer.Sound("sounds/footstep_on_grass.wav"),
         'house': pygame.mixer.Sound("sounds/footstep_on_wood.wav")
     }
-    for s in step_sounds.values(): s.set_volume(0.2)
+    for sound in step_sounds.values():
+        sound.set_volume(0.2)
+
+    def apply_audio_settings():
+        engine.configure_audio(settings)
+        traffic.configure_audio(settings)
+        button_gain = settings.get("button_volume", 100) / 100
+        crash_gain = settings.get("crash_volume", 100) / 100
+        footsteps_gain = settings.get("footsteps_volume", 100) / 100
+        phone_click_sfx.set_volume(0.4 * button_gain)
+        car_sfx["beep"].set_volume(0.4 * button_gain)
+        car_sfx["door_open"].set_volume(0.5 * button_gain)
+        car_sfx["door_close"].set_volume(0.5 * button_gain)
+        car_sfx["crash"].set_volume(0.5 * crash_gain)
+        for sound in step_sounds.values():
+            sound.set_volume(0.2 * footsteps_gain)
+
+    apply_audio_settings()
 
     foot_chan = pygame.mixer.Channel(5)
     atom_img = pygame.image.load('characters/atom.png').convert_alpha()
@@ -72,18 +89,17 @@ def run(screen, settings):
     game_state = "HOUSE"
     in_car = False
 
-    # СВІТ (МІСТО)
-    # 2. Те, що відображається на МІНІКАРТІ та ТАБу (Схематична карта з назвами)
-    # Переконайся, що файл називається саме так: "world/Карта Вишневого.png" (або .jpg)
+    # WORLD (CITY)
+    # 2. Map shown on the minimap and Tab screen.
+    # Load the city-map image used by both map views.
     original_nav_map = pygame.image.load("world/Карта Вишневого.png").convert()
-    full_map_img = pygame.transform.scale(original_nav_map, (WIDTH, HEIGHT))
     original_bg = pygame.image.load("world/НОРМ Карта Вишневого.png").convert()
     world_bg = pygame.transform.scale(original_bg, (CURR_WORLD_W, CURR_WORLD_H))
     full_map_img = pygame.transform.scale(original_nav_map, (WIDTH, HEIGHT))
     col_mask = pygame.transform.scale(pygame.image.load("world/Нізя їздити.png").convert(),
                                       (CURR_WORLD_W, CURR_WORLD_H))
 
-    # БУДИНОК
+    # HOUSE
     h_scale = 3
     house_visual = pygame.image.load("ch_home/hm.png").convert()
     house_visual = pygame.transform.scale(house_visual,
@@ -93,7 +109,7 @@ def run(screen, settings):
     house_info = pygame.transform.scale(pygame.image.load("ch_home/him.png").convert(),
                                         (house_visual.get_width(), house_visual.get_height()))
 
-    # ОБ'ЄКТИ
+    # GAME OBJECTS
     atom = Player(7738, 2330)
     car = Car(7985, 2383)
     car.angle = 270
@@ -102,7 +118,7 @@ def run(screen, settings):
     try:
         game_font = pygame.font.Font("static.ttf", 40)
         small_font = pygame.font.Font("static.ttf", 25)
-    except:
+    except (pygame.error, OSError):
         game_font = pygame.font.SysFont("Arial", 40, bold=True)
         small_font = pygame.font.SysFont("Arial", 25)
 
@@ -111,6 +127,10 @@ def run(screen, settings):
             "hint": "[F] Enter Car", "enter": "[E] Enter House", "exit": "[E] Exit House",
             "resume": "Resume", "stats": "Stats", "settings": "Settings", "menu": "To Menu",
             "vol": "Volume", "lang": "Language", "back": "Back",
+            "volume": "Volume", "music_vol": "Music Volume", "npc_vol": "NPC Volume",
+            "crash_vol": "Crash Volume", "button_vol": "Button Volume",
+            "footsteps_vol": "Footsteps Volume",
+            "audio_hint": "Up/Down selects a sound; Left/Right adjusts it; Esc returns",
             "repair": "Hold [R] to repair", "confirm_q": "Leave the game?",
             "confirm_w": "Progress in this session will be lost.", "yes": "YES", "no": "NO",
             "stats_title": "Session statistics", "stats_money": "Money: {money} UAH",
@@ -121,6 +141,10 @@ def run(screen, settings):
             "hint": "[А] Сісти в авто", "enter": "[У] Увійти в дім", "exit": "[У] Вийти з дому",
             "resume": "Продовжити", "stats": "Статистика", "settings": "Налаштування", "menu": "В меню",
             "vol": "Гучність", "lang": "Мова", "back": "Назад",
+            "volume": "Гучність", "music_vol": "Гучність музики", "npc_vol": "Гучність НПС",
+            "crash_vol": "Гучність аварій", "button_vol": "Гучність кнопок",
+            "footsteps_vol": "Гучність кроків",
+            "audio_hint": "↑/↓ обирає звук; ←/→ змінює гучність; Esc — назад",
             "repair": "Тримайте [К] для ремонту", "confirm_q": "Вийти з гри?",
             "confirm_w": "Прогрес цієї сесії буде втрачено.", "yes": "ТАК", "no": "НІ",
             "stats_title": "Статистика сесії", "stats_money": "Гроші: {money} UAH",
@@ -131,6 +155,10 @@ def run(screen, settings):
             "hint": "[А] Сесть в авто", "enter": "[У] Войти в дом", "exit": "[У] Выйти из дома",
             "resume": "Продолжить", "stats": "Статистика", "settings": "Настройки", "menu": "В меню",
             "vol": "Громкость", "lang": "Язык", "back": "Назад",
+            "volume": "Громкость", "music_vol": "Громкость музыки", "npc_vol": "Громкость НПС",
+            "crash_vol": "Громкость аварий", "button_vol": "Громкость кнопок",
+            "footsteps_vol": "Громкость шагов",
+            "audio_hint": "↑/↓ выбирает звук; ←/→ меняет громкость; Esc — назад",
             "repair": "Удерживайте [К], чтобы починить", "confirm_q": "Выйти из игры?",
             "confirm_w": "Прогресс этой сессии будет потерян.", "yes": "ДА", "no": "НЕТ",
             "stats_title": "Статистика сессии", "stats_money": "Деньги: {money} UAH",
@@ -141,17 +169,19 @@ def run(screen, settings):
 
     running = True
     while running:
-        traffic_timer += 1 / 60  # додаємо час (якщо 60 FPS)
-        if traffic_timer > 5:  # кожні 5 секунд міняємо фазу
+        target = car if in_car else atom
+        off_x = off_y = 0
+        traffic_timer += 1 / 60  # Advance the timer at 60 FPS.
+        if traffic_timer > 5:  # Switch the traffic-light phase every five seconds.
             traffic_state = "GREEN" if traffic_state == "RED" else "RED"
             traffic_timer = 0
         phone_y_offset += (target_y - phone_y_offset) / 6.0
-        # Логіка анімації (вставити перед малюванням телефону)
+        # Update the phone slide animation before drawing it.
         target_y = 0.0 if phone_active else 450.0
         current_lang_name = languages[settings['lang_idx']]
         t = translations.get(current_lang_name, translations["English"])
         keys = keyboard
-        # Час іде (1 хвилина ігрового часу = 1 хвилина реального при 60 FPS)
+        # Advance game time by one second per real second at 60 FPS.
         game_time += 1 / 60
         if game_time >= 1440: game_time = 0
 
@@ -159,28 +189,28 @@ def run(screen, settings):
         if frame_count % 60 == 0:
             traffic.analyze_traffic_jams(npc_cars)
 
-        # 1. ОБРОБКА ПОДІЙ
+        # 1. Process events.
         for event in pygame.event.get():
             keyboard.process_event(event)
             if event.type == pygame.QUIT: return "EXIT"
             if event.type == pygame.KEYDOWN:
-                # --- ЛОГІКА ТЕЛЕФОНУ ---
+                # --- Phone controls ---
                 if keyboard.matches(event, pygame.K_m):
                     phone_active = not phone_active
                     current_app = 0
-                    phone_click_sfx.play()  # Звук при відкритті/закритті на M
+                    phone_click_sfx.play()  # Play a sound when M opens or closes the phone.
 
                 if phone_active:
-                    # КЕРУВАННЯ BACKSPACE
+                    # BACKSPACE controls.
                     if event.key == pygame.K_BACKSPACE:
                         if current_app != 0:
-                            current_app = 0  # Повернення в меню
+                            current_app = 0  # Return to the phone menu.
                             phone_click_sfx.play()
                         else:
-                            phone_active = False  # Закриття телефону
+                            phone_active = False  # Close the phone.
                             phone_click_sfx.play()
 
-                    # ВІДКРИТТЯ ТІЛЬКИ TRIPLE1 (Тільки якщо ми в меню)
+                    # Open Triple1 only from the phone menu.
                     elif current_app == 0:
                         if keyboard.matches(event, pygame.K_1) or event.key == pygame.K_KP1:
                             current_app = 1
@@ -202,13 +232,15 @@ def run(screen, settings):
                             "traffic": len(npc_cars),
                             "police": sum(1 for npc in npc_cars if npc.is_police),
                         },
+                        on_change=save_settings,
                     )
+                    apply_audio_settings()
                     if res in ["MENU", "EXIT"]: return res
                 if keyboard.matches(event, pygame.K_f) and game_state == "CITY":
-                    old_in_car = in_car  # Запам'ятовуємо стан до натискання
+                    old_in_car = in_car  # Save the previous state before toggling.
                     in_car = engine.handle_car_logic(atom, car, in_car)
 
-                    # Граємо звук ТІЛЬКИ якщо стан реально змінився
+                    # Play the sound only when the state changes.
                     if in_car != old_in_car:
                         if in_car:
                             car_sfx['door_open'].play()
@@ -224,15 +256,15 @@ def run(screen, settings):
                             game_state = "CITY"
                             atom.pos = pygame.Vector2(7731, 2326)
 
-        # 2. ОНОВЛЕННЯ (UPDATE)
+        # 2. Update the game state.
 
         if game_state == "CITY":
             target = car if in_car else atom
 
-            # Оновлюємо всіх ботів. Тепер передаємо col_mask (хоч він поки для краси)
-            # 1. Оновлюємо ботів
+            # Update all traffic and pass the collision mask.
+            # 1. Update traffic and police.
             for npc in npc_cars:
-                # Передаємо тільки те, що реально треба для traffic.py
+                # Pass the arguments used by traffic.py.
                 npc.update(col_mask, car, npc_cars, traffic_state)
             if in_car:
                 car.update(keys, col_mask, True, npc_cars)
@@ -241,7 +273,7 @@ def run(screen, settings):
                 atom.update(keys, col_mask, car, npc_cars)
                 car.update(keys, col_mask, False, npc_cars)
 
-                # Скарби та секрети
+                # Treasures and secrets.
                 if "guard" not in collected_treasures and atom.pos.distance_to(pygame.Vector2(8909, 1139)) < 60:
                     money += 100
                     money_history.append(("+100", "guard"))
@@ -252,11 +284,11 @@ def run(screen, settings):
                     money_history.append(("+111", "bridge"))
                     collected_treasures.add("exit")
 
-                # Логіка ремонту (БЕЗ дублювання)
+                # Repair logic.
                 if car.is_broken and atom.pos.distance_to(car.pos) < 100:
                     if money >= 50 and keys[pygame.K_r]:
                         car.repair_progress += 1
-                        if car.repair_progress >= 180:  # 3 секунди при 60 FPS
+                        if car.repair_progress >= 180:  # Three seconds at 60 FPS.
                             car.health = car.max_health
                             car.is_broken = False
                             car.repair_progress = 0
@@ -284,25 +316,25 @@ def run(screen, settings):
                     collected_treasures.add("sofa")
             engine.handle_surface_footsteps(keys, in_car, game_state, atom_h.pos, None, step_sounds, foot_chan)
 
-        # 3. МАЛЮВАННЯ (DRAW)
+        # 3. Draw the scene.
         if game_state == "CITY":
             screen.fill((30, 30, 30))
             screen.blit(world_bg, (off_x, off_y))
 
-            # 1. Малюємо машину гравця та її дим
+            # 1. Draw the player’s car and its smoke.
             car.draw(screen, off_x, off_y)
             engine.draw_car_smoke(screen, car, off_x, off_y)
 
-            # 2. Малюємо трафік (ботів)
+            # 2. Draw traffic and police.
             for npc in npc_cars:
                 npc.draw(screen, off_x, off_y)
 
-            # 3. Якщо гравець не в машині — малюємо його зверху
+            # 3. Draw the player on top when on foot.
             if not in_car:
                 engine.draw_atom_character(screen, atom.pos.x + off_x, atom.pos.y + off_y, atom_img, atom.angle)
                 engine.draw_city_hints(screen, small_font, atom, car, t)
 
-                # Підказка ремонту
+                # Repair prompt.
                 if car.is_broken and atom.pos.distance_to(car.pos) < 100:
                     r_text = t["repair"]
                     txt_surf = small_font.render(r_text, True, (255, 255, 255))
@@ -324,7 +356,7 @@ def run(screen, settings):
                 if ambient[3] > 0:
                     night_overlay.fill(ambient)
                     screen.blit(night_overlay, (0, 0))
-        # Годинник
+        # In-game clock.
         h, m = int(game_time / 60), int(game_time % 60)
         time_text = small_font.render(f"{h:02d}:{m:02d}", True, (255, 255, 255))
         screen.blit(time_text, (WIDTH - 100, 20))
@@ -338,3 +370,5 @@ def run(screen, settings):
 
         pygame.display.flip()
         clock.tick(FPS)
+
+    return "EXIT"

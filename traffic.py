@@ -4,17 +4,25 @@ import math
 import os
 import pickle
 import random
+from typing import Protocol
 
 import pygame
 
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-image_cache = {}
-base_traffic_img = None
-base_police_img = None
-beep_sound = None
-bot_brain = None
+image_cache: dict[tuple[str, int], pygame.Surface] = {}
+base_traffic_img: pygame.Surface | None = None
+base_police_img: pygame.Surface | None = None
+beep_sound: pygame.mixer.Sound | None = None
+
+
+class ActivatableNetwork(Protocol):
+    def activate(self, inputs: list[float]) -> list[float]: ...
+
+
+bot_brain: ActivatableNetwork | None = None
 brain_load_attempted = False
+_npc_volume = 1.0
 
 
 TRAFFIC_NODES = {
@@ -51,7 +59,7 @@ def _load_car_image(path, fallback_color):
         return surface
 
 
-def get_rotated_resources(angle):
+def get_rotated_resources(angle: float) -> pygame.Surface:
     global base_traffic_img
     angle_int = int(angle % 360)
     key = ("traffic", angle_int)
@@ -64,7 +72,7 @@ def get_rotated_resources(angle):
     return image_cache[key]
 
 
-def get_rotated_police_resources(angle):
+def get_rotated_police_resources(angle: float) -> pygame.Surface:
     global base_police_img
     angle_int = int(angle % 360)
     key = ("police", angle_int)
@@ -77,7 +85,16 @@ def get_rotated_police_resources(angle):
     return image_cache[key]
 
 
-def try_load_brain():
+def configure_audio(settings):
+    global _npc_volume
+    try:
+        volume = int(settings.get("npc_volume", 100))
+    except (TypeError, ValueError):
+        volume = 100
+    _npc_volume = max(0, min(100, volume)) / 100
+
+
+def try_load_brain() -> ActivatableNetwork | None:
     """Load the supplied NEAT brain once; continue with route-following if absent."""
     global bot_brain, brain_load_attempted
     if brain_load_attempted:
@@ -90,20 +107,36 @@ def try_load_brain():
         return None
 
     try:
-        import neat
+        from neat.config import Config
+        from neat.genome import DefaultGenome
+        from neat.nn import FeedForwardNetwork
+        from neat.reproduction import DefaultReproduction
+        from neat.species import DefaultSpeciesSet
+        from neat.stagnation import DefaultStagnation
 
-        config = neat.config.Config(
-            neat.DefaultGenome,
-            neat.DefaultReproduction,
-            neat.DefaultSpeciesSet,
-            neat.DefaultStagnation,
+        config = Config(
+            DefaultGenome,
+            DefaultReproduction,
+            DefaultSpeciesSet,
+            DefaultStagnation,
             config_path,
         )
         with open(brain_path, "rb") as brain_file:
             genome = pickle.load(brain_file)
-        bot_brain = neat.nn.FeedForwardNetwork.create(genome, config)
+        bot_brain = FeedForwardNetwork.create(genome, config)
         print("Traffic brain loaded.")
-    except Exception as exc:
+    except (
+        ImportError,
+        OSError,
+        EOFError,
+        pickle.UnpicklingError,
+        ValueError,
+        TypeError,
+        AttributeError,
+        KeyError,
+        NameError,
+        RuntimeError,
+    ) as exc:
         print(f"Traffic brain could not be loaded: {exc}")
         bot_brain = None
     return bot_brain
@@ -271,8 +304,9 @@ class TrafficCar:
         if beep_sound is None:
             return
         distance = self.pos.distance_to(player_car.pos)
-        if distance < 1500:
-            beep_sound.set_volume(max(0.01, (1.0 - distance / 1500) ** 2 * 0.4))
+        if distance < 1500 and _npc_volume > 0:
+            volume = (1.0 - distance / 1500) ** 2 * 0.4 * _npc_volume
+            beep_sound.set_volume(volume)
             beep_sound.play()
 
     def draw(self, screen, off_x, off_y):
