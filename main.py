@@ -10,11 +10,13 @@ except ImportError:
 # Ініціалізація
 pygame.init()
 pygame.mixer.init()
+import engine
+VERSION = "0.0.2"
 
 # Налаштування екрану
 WIDTH, HEIGHT = 1280, 720
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("ATOF - Main Menu")
+pygame.display.set_caption(f"ATOF v{VERSION}")
 
 # Кольори та шрифти
 COLOR_BG = (0, 0, 0)
@@ -47,7 +49,6 @@ except:
 translations = {
         "English": {
             "play": "Play",
-            "continue": "Continue",
             "settings": "Settings",
             "exit": "Exit",
             "hint": "[F] Enter Car",
@@ -62,7 +63,6 @@ translations = {
         },
         "Українська": {
             "play": "Грати",
-            "continue": "Продовжити",
             "settings": "Налаштування",
             "exit": "Вихід",
             "hint": "[F] Сісти в авто",
@@ -77,7 +77,6 @@ translations = {
         },
         "Русский": {
             "play": "Играть",
-            "continue": "Продолжить",
             "settings": "Настройки",
             "exit": "Выход",
             "hint": "[F] Сесть в авто",
@@ -103,6 +102,7 @@ def get_menu_rects(options):
 def main():
     global current_screen, volume, lang_idx
     selected_index = 0
+    last_hover_key = None
     running = True
 
     while running:
@@ -110,7 +110,7 @@ def main():
         t = translations[lang]
 
         if current_screen == "MAIN":
-            options = [t["play"], t["continue"], t["settings"], t["exit"]]
+            options = [t["play"], t["settings"], t["exit"]]
         else:
             options = [f"{t['vol']}: < {volume}% >", f"{t['lang']}: < {lang} >", t["back"]]
 
@@ -119,6 +119,11 @@ def main():
 
         rects = get_menu_rects(options)
         mouse_pos = pygame.mouse.get_pos()
+        hovered_index = next((i for i, rect in enumerate(rects) if rect.collidepoint(mouse_pos)), None)
+        hover_key = (current_screen, hovered_index)
+        if hovered_index is not None and hover_key != last_hover_key:
+            engine.play_menu_sound("hover")
+        last_hover_key = hover_key
 
         for i, text in enumerate(options):
             color = COLOR_ORANGE if (rects[i].collidepoint(mouse_pos) or i == selected_index) else COLOR_WHITE
@@ -132,6 +137,7 @@ def main():
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 for i, rect in enumerate(rects):
                     if rect.collidepoint(event.pos):
+                        engine.play_menu_sound("click")
                         if current_screen == "MAIN":
                             if i == 0:  # PLAY
                                 if ch1:
@@ -152,10 +158,10 @@ def main():
                                     pygame.mixer.music.play(-1)
                                     pygame.mixer.music.set_volume(volume / 100)
 
-                            elif i == 2:
+                            elif i == 1:
                                 current_screen = "SETTINGS"
                                 selected_index = 0
-                            elif i == 3:
+                            elif i == 2:
                                 pygame.quit()
                                 sys.exit()
 
@@ -168,24 +174,35 @@ def main():
                                 lang_idx = (lang_idx + 1) % len(languages)
                             elif i == 2:
                                 current_screen = "MAIN"
-                                selected_index = 2
+                                selected_index = 1
 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_UP:
                     selected_index = (selected_index - 1) % len(options)
+                    engine.play_menu_sound("hover")
                 elif event.key == pygame.K_DOWN:
                     selected_index = (selected_index + 1) % len(options)
+                    engine.play_menu_sound("hover")
 
                 if current_screen == "SETTINGS":
                     if selected_index == 0:
-                        if event.key == pygame.K_RIGHT: volume = min(100, volume + 5)
-                        if event.key == pygame.K_LEFT: volume = max(0, volume - 5)
+                        if event.key == pygame.K_RIGHT:
+                            volume = min(100, volume + 5)
+                            engine.play_menu_sound("click")
+                        if event.key == pygame.K_LEFT:
+                            volume = max(0, volume - 5)
+                            engine.play_menu_sound("click")
                         pygame.mixer.music.set_volume(volume / 100)
                     elif selected_index == 1:
-                        if event.key == pygame.K_RIGHT: lang_idx = (lang_idx + 1) % len(languages)
-                        if event.key == pygame.K_LEFT: lang_idx = (lang_idx - 1) % len(languages)
+                        if event.key == pygame.K_RIGHT:
+                            lang_idx = (lang_idx + 1) % len(languages)
+                            engine.play_menu_sound("click")
+                        if event.key == pygame.K_LEFT:
+                            lang_idx = (lang_idx - 1) % len(languages)
+                            engine.play_menu_sound("click")
 
                 if event.key == pygame.K_RETURN:
+                    engine.play_menu_sound("click")
                     if current_screen == "MAIN":
                         if selected_index == 0:
                             if ch1:
@@ -197,16 +214,16 @@ def main():
                                 if res == "EXIT": pygame.quit(); sys.exit()
                                 pygame.mixer.music.play(-1)
                                 pygame.mixer.music.set_volume(volume / 100)
-                        elif selected_index == 2:
+                        elif selected_index == 1:
                             current_screen = "SETTINGS"
                             selected_index = 0
-                        elif selected_index == 3:
+                        elif selected_index == 2:
                             pygame.quit()
                             sys.exit()
                     else:
                         if selected_index == 2:
                             current_screen = "MAIN"
-                            selected_index = 2
+                            selected_index = 1
 
         pygame.display.flip()
 

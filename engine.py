@@ -6,6 +6,28 @@ from house import HousePlayer
 import random
 import traffic
 
+_menu_sounds = {}
+
+
+def play_menu_sound(kind):
+    sound_paths = {
+        "hover": "menu_hover.wav",
+        "click": "menu_click.wav",
+    }
+    if kind not in sound_paths:
+        return
+    if kind not in _menu_sounds:
+        path = os.path.join(os.path.dirname(__file__), "sounds", sound_paths[kind])
+        try:
+            _menu_sounds[kind] = pygame.mixer.Sound(path)
+            _menu_sounds[kind].set_volume(0.22 if kind == "hover" else 0.38)
+        except pygame.error:
+            _menu_sounds[kind] = None
+    sound = _menu_sounds[kind]
+    if sound is not None:
+        sound.play()
+
+
 class Player:
     def __init__(self, x, y):
         self.pos = pygame.Vector2(x, y)
@@ -457,11 +479,65 @@ def draw_gta_minimap(screen, bg_img, target, world_w, world_h, house_pos=(7738, 
     # Карта
     screen.blit(mini_surf, (x, y))
 
-def pause_menu(screen, font, small_font, settings, trans_dict, languages):
+def stats_dialog(screen, font, small_font, t, stats=None, controls=None):
+    stats = stats or {}
+    clock = pygame.time.Clock()
+    last_hovered = False
+    width, height = screen.get_size()
+    back_rect = pygame.Rect(width // 2 - 120, height - 150, 240, 56)
+
+    while True:
+        screen.fill((14, 14, 20))
+        title = font.render(t.get("stats_title", "Stats"), True, (255, 255, 255))
+        screen.blit(title, title.get_rect(center=(width // 2, 125)))
+
+        lines = [
+            t.get("stats_money", "Money: {money}").format(money=stats.get("money", 0)),
+            t.get("stats_time", "Time: {time}").format(time=stats.get("time", "00:00")),
+            t.get("stats_treasures", "Treasures: {treasures}").format(
+                treasures=stats.get("treasures", 0)
+            ),
+            t.get("stats_traffic", "Traffic: {traffic}").format(
+                traffic=stats.get("traffic", 0), police=stats.get("police", 0)
+            ),
+        ]
+        for index, line in enumerate(lines):
+            rendered = small_font.render(line, True, (220, 220, 220))
+            screen.blit(rendered, rendered.get_rect(center=(width // 2, 230 + index * 54)))
+
+        mouse_pos = pygame.mouse.get_pos()
+        hovered = back_rect.collidepoint(mouse_pos)
+        if hovered and not last_hovered:
+            play_menu_sound("hover")
+        last_hovered = hovered
+        color = (212, 91, 18) if hovered else (70, 70, 70)
+        pygame.draw.rect(screen, color, back_rect, border_radius=8)
+        back_text = small_font.render(t.get("back", "Back"), True, (255, 255, 255))
+        screen.blit(back_text, back_text.get_rect(center=back_rect.center))
+        hint = small_font.render(t.get("stats_hint", "Press Esc or Enter to return"), True, (150, 150, 150))
+        screen.blit(hint, hint.get_rect(center=(width // 2, height - 55)))
+        pygame.display.flip()
+
+        for event in pygame.event.get():
+            if controls is not None:
+                controls.process_event(event)
+            if event.type == pygame.QUIT:
+                return "EXIT"
+            if event.type == pygame.KEYDOWN and event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
+                play_menu_sound("click")
+                return "BACK"
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and back_rect.collidepoint(event.pos):
+                play_menu_sound("click")
+                return "BACK"
+        clock.tick(60)
+
+
+def pause_menu(screen, font, small_font, settings, trans_dict, languages, controls=None, stats=None):
     pygame.mouse.set_visible(True)
     sel = 0
     W, H = screen.get_size()
     clock = pygame.time.Clock()
+    last_hovered = None
 
     while True:
         t = trans_dict[languages[settings['lang_idx']]]
@@ -472,36 +548,56 @@ def pause_menu(screen, font, small_font, settings, trans_dict, languages):
         rects = [pygame.Rect(50, 200 + i * 100, 500, 60) for i in range(len(options))]
 
         for event in pygame.event.get():
+            if controls is not None:
+                controls.process_event(event)
             if event.type == pygame.QUIT: return "EXIT"
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE: return "CONTINUE"
-                if event.key == pygame.K_UP: sel = (sel - 1) % len(options)
-                if event.key == pygame.K_DOWN: sel = (sel + 1) % len(options)
+                if event.key == pygame.K_ESCAPE:
+                    play_menu_sound("click")
+                    return "CONTINUE"
+                if event.key == pygame.K_UP:
+                    sel = (sel - 1) % len(options)
+                    play_menu_sound("hover")
+                if event.key == pygame.K_DOWN:
+                    sel = (sel + 1) % len(options)
+                    play_menu_sound("hover")
                 if event.key == pygame.K_RETURN:
+                    play_menu_sound("click")
                     if sel == 0: return "CONTINUE"
-                    if sel == 2: settings_sub_menu(screen, font, settings, trans_dict, languages)
+                    if sel == 1:
+                        if stats_dialog(screen, font, small_font, t, stats, controls) == "EXIT": return "EXIT"
+                    if sel == 2: settings_sub_menu(screen, font, settings, trans_dict, languages, controls)
                     if sel == 3:
-                        if confirm_dialog(screen, font, small_font, t): return "MENU"
+                        if confirm_dialog(screen, font, small_font, t, controls): return "MENU"
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 for i, r in enumerate(rects):
                     if r.collidepoint(event.pos):
+                        play_menu_sound("click")
                         if i == 0: return "CONTINUE"
-                        if i == 2: settings_sub_menu(screen, font, settings, trans_dict, languages)
+                        if i == 1:
+                            if stats_dialog(screen, font, small_font, t, stats, controls) == "EXIT": return "EXIT"
+                        if i == 2: settings_sub_menu(screen, font, settings, trans_dict, languages, controls)
                         if i == 3:
-                            if confirm_dialog(screen, font, small_font, t): return "MENU"
+                            if confirm_dialog(screen, font, small_font, t, controls): return "MENU"
 
         for i, opt in enumerate(options):
-            if rects[i].collidepoint(m_pos): sel = i
+            if rects[i].collidepoint(m_pos):
+                if last_hovered != i:
+                    play_menu_sound("hover")
+                last_hovered = i
+                sel = i
             color = (212, 91, 18) if i == sel else (255, 255, 255)
             txt = font.render(opt, True, color)
             screen.blit(txt, (50, 200 + i * 100))
+        if not any(rect.collidepoint(m_pos) for rect in rects):
+            last_hovered = None
 
         pygame.display.flip()
         clock.tick(60)
 
 
-def settings_sub_menu(screen, font, settings, trans_dict, languages):
+def settings_sub_menu(screen, font, settings, trans_dict, languages, controls=None):
     sel = 0
     clock = pygame.time.Clock()
     COLOR_ORANGE = (212, 91, 18)
@@ -516,6 +612,7 @@ def settings_sub_menu(screen, font, settings, trans_dict, languages):
     if 'lang' not in t: t['lang'] = "Language" if lang_name == "English" else "Мова"
     if 'back' not in t: t['back'] = "Back" if lang_name == "English" else "Назад"
     # ---------------------
+    last_hovered = None
     while True:
         # 1. Отримуємо словник для поточної мови
         raw_t = trans_dict[languages[settings['lang_idx']]]
@@ -540,21 +637,38 @@ def settings_sub_menu(screen, font, settings, trans_dict, languages):
         rects = [pygame.Rect(50, 250 + i * 100, 700, 70) for i in range(len(opts))]
 
         for event in pygame.event.get():
+            if controls is not None:
+                controls.process_event(event)
             if event.type == pygame.QUIT: return
 
             # --- КЛАВІАТУРА ---
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE: return
-                if event.key == pygame.K_UP: sel = (sel - 1) % len(opts)
-                if event.key == pygame.K_DOWN: sel = (sel + 1) % len(opts)
+                if event.key == pygame.K_ESCAPE:
+                    play_menu_sound("click")
+                    return
+                if event.key == pygame.K_UP:
+                    sel = (sel - 1) % len(opts)
+                    play_menu_sound("hover")
+                if event.key == pygame.K_DOWN:
+                    sel = (sel + 1) % len(opts)
+                    play_menu_sound("hover")
 
                 if sel == 0:
-                    if event.key == pygame.K_RIGHT: settings['volume'] = min(100, settings['volume'] + 5)
-                    if event.key == pygame.K_LEFT: settings['volume'] = max(0, settings['volume'] - 5)
+                    if event.key == pygame.K_RIGHT:
+                        settings['volume'] = min(100, settings['volume'] + 5)
+                        play_menu_sound("click")
+                    if event.key == pygame.K_LEFT:
+                        settings['volume'] = max(0, settings['volume'] - 5)
+                        play_menu_sound("click")
                 elif sel == 1:
-                    if event.key == pygame.K_RIGHT: settings['lang_idx'] = (settings['lang_idx'] + 1) % len(languages)
-                    if event.key == pygame.K_LEFT: settings['lang_idx'] = (settings['lang_idx'] - 1) % len(languages)
+                    if event.key == pygame.K_RIGHT:
+                        settings['lang_idx'] = (settings['lang_idx'] + 1) % len(languages)
+                        play_menu_sound("click")
+                    if event.key == pygame.K_LEFT:
+                        settings['lang_idx'] = (settings['lang_idx'] - 1) % len(languages)
+                        play_menu_sound("click")
                 elif sel == 2 and event.key == pygame.K_RETURN:
+                    play_menu_sound("click")
                     return
 
                 pygame.mixer.music.set_volume(settings['volume'] / 100)
@@ -563,6 +677,7 @@ def settings_sub_menu(screen, font, settings, trans_dict, languages):
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 for i, r in enumerate(rects):
                     if r.collidepoint(event.pos):
+                        play_menu_sound("click")
                         if i == 0:  # ГУЧНІСТЬ
                             # Текст починається на 50.
                             # Слово "Гучність" закінчується десь на 200-250.
@@ -588,17 +703,22 @@ def settings_sub_menu(screen, font, settings, trans_dict, languages):
         for i, text in enumerate(opts):
             # Якщо миша над прямокутником — цей пункт стає вибраним (sel)
             if rects[i].collidepoint(m_pos):
+                if last_hovered != i:
+                    play_menu_sound("hover")
+                last_hovered = i
                 sel = i
 
             color = COLOR_ORANGE if i == sel else COLOR_WHITE
             surf = font.render(text, True, color)
             screen.blit(surf, (50, 250 + i * 100))
+        if not any(rect.collidepoint(m_pos) for rect in rects):
+            last_hovered = None
 
         pygame.display.flip()
         clock.tick(60)
 
 
-def confirm_dialog(screen, font, small_font, t):
+def confirm_dialog(screen, font, small_font, t, controls=None):
     # Невелика пауза для стабільності
     pygame.time.delay(150)
 
@@ -608,6 +728,7 @@ def confirm_dialog(screen, font, small_font, t):
     selected = 1  # 0 - YES, 1 - NO
     clock = pygame.time.Clock()
     pygame.mouse.set_visible(True)
+    last_hovered = None
 
     while True:
         W, H = screen.get_size()
@@ -630,12 +751,16 @@ def confirm_dialog(screen, font, small_font, t):
         bn = pygame.Rect(W // 2 + 30, H // 2 + 40, 100, 50)  # NO
 
         # --- ЛОГІКА МИШІ ---
-        if by.collidepoint(m_pos):
-            selected = 0
-            if m_click: return True
-        elif bn.collidepoint(m_pos):
-            selected = 1
-            if m_click: return False
+        hovered = 0 if by.collidepoint(m_pos) else 1 if bn.collidepoint(m_pos) else None
+        if hovered != last_hovered:
+            if hovered is not None:
+                play_menu_sound("hover")
+            last_hovered = hovered
+        if hovered is not None:
+            selected = hovered
+            if m_click:
+                play_menu_sound("click")
+                return selected == 0
 
         # 4. ВІЗУАЛІЗАЦІЯ ВИБОРУ
         y_col = (0, 200, 0) if selected == 0 else (0, 80, 0)
@@ -648,21 +773,32 @@ def confirm_dialog(screen, font, small_font, t):
         active_rect = by if selected == 0 else bn
         pygame.draw.rect(screen, (255, 255, 255), active_rect, 3)
 
-        screen.blit(small_font.render("YES", True, (255, 255, 255)), (by.centerx - 20, by.centery - 10))
-        screen.blit(small_font.render("NO", True, (255, 255, 255)), (bn.centerx - 15, bn.centery - 10))
+        yes_label = small_font.render(t.get("yes", "YES"), True, (255, 255, 255))
+        no_label = small_font.render(t.get("no", "NO"), True, (255, 255, 255))
+        screen.blit(yes_label, yes_label.get_rect(center=by.center))
+        screen.blit(no_label, no_label.get_rect(center=bn.center))
 
         pygame.display.flip()
 
         # 5. ІВЕНТИ (КЛАВІАТУРА)
         for event in pygame.event.get():
+            if controls is not None:
+                controls.process_event(event)
             if event.type == pygame.QUIT:
                 return False
             if event.type == pygame.KEYDOWN:
-                if event.key in [pygame.K_LEFT, pygame.K_RIGHT, pygame.K_a, pygame.K_d]:
+                if event.key in [pygame.K_LEFT, pygame.K_RIGHT] or (
+                    controls is not None and (
+                        controls.matches(event, pygame.K_a) or controls.matches(event, pygame.K_d)
+                    )
+                ):
                     selected = 1 - selected
+                    play_menu_sound("hover")
                 if event.key == pygame.K_RETURN:
+                    play_menu_sound("click")
                     return selected == 0
                 if event.key == pygame.K_ESCAPE:
+                    play_menu_sound("click")
                     return False
 
         clock.tick(30)
@@ -710,7 +846,7 @@ def draw_debug_coords(screen, target, mode_label):
     screen.blit(txt_surf, (15, 15))
 
 
-def full_screen_map(screen, map_img, target, world_w, world_h, house_pos=(7738, 2325)):
+def full_screen_map(screen, map_img, target, world_w, world_h, house_pos=(7738, 2325), controls=None):
     """Твоя реалізація великої карти з зумом та іконками."""
     try:
         haus_icon = pygame.image.load("ch_home/haus.png").convert_alpha()
@@ -726,6 +862,8 @@ def full_screen_map(screen, map_img, target, world_w, world_h, house_pos=(7738, 
     while running:
         screen.fill((20, 20, 20))
         for event in pygame.event.get():
+            if controls is not None:
+                controls.process_event(event)
             if event.type == pygame.QUIT:
                 pygame.quit()
                 exit()
@@ -737,7 +875,7 @@ def full_screen_map(screen, map_img, target, world_w, world_h, house_pos=(7738, 
                     running = False
 
         scaled_w, scaled_h = int(WIDTH * map_zoom), int(HEIGHT * map_zoom)
-        keys = pygame.key.get_pressed()
+        keys = controls if controls is not None else pygame.key.get_pressed()
         move_speed = 15 / map_zoom
 
         if keys[pygame.K_LEFT] or keys[pygame.K_a]:  map_off_x += move_speed
@@ -833,7 +971,10 @@ def check_house_exit(atom_h, house_info):
 
 def handle_surface_footsteps(keys, in_car, game_state, pos, col_mask, sounds, channel):
     # Кроки відтворюються лише якщо натиснуті клавіші руху і ми не в машині
-    is_moving = any(keys[k] for k in [pygame.K_w, pygame.K_a, pygame.K_s, pygame.K_d])
+    is_moving = any(keys[k] for k in [
+        pygame.K_w, pygame.K_a, pygame.K_s, pygame.K_d,
+        pygame.K_UP, pygame.K_LEFT, pygame.K_DOWN, pygame.K_RIGHT,
+    ])
 
     if not is_moving or in_car:
         channel.stop()
@@ -863,7 +1004,7 @@ def handle_surface_footsteps(keys, in_car, game_state, pos, col_mask, sounds, ch
     # Відтворюємо звук, якщо він знайдений і канал вільний
     if target_sound and not channel.get_busy():
         channel.play(target_sound)
-def handle_car_audio(car, in_car, sounds, e_chan, c_chan):
+def handle_car_audio(car, in_car, sounds, e_chan, c_chan, controls=None):
     if not in_car:
         e_chan.stop()
         return
@@ -877,7 +1018,7 @@ def handle_car_audio(car, in_car, sounds, e_chan, c_chan):
     e_chan.set_volume(vol)
 
     # 2. Логіка сигналу (Гудок)
-    keys = pygame.key.get_pressed()
+    keys = controls if controls is not None else pygame.key.get_pressed()
     if keys[pygame.K_h]:
         # Використовуємо окремий канал для сигналу, щоб не перебивати мотор
         # Або просто play(), якщо не боїшся накладання звуків
@@ -988,8 +1129,29 @@ CASE_PALETTE = [(30, 30, 30), (200, 200, 200), (0, 120, 255), (255, 215, 0), (25
 
 
 # 3. Головна функція малювання
-def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_settings, phone_y_offset, money_history):
+PHONE_TRANSLATIONS = {
+    "English": {
+        "bank": "Triple1 Bank", "history": "Recent transactions:",
+        "start": "Starting balance", "guard": "By the guard", "bridge": "By the bridge",
+        "repair": "Repair", "nightstand": "Nightstand", "sofa": "On the sofa",
+    },
+    "Українська": {
+        "bank": "Банк Triple1", "history": "Останні транзакції:",
+        "start": "Стартовий баланс", "guard": "Біля охоронця", "bridge": "Коло мосту",
+        "repair": "Ремонт", "nightstand": "Тумбочка", "sofa": "На дивані",
+    },
+    "Русский": {
+        "bank": "Банк Triple1", "history": "Последние транзакции:",
+        "start": "Стартовый баланс", "guard": "У охранника", "bridge": "У моста",
+        "repair": "Ремонт", "nightstand": "Тумбочка", "sofa": "На диване",
+    },
+}
+
+
+def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_settings,
+                      phone_y_offset, money_history, language="English"):
     width, height = screen.get_size()
+    labels = PHONE_TRANSLATIONS.get(language, PHONE_TRANSLATIONS["English"])
     p_w, p_h = 220, 400
 
     # Розрахунок позиції телефону (p_y змінюється динамічно)
@@ -1027,7 +1189,7 @@ def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_s
 
     elif current_app == 1:
         # УСІ КООРДИНАТИ ТЕКСТУ ТЕПЕР ВІДНОСНО display_rect.y
-        bank_label = font_small.render("Triple1 Bank", True, (255, 215, 0))
+        bank_label = font_small.render(labels["bank"], True, (255, 215, 0))
         screen.blit(bank_label, (display_rect.x + 15, display_rect.y + 40))
 
         balance_surf = font_small.render(f"{money} UAH", True, (0, 255, 0))
@@ -1036,10 +1198,11 @@ def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_s
         # Історія транзакцій
         # ВАЖЛИВО: y_hist рахується як сума від display_rect.y
         y_hist = display_rect.y + 130
-        history_title = pygame.font.SysFont("Arial", 12, bold=True).render("Останні транзакції:", True, (150, 150, 150))
+        history_title = pygame.font.SysFont("Arial", 12, bold=True).render(labels["history"], True, (150, 150, 150))
         screen.blit(history_title, (display_rect.x + 15, y_hist))
 
         for item in money_history[-3:]:
             y_hist += 25
-            txt = pygame.font.SysFont("Arial", 12).render(f"{item[0]} - {item[1]}", True, (200, 200, 200))
+            label = labels.get(item[1], item[1])
+            txt = pygame.font.SysFont("Arial", 12).render(f"{item[0]} - {label}", True, (200, 200, 200))
             screen.blit(txt, (display_rect.x + 15, y_hist))

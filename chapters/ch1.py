@@ -3,6 +3,7 @@ import pygame
 import engine
 from engine import Car, Player
 from house import HousePlayer
+from controls import KeyboardState
 import traffic  # Імпортуємо твій новий файл
 from constants import *
 
@@ -12,7 +13,8 @@ os.environ['SDL_VIDEO_CENTERED'] = '1'
 def run(screen, settings):
     traffic_timer = 0
     traffic_state = "RED"  # RED — стоїть потік N, GREEN — стоїть потік A1
-    frame_count = 0  # Створюємо лічильник кадрів ТУТ
+    frame_count = 0
+    keyboard = KeyboardState()
     # Створюємо 3 ботів на нашому маршруті
     npc_cars = traffic.init_traffic(11)
     # У блоці ресурсів додаємо:
@@ -22,7 +24,7 @@ def run(screen, settings):
     phone_click_sfx.set_volume(0.4)  # Щоб не лупило по вухах
     current_app = 0  # 0 - меню, 1-9 - додатки
     money = 100  # Твоє бабло
-    money_history = [("+100", "Старт")]  # Тільки один раз!
+    money_history = [("+100", "start")]
     # Список уже зібраних скарбів, щоб не брати їх нескінченно
     collected_treasures = set()
     phone_active = False  # Стан телефону
@@ -31,15 +33,6 @@ def run(screen, settings):
     # --- СИСТЕМА ЧАСУ ТА ОСВІТЛЕННЯ ---
     game_time = 480
     night_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-    game_time += 1 / 60
-    # У ch1.py або main.py всередині циклу:
-    if frame_count % 300 == 0:  # раз на секунду
-        traffic.analyze_traffic_jams(npc_cars)
-    if game_time >= 1440: game_time = 0
-
-    h, m = int(game_time / 60), int(game_time % 60)
-    time_str = f"{h:02d}:{m:02d}"
-
     # Ресурси
     car_sfx = {
         'engine': pygame.mixer.Sound("sounds/car_engine.wav"),
@@ -116,15 +109,33 @@ def run(screen, settings):
     translations = {
         "English": {
             "hint": "[F] Enter Car", "enter": "[E] Enter House", "exit": "[E] Exit House",
-            "resume": "Resume", "stats": "Stats", "settings": "Settings", "menu": "To Menu"
+            "resume": "Resume", "stats": "Stats", "settings": "Settings", "menu": "To Menu",
+            "vol": "Volume", "lang": "Language", "back": "Back",
+            "repair": "Hold [R] to repair", "confirm_q": "Leave the game?",
+            "confirm_w": "Progress in this session will be lost.", "yes": "YES", "no": "NO",
+            "stats_title": "Session statistics", "stats_money": "Money: {money} UAH",
+            "stats_time": "Time: {time}", "stats_treasures": "Treasures found: {treasures}",
+            "stats_traffic": "Traffic: {traffic} (police: {police})", "stats_hint": "Press Esc or Enter to return"
         },
         "Українська": {
-            "hint": "[F] Сісти в авто", "enter": "[E] Увійти в дім", "exit": "[E] Вийти з дому",
-            "resume": "Продовжити", "stats": "Статистика", "settings": "Налаштування", "menu": "В меню"
+            "hint": "[А] Сісти в авто", "enter": "[У] Увійти в дім", "exit": "[У] Вийти з дому",
+            "resume": "Продовжити", "stats": "Статистика", "settings": "Налаштування", "menu": "В меню",
+            "vol": "Гучність", "lang": "Мова", "back": "Назад",
+            "repair": "Тримайте [К] для ремонту", "confirm_q": "Вийти з гри?",
+            "confirm_w": "Прогрес цієї сесії буде втрачено.", "yes": "ТАК", "no": "НІ",
+            "stats_title": "Статистика сесії", "stats_money": "Гроші: {money} UAH",
+            "stats_time": "Час: {time}", "stats_treasures": "Знайдено скарбів: {treasures}",
+            "stats_traffic": "Трафік: {traffic} (поліції: {police})", "stats_hint": "Натисніть Esc або Enter, щоб повернутися"
         },
         "Русский": {
-            "hint": "[F] Сесть в авто", "enter": "[E] Войти в дом", "exit": "[E] Выйти из дома",
-            "resume": "Продолжить", "stats": "Статистика", "settings": "Настройки", "menu": "В меню"
+            "hint": "[А] Сесть в авто", "enter": "[У] Войти в дом", "exit": "[У] Выйти из дома",
+            "resume": "Продолжить", "stats": "Статистика", "settings": "Настройки", "menu": "В меню",
+            "vol": "Громкость", "lang": "Язык", "back": "Назад",
+            "repair": "Удерживайте [К], чтобы починить", "confirm_q": "Выйти из игры?",
+            "confirm_w": "Прогресс этой сессии будет потерян.", "yes": "ДА", "no": "НЕТ",
+            "stats_title": "Статистика сессии", "stats_money": "Деньги: {money} UAH",
+            "stats_time": "Время: {time}", "stats_treasures": "Найдено сокровищ: {treasures}",
+            "stats_traffic": "Трафик: {traffic} (полиции: {police})", "stats_hint": "Нажмите Esc или Enter, чтобы вернуться"
         }
     }
 
@@ -139,21 +150,22 @@ def run(screen, settings):
         target_y = 0.0 if phone_active else 450.0
         current_lang_name = languages[settings['lang_idx']]
         t = translations.get(current_lang_name, translations["English"])
-        keys = pygame.key.get_pressed()
+        keys = keyboard
         # Час іде (1 хвилина ігрового часу = 1 хвилина реального при 60 FPS)
         game_time += 1 / 60
         if game_time >= 1440: game_time = 0
 
-        # Аналіз пробок (раз на секунду)
+        frame_count += 1
         if frame_count % 60 == 0:
             traffic.analyze_traffic_jams(npc_cars)
 
         # 1. ОБРОБКА ПОДІЙ
         for event in pygame.event.get():
+            keyboard.process_event(event)
             if event.type == pygame.QUIT: return "EXIT"
             if event.type == pygame.KEYDOWN:
                 # --- ЛОГІКА ТЕЛЕФОНУ ---
-                if event.key == pygame.K_m:
+                if keyboard.matches(event, pygame.K_m):
                     phone_active = not phone_active
                     current_app = 0
                     phone_click_sfx.play()  # Звук при відкритті/закритті на M
@@ -170,19 +182,29 @@ def run(screen, settings):
 
                     # ВІДКРИТТЯ ТІЛЬКИ TRIPLE1 (Тільки якщо ми в меню)
                     elif current_app == 0:
-                        if event.key == pygame.K_1 or event.key == pygame.K_KP1:
+                        if keyboard.matches(event, pygame.K_1) or event.key == pygame.K_KP1:
                             current_app = 1
                             phone_click_sfx.play()
                 if event.key == pygame.K_F3:
                     show_debug = not show_debug
                 if event.key == pygame.K_TAB:
-                    engine.full_screen_map(screen, full_map_img, (car if in_car else atom), CURR_WORLD_W, CURR_WORLD_H)
+                    engine.full_screen_map(
+                        screen, full_map_img, (car if in_car else atom),
+                        CURR_WORLD_W, CURR_WORLD_H, controls=keyboard
+                    )
                 if event.key == pygame.K_ESCAPE:
-                    # Ми вибираємо поточну мову ПЕРЕД тим, як запхати її в меню
-                    current_t = translations[languages[settings['lang_idx']]]
-                    res = engine.pause_menu(screen, game_font, small_font, settings, translations, languages)
+                    res = engine.pause_menu(
+                        screen, game_font, small_font, settings, translations, languages, keyboard,
+                        {
+                            "money": money,
+                            "time": f"{int(game_time / 60):02d}:{int(game_time % 60):02d}",
+                            "treasures": len(collected_treasures),
+                            "traffic": len(npc_cars),
+                            "police": sum(1 for npc in npc_cars if npc.is_police),
+                        },
+                    )
                     if res in ["MENU", "EXIT"]: return res
-                if event.key == pygame.K_f and game_state == "CITY":
+                if keyboard.matches(event, pygame.K_f) and game_state == "CITY":
                     old_in_car = in_car  # Запам'ятовуємо стан до натискання
                     in_car = engine.handle_car_logic(atom, car, in_car)
 
@@ -192,7 +214,7 @@ def run(screen, settings):
                             car_sfx['door_open'].play()
                         else:
                             car_sfx['door_close'].play()
-                if event.key == pygame.K_e:
+                if keyboard.matches(event, pygame.K_e):
                     if game_state == "CITY" and not in_car:
                         if atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
                             game_state = "HOUSE"
@@ -203,14 +225,6 @@ def run(screen, settings):
                             atom.pos = pygame.Vector2(7731, 2326)
 
         # 2. ОНОВЛЕННЯ (UPDATE)
-        game_time += 1 / 60
-        if game_time >= 1440: game_time = 0
-        # --- ДОДАЙ ЦІ ДВА РЯДКИ СЮДИ ---
-        h, m = int(game_time / 60), int(game_time % 60)
-        time_str = f"{h:02d}:{m:02d}"
-        # -------------------------------
-
-        # --- У циклі while у ch1.py ---
 
         if game_state == "CITY":
             target = car if in_car else atom
@@ -230,12 +244,12 @@ def run(screen, settings):
                 # Скарби та секрети
                 if "guard" not in collected_treasures and atom.pos.distance_to(pygame.Vector2(8909, 1139)) < 60:
                     money += 100
-                    money_history.append(("+100", "Біля охоронця"))
+                    money_history.append(("+100", "guard"))
                     collected_treasures.add("guard")
 
                 if "exit" not in collected_treasures and atom.pos.distance_to(pygame.Vector2(4549, 5245)) < 60:
                     money += 111
-                    money_history.append(("+111", "Коло мосту"))
+                    money_history.append(("+111", "bridge"))
                     collected_treasures.add("exit")
 
                 # Логіка ремонту (БЕЗ дублювання)
@@ -247,12 +261,12 @@ def run(screen, settings):
                             car.is_broken = False
                             car.repair_progress = 0
                             money -= 50
-                            money_history.append(("-50", "Ремонт"))
+                            money_history.append(("-50", "repair"))
                     else:
                         car.repair_progress = 0
 
             engine.handle_surface_footsteps(keys, in_car, game_state, atom.pos, col_mask, step_sounds, foot_chan)
-            engine.handle_car_audio(car, in_car, car_sfx, engine_chan, crash_chan)
+            engine.handle_car_audio(car, in_car, car_sfx, engine_chan, crash_chan, keyboard)
             off_x = max(-(CURR_WORLD_W - WIDTH), min(0, WIDTH // 2 - target.pos.x))
             off_y = max(-(CURR_WORLD_H - HEIGHT), min(0, HEIGHT // 2 - target.pos.y))
         else:
@@ -260,13 +274,13 @@ def run(screen, settings):
             if "nightstand" not in collected_treasures:
                 if atom_h.pos.distance_to(pygame.Vector2(206, 199)) < 40:
                     money += 200
-                    money_history.append(("+200", "Тумбочка"))
+                    money_history.append(("+200", "nightstand"))
                     collected_treasures.add("nightstand")
 
             if "sofa" not in collected_treasures:
                 if atom_h.pos.distance_to(pygame.Vector2(723, 128)) < 40:
                     money += 300
-                    money_history.append(("+300", "На дивані"))
+                    money_history.append(("+300", "sofa"))
                     collected_treasures.add("sofa")
             engine.handle_surface_footsteps(keys, in_car, game_state, atom_h.pos, None, step_sounds, foot_chan)
 
@@ -290,7 +304,7 @@ def run(screen, settings):
 
                 # Підказка ремонту
                 if car.is_broken and atom.pos.distance_to(car.pos) < 100:
-                    r_text = "Hold [R] to repair" if current_lang_name == "English" else "Тримайте [R] для ремонту"
+                    r_text = t["repair"]
                     txt_surf = small_font.render(r_text, True, (255, 255, 255))
                     screen.blit(txt_surf, (WIDTH // 2 - txt_surf.get_width() // 2, HEIGHT // 2 + 100))
 
@@ -319,7 +333,8 @@ def run(screen, settings):
             engine.draw_debug_coords(screen, (atom_h if game_state == "HOUSE" else target), game_state)
         if phone_y_offset < 449.0:
             engine.draw_mobile_phone(screen, money, game_time, small_font,
-                                     current_app, phone_settings, phone_y_offset, money_history)
+                                     current_app, phone_settings, phone_y_offset, money_history,
+                                     current_lang_name)
 
         pygame.display.flip()
         clock.tick(FPS)
