@@ -1,7 +1,14 @@
 # ATOF
 Game About Mister Atom
 
-## Version 0.0.2
+## Version 0.0.3
+
+- Adds separate volume controls for music, NPCs, crashes, buttons, and footsteps, including in the pause menu.
+- Saves audio, language, and key settings in `config.json`, validates saved values, and reads the previous music-volume setting.
+- Fixes player collision checks at map boundaries and makes game assets load from the project directory.
+- Adds translated audio-setting labels and clearer volume controls in English, Ukrainian, and Russian.
+
+## Previous version: 0.0.2
 
 - Adds roaming police traffic with collision-aware patrol and pursuit behavior.
 - Loads the supplied traffic brain into traffic and police at runtime; police use it for steering while keeping their own patrol and pursuit behavior. The game does not run training.

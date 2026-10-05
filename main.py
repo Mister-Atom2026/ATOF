@@ -12,7 +12,7 @@ pygame.init()
 pygame.mixer.init()
 import engine
 
-VERSION = "0.0.2"
+VERSION = "0.0.3"
 WIDTH, HEIGHT = 1280, 720
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption(f"ATOF v{VERSION}")
