@@ -2,9 +2,8 @@ import os
 import time
 import pygame
 import engine
-from engine import Car, Player
+from engine import Car, KeyboardState, Player
 from house import HousePlayer
-from controls import KeyboardState
 from settings_manager import save_settings, save_statistics
 import traffic  # Import the traffic module.
 from constants import *
@@ -22,8 +21,8 @@ def run(screen, settings):
     # Load the game resources.
     target_y = 450.0
     phone_y_offset = 450.0
-    phone_click_sfx = pygame.mixer.Sound("sounds/click.wav")
-    phone_click_sfx.set_volume(0.4)  # Keep the sound volume comfortable.
+    game_audio = engine.load_game_audio()
+    phone_click_sfx = game_audio.phone_click
     current_app = 0  # 0 is the phone menu; 1–9 are apps.
     money = 100  # Starting cash.
     total_earned = 0
@@ -36,81 +35,39 @@ def run(screen, settings):
     # --- Time and lighting ---
     game_time = 480
     night_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
-    # Load resources.
-    car_sfx = {
-        'engine': pygame.mixer.Sound("sounds/car_engine.wav"),
-        'crash': pygame.mixer.Sound("sounds/car_crash.wav"),
-        'beep': pygame.mixer.Sound("sounds/beep.wav"),
-        'door_open': pygame.mixer.Sound("sounds/cd_open.wav"),
-        'door_close': pygame.mixer.Sound("sounds/cd_close.wav")
-    }
-
-    # Set each sound volume.
-    car_sfx['engine'].set_volume(0.3)
-    car_sfx['crash'].set_volume(0.5)
-    car_sfx['beep'].set_volume(0.4)
-    car_sfx['door_open'].set_volume(0.5)
-    car_sfx['door_close'].set_volume(0.5)
-
-    engine_chan = pygame.mixer.Channel(6)
-    crash_chan = pygame.mixer.Channel(7)
-
-    step_sounds = {
-        'asphalt': pygame.mixer.Sound("sounds/footstep_on_stone.wav"),
-        'dirt': pygame.mixer.Sound("sounds/footstep_on_dirt.wav"),
-        'grass': pygame.mixer.Sound("sounds/footstep_on_grass.wav"),
-        'house': pygame.mixer.Sound("sounds/footstep_on_wood.wav")
-    }
-    for sound in step_sounds.values():
-        sound.set_volume(0.2)
+    car_sfx = game_audio.car_sounds
+    step_sounds = game_audio.footsteps
 
     def apply_audio_settings():
-        engine.configure_audio(settings)
+        engine.configure_game_audio(settings, game_audio)
         traffic.configure_audio(settings)
-        button_gain = settings.get("button_volume", 100) / 100
-        crash_gain = settings.get("crash_volume", 100) / 100
-        footsteps_gain = settings.get("footsteps_volume", 100) / 100
-        phone_click_sfx.set_volume(0.4 * button_gain)
-        car_sfx["beep"].set_volume(0.4 * button_gain)
-        car_sfx["door_open"].set_volume(0.5 * button_gain)
-        car_sfx["door_close"].set_volume(0.5 * button_gain)
-        car_sfx["crash"].set_volume(0.5 * crash_gain)
-        for sound in step_sounds.values():
-            sound.set_volume(0.2 * footsteps_gain)
 
     apply_audio_settings()
 
-    foot_chan = pygame.mixer.Channel(5)
-    atom_img = pygame.image.load('characters/atom.png').convert_alpha()
+    engine_chan = game_audio.engine_channel
+    crash_chan = game_audio.crash_channel
+    foot_chan = game_audio.footstep_channel
     clock = pygame.time.Clock()
     languages = ["English", "Українська", "Русский", "Español", "Deutsch", "Français"]
 
     MAP_SCALE = 4.0
     CURR_WORLD_W, CURR_WORLD_H = int(WORLD_WIDTH * MAP_SCALE), int(WORLD_HEIGHT * MAP_SCALE)
+    assets = engine.load_game_assets(
+        screen.get_size(),
+        (CURR_WORLD_W, CURR_WORLD_H),
+    )
+    atom_img = assets.atom
+    original_nav_map = assets.original_nav_map
+    world_bg = assets.world_background
+    full_map_img = assets.full_map
+    col_mask = assets.collision_mask
+    house_visual = assets.house_visual
+    house_collision = assets.house_collision
+    house_info = assets.house_info
 
     show_debug = False
     game_state = "HOUSE"
     in_car = False
-
-    # WORLD (CITY)
-    # 2. Map shown on the minimap and Tab screen.
-    # Load the city-map image used by both map views.
-    original_nav_map = pygame.image.load("world/Карта Вишневого.png").convert()
-    original_bg = pygame.image.load("world/НОРМ Карта Вишневого.png").convert()
-    world_bg = pygame.transform.scale(original_bg, (CURR_WORLD_W, CURR_WORLD_H))
-    full_map_img = pygame.transform.scale(original_nav_map, (WIDTH, HEIGHT))
-    col_mask = pygame.transform.scale(pygame.image.load("world/Нізя їздити.png").convert(),
-                                      (CURR_WORLD_W, CURR_WORLD_H))
-
-    # HOUSE
-    h_scale = 3
-    house_visual = pygame.image.load("ch_home/hm.png").convert()
-    house_visual = pygame.transform.scale(house_visual,
-                                          (house_visual.get_width() * h_scale, house_visual.get_height() * h_scale))
-    house_collision = pygame.transform.scale(pygame.image.load("ch_home/hkm.png").convert(),
-                                             (house_visual.get_width(), house_visual.get_height()))
-    house_info = pygame.transform.scale(pygame.image.load("ch_home/him.png").convert(),
-                                        (house_visual.get_width(), house_visual.get_height()))
 
     # GAME OBJECTS
     atom = Player(7738, 2330)
@@ -118,12 +75,7 @@ def run(screen, settings):
     car.angle = 270
     atom_h = HousePlayer(162, 161)
 
-    try:
-        game_font = pygame.font.Font("static.ttf", 40)
-        small_font = pygame.font.Font("static.ttf", 25)
-    except (pygame.error, OSError):
-        game_font = pygame.font.SysFont("Arial", 40, bold=True)
-        small_font = pygame.font.SysFont("Arial", 25)
+    game_font, small_font = engine.load_game_fonts()
 
     translations = {
         "English": {

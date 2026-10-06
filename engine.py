@@ -1,6 +1,7 @@
 import json
 import math
 import random
+from dataclasses import dataclass
 from pathlib import Path
 import sys
 from typing import Optional
@@ -25,6 +26,187 @@ _AUDIO_DEFAULTS = {
 }
 _audio_settings: dict[str, float] = {key: value / 100 for key, value in _AUDIO_DEFAULTS.items()}
 _MENU_SOUND_LEVELS = {"hover": 0.22, "click": 0.38}
+_ASSET_ROOT = Path(__file__).resolve().parent
+
+
+PHYSICAL_SCANCODES = {
+    getattr(pygame, f"K_{letter}"): getattr(pygame, f"KSCAN_{letter.upper()}")
+    for letter in "abcdefghijklmnopqrstuvwxyz"
+    if hasattr(pygame, f"K_{letter}") and hasattr(pygame, f"KSCAN_{letter.upper()}")
+}
+PHYSICAL_SCANCODES.update({
+    getattr(pygame, f"K_{number}"): getattr(pygame, f"KSCAN_{number}")
+    for number in "0123456789"
+    if hasattr(pygame, f"K_{number}") and hasattr(pygame, f"KSCAN_{number}")
+})
+
+
+class KeyboardState:
+    """Drop-in key-state reader with layout-independent WASD movement."""
+
+    def __init__(self):
+        self._pressed_scancodes = set()
+
+    def process_event(self, event):
+        if event.type == pygame.KEYDOWN:
+            scancode = getattr(event, "scancode", None)
+            if scancode is not None:
+                self._pressed_scancodes.add(scancode)
+        elif event.type == pygame.KEYUP:
+            scancode = getattr(event, "scancode", None)
+            if scancode is not None:
+                self._pressed_scancodes.discard(scancode)
+        elif event.type == getattr(pygame, "WINDOWFOCUSLOST", -1):
+            self._pressed_scancodes.clear()
+
+    def __getitem__(self, key):
+        scancode = PHYSICAL_SCANCODES.get(key)
+        if scancode is not None and scancode in self._pressed_scancodes:
+            return True
+        try:
+            return bool(pygame.key.get_pressed()[key])
+        except (IndexError, TypeError):
+            return False
+
+    @staticmethod
+    def matches(event, key):
+        """Match a KEYDOWN to its US-layout key position or its reported key."""
+        if getattr(event, "key", None) == key:
+            return True
+        scancode = PHYSICAL_SCANCODES.get(key)
+        return scancode is not None and getattr(event, "scancode", None) == scancode
+
+
+@dataclass(frozen=True)
+class GameAssets:
+    atom: pygame.Surface
+    original_nav_map: pygame.Surface
+    world_background: pygame.Surface
+    full_map: pygame.Surface
+    collision_mask: pygame.Surface
+    house_visual: pygame.Surface
+    house_collision: pygame.Surface
+    house_info: pygame.Surface
+
+
+@dataclass(frozen=True)
+class GameAudio:
+    phone_click: pygame.mixer.Sound
+    car_sounds: dict[str, pygame.mixer.Sound]
+    footsteps: dict[str, pygame.mixer.Sound]
+    engine_channel: pygame.mixer.Channel
+    crash_channel: pygame.mixer.Channel
+    footstep_channel: pygame.mixer.Channel
+
+
+def load_game_assets(
+    screen_size: tuple[int, int],
+    world_size: tuple[int, int],
+    house_scale: int = 3,
+) -> GameAssets:
+    """Load and prepare the shared city, house, and character assets."""
+    def load_image(relative_path: str, *, alpha: bool = False) -> pygame.Surface:
+        image = pygame.image.load(str(_ASSET_ROOT / relative_path))
+        return image.convert_alpha() if alpha else image.convert()
+
+    atom = load_image("characters/atom.png", alpha=True)
+    original_nav_map = load_image("world/Карта Вишневого.png")
+    original_background = load_image("world/НОРМ Карта Вишневого.png")
+    world_background = pygame.transform.scale(original_background, world_size)
+    full_map = pygame.transform.scale(original_nav_map, screen_size)
+    collision_mask = pygame.transform.scale(
+        load_image("world/Нізя їздити.png"),
+        world_size,
+    )
+
+    house_visual = load_image("ch_home/hm.png")
+    house_size = (
+        house_visual.get_width() * house_scale,
+        house_visual.get_height() * house_scale,
+    )
+    house_visual = pygame.transform.scale(house_visual, house_size)
+    house_collision = pygame.transform.scale(load_image("ch_home/hkm.png"), house_size)
+    house_info = pygame.transform.scale(load_image("ch_home/him.png"), house_size)
+
+    return GameAssets(
+        atom=atom,
+        original_nav_map=original_nav_map,
+        world_background=world_background,
+        full_map=full_map,
+        collision_mask=collision_mask,
+        house_visual=house_visual,
+        house_collision=house_collision,
+        house_info=house_info,
+    )
+
+
+def load_game_audio() -> GameAudio:
+    """Create the chapter's sound effects and dedicated mixer channels."""
+    sound_root = _ASSET_ROOT / "sounds"
+
+    def load_sound(filename: str) -> pygame.mixer.Sound:
+        return pygame.mixer.Sound(str(sound_root / filename))
+
+    phone_click = load_sound("click.wav")
+    car_sounds = {
+        "engine": load_sound("car_engine.wav"),
+        "crash": load_sound("car_crash.wav"),
+        "beep": load_sound("beep.wav"),
+        "door_open": load_sound("cd_open.wav"),
+        "door_close": load_sound("cd_close.wav"),
+    }
+    footsteps = {
+        "asphalt": load_sound("footstep_on_stone.wav"),
+        "dirt": load_sound("footstep_on_dirt.wav"),
+        "grass": load_sound("footstep_on_grass.wav"),
+        "house": load_sound("footstep_on_wood.wav"),
+    }
+
+    phone_click.set_volume(0.4)
+    car_sounds["engine"].set_volume(0.3)
+    car_sounds["crash"].set_volume(0.5)
+    car_sounds["beep"].set_volume(0.4)
+    car_sounds["door_open"].set_volume(0.5)
+    car_sounds["door_close"].set_volume(0.5)
+    for sound in footsteps.values():
+        sound.set_volume(0.2)
+
+    return GameAudio(
+        phone_click=phone_click,
+        car_sounds=car_sounds,
+        footsteps=footsteps,
+        engine_channel=pygame.mixer.Channel(6),
+        crash_channel=pygame.mixer.Channel(7),
+        footstep_channel=pygame.mixer.Channel(5),
+    )
+
+
+def load_game_fonts() -> tuple[pygame.font.Font, pygame.font.Font]:
+    """Load the chapter fonts, falling back to system fonts if needed."""
+    font_path = str(_ASSET_ROOT / "static.ttf")
+    try:
+        return pygame.font.Font(font_path, 40), pygame.font.Font(font_path, 25)
+    except (pygame.error, OSError):
+        return (
+            pygame.font.SysFont("Arial", 40, bold=True),
+            pygame.font.SysFont("Arial", 25),
+        )
+
+
+def configure_game_audio(settings, audio: GameAudio) -> None:
+    """Apply saved audio levels to the chapter's sound effects."""
+    configure_audio(settings)
+
+    button_gain = settings.get("button_volume", 100) / 100
+    crash_gain = settings.get("crash_volume", 100) / 100
+    footsteps_gain = settings.get("footsteps_volume", 100) / 100
+    audio.phone_click.set_volume(0.4 * button_gain)
+    audio.car_sounds["beep"].set_volume(0.4 * button_gain)
+    audio.car_sounds["door_open"].set_volume(0.5 * button_gain)
+    audio.car_sounds["door_close"].set_volume(0.5 * button_gain)
+    audio.car_sounds["crash"].set_volume(0.5 * crash_gain)
+    for sound in audio.footsteps.values():
+        sound.set_volume(0.2 * footsteps_gain)
 
 
 def configure_audio(settings):
