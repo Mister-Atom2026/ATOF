@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 os.environ.setdefault("SDL_VIDEO_CENTERED", "1")
 
@@ -19,6 +20,26 @@ constants.FPS = APP_SETTINGS["fps_limit"]
 WIDTH, HEIGHT = constants.WIDTH, constants.HEIGHT
 
 pygame.init()
+
+
+def load_window_icon():
+    for filename in ("icon.png", "icon.ico", "icon.bmp"):
+        icon_path = Path(__file__).resolve().parent / filename
+        if not icon_path.exists():
+            continue
+        try:
+            icon_surface = pygame.image.load(str(icon_path)).convert_alpha()
+            if icon_surface.get_width() > 0 and icon_surface.get_height() > 0:
+                return icon_surface
+        except (pygame.error, OSError):
+            continue
+    return None
+
+
+window_icon = load_window_icon()
+if window_icon is not None:
+    pygame.display.set_icon(window_icon)
+
 try:
     pygame.mixer.init()
 except pygame.error:
@@ -32,11 +53,6 @@ except pygame.error:
     constants.WIDTH, constants.HEIGHT = 1280, 720
     WIDTH, HEIGHT = constants.WIDTH, constants.HEIGHT
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
-try:
-    icon = pygame.image.load("icon.png").convert_alpha()
-    pygame.display.set_icon(icon)
-except (pygame.error, OSError):
-    pass
 pygame.display.set_caption(f"ATOF v{VERSION} — {RELEASE_NAME}")
 
 import engine
