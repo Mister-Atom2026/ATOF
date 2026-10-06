@@ -93,8 +93,8 @@ def run(screen, settings):
             "stats_title": "Session statistics", "stats_money": "Money: {money} UAH",
             "stats_time": "Time: {time}", "stats_treasures": "Treasures found: {treasures}",
             "stats_earned": "Total earned: {amount} UAH", "stats_spent": "Total spent: {amount} UAH", "stats_hint": "Press Esc or Enter to return",
-            "gps_distance": "Distance: {distance} units", "gps_set": "Left-click: set destination",
-            "gps_clear": "Right-click/Delete: clear destination"
+            "gps_distance": "Distance: {distance}", "gps_set": "Left-click: set destination",
+            "gps_clear": "Right-click/Backspace: clear destination"
         },
         "Українська": {
             "hint": "[А] Сісти в авто", "enter": "[У] Увійти в дім", "exit": "[У] Вийти з дому",
@@ -109,8 +109,8 @@ def run(screen, settings):
             "stats_title": "Статистика сесії", "stats_money": "Гроші: {money} UAH",
             "stats_time": "Час: {time}", "stats_treasures": "Знайдено скарбів: {treasures}",
             "stats_earned": "Всього зароблено: {amount} UAH", "stats_spent": "Всього витрачено: {amount} UAH", "stats_hint": "Натисніть Esc або Enter, щоб повернутися",
-            "gps_distance": "Відстань: {distance} ігрових од.", "gps_set": "ЛКМ: поставити точку",
-            "gps_clear": "ПКМ/Delete: прибрати точку"
+            "gps_distance": "Відстань: {distance}", "gps_set": "ЛКМ: поставити точку",
+            "gps_clear": "ПКМ/Backspace: прибрати точку"
         },
         "Русский": {
             "hint": "[А] Сесть в авто", "enter": "[У] Войти в дом", "exit": "[У] Выйти из дома",
@@ -125,8 +125,8 @@ def run(screen, settings):
             "stats_title": "Статистика сессии", "stats_money": "Деньги: {money} UAH",
             "stats_time": "Время: {time}", "stats_treasures": "Найдено сокровищ: {treasures}",
             "stats_earned": "Всего заработано: {amount} UAH", "stats_spent": "Всего потрачено: {amount} UAH", "stats_hint": "Нажмите Esc или Enter, чтобы вернуться",
-            "gps_distance": "Расстояние: {distance} игровых ед.", "gps_set": "ЛКМ: поставить точку",
-            "gps_clear": "ПКМ/Delete: убрать точку"
+            "gps_distance": "Расстояние: {distance}", "gps_set": "ЛКМ: поставить точку",
+            "gps_clear": "ПКМ/Backspace: убрать точку"
         },
         "Español": {
             "hint": "[F] Subir al coche", "enter": "[E] Entrar en casa", "exit": "[E] Salir de casa",
@@ -142,8 +142,8 @@ def run(screen, settings):
             "stats_time": "Tiempo: {time}", "stats_treasures": "Tesoros encontrados: {treasures}",
             "stats_earned": "Total ganado: {amount} UAH", "stats_spent": "Total gastado: {amount} UAH",
             "stats_hint": "Pulsa Esc o Enter para volver",
-            "gps_distance": "Distancia: {distance} unidades", "gps_set": "Clic izquierdo: marcar destino",
-            "gps_clear": "Clic derecho/Delete: borrar destino",
+            "gps_distance": "Distancia: {distance}", "gps_set": "Clic izquierdo: marcar destino",
+            "gps_clear": "Clic derecho/Retroceso: borrar destino",
         },
         "Deutsch": {
             "hint": "[F] Ins Auto steigen", "enter": "[E] Haus betreten", "exit": "[E] Haus verlassen",
@@ -159,8 +159,8 @@ def run(screen, settings):
             "stats_time": "Zeit: {time}", "stats_treasures": "Gefundene Schätze: {treasures}",
             "stats_earned": "Insgesamt verdient: {amount} UAH", "stats_spent": "Insgesamt ausgegeben: {amount} UAH",
             "stats_hint": "Esc oder Enter drücken, um zurückzukehren",
-            "gps_distance": "Entfernung: {distance} Einheiten", "gps_set": "Linksklick: Ziel setzen",
-            "gps_clear": "Rechtsklick/Delete: Ziel löschen",
+            "gps_distance": "Entfernung: {distance}", "gps_set": "Linksklick: Ziel setzen",
+            "gps_clear": "Rechtsklick/Backspace: Ziel löschen",
         },
         "Français": {
             "hint": "[F] Monter en voiture", "enter": "[E] Entrer dans la maison", "exit": "[E] Sortir de la maison",
@@ -176,8 +176,8 @@ def run(screen, settings):
             "stats_time": "Temps : {time}", "stats_treasures": "Trésors trouvés : {treasures}",
             "stats_earned": "Total gagné : {amount} UAH", "stats_spent": "Total dépensé : {amount} UAH",
             "stats_hint": "Appuyez sur Échap ou Entrée pour revenir",
-            "gps_distance": "Distance : {distance} unités", "gps_set": "Clic gauche : définir la destination",
-            "gps_clear": "Clic droit/Delete : supprimer la destination",
+            "gps_distance": "Distance : {distance}", "gps_set": "Clic gauche : définir la destination",
+            "gps_clear": "Clic droit/Retour arrière : supprimer la destination",
         }
     }
 

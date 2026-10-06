@@ -1,7 +1,15 @@
 # ATOF
 Game About Mister Atom
 
-## Version 0.4.2 — “Taxi Ride”
+## Version 0.5.0 Alpha 1
+
+- Strengthens drifting progressively as speed rises.
+- Reduces speed during turns only from 100 km/h; high-speed turn losses are limited to 7 km/h/s up to 110 km/h and 10 km/h/s above that.
+- Tunes acceleration to reach 70 km/h quickly, 90 km/h more gradually, and 120 km/h more slowly.
+- Makes the GPS destination marker on the radar larger and easier to distinguish with a dark outline, orange body, and white center.
+- Displays GPS distance in meters and kilometers, with map prompts translated in all supported languages.
+
+## Previous version: 0.4.2 — “Taxi Ride”
 
 - Adds an English release title, updated release metadata, and the full 0.4.2 changelog for the public GitHub release.
 - Refines the GPS marker: the map keeps only the destination point, removes the distance line, and uses a bright orange point that is easier to see.

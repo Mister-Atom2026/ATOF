@@ -448,6 +448,8 @@ class Player:
             pygame.draw.circle(screen, (255, 200, 0), (int(self.pos.x + offset_x), int(self.pos.y + offset_y)), 15)
 
 class Car:
+    _ACCELERATION_BANDS = ((70.0, 0.9), (90.0, 0.35), (120.0, 0.16))
+
     def __init__(self, x, y):
         self.pos = pygame.Vector2(x, y)
         self.angle = 0
@@ -486,6 +488,30 @@ class Car:
             self.image = pygame.Surface((96, 48))
             self.image.fill((0, 0, 255))
 
+    def _accelerate_forward(self, frame_scale):
+        remaining_frames = frame_scale
+        max_kmh = self.max_speed * 8
+
+        while remaining_frames > 0:
+            current_kmh = self.speed * 8
+            if current_kmh >= max_kmh:
+                self.speed = self.max_speed
+                return
+
+            for limit_kmh, acceleration_per_frame in self._ACCELERATION_BANDS:
+                if current_kmh < limit_kmh:
+                    band_limit = min(limit_kmh, max_kmh)
+                    break
+            else:
+                band_limit = max_kmh
+                acceleration_per_frame = self._ACCELERATION_BANDS[-1][1]
+
+            frames_to_limit = (band_limit - current_kmh) / acceleration_per_frame
+            applied_frames = min(remaining_frames, frames_to_limit)
+            current_kmh += acceleration_per_frame * applied_frames
+            self.speed = min(current_kmh / 8, self.max_speed)
+            remaining_frames -= applied_frames
+
     def update(self, keys, col_mask, active, npc_cars=None, frame_scale=1.0):
         left_pressed = False
         right_pressed = False
@@ -509,7 +535,7 @@ class Car:
                 if self.speed < 0:
                     self.speed += self.brake_force * frame_scale
                 else:
-                    self.speed = min(self.speed + current_accel, self.max_speed)
+                    self._accelerate_forward(frame_scale)
             elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
                 if self.speed > 0:
                     self.speed -= self.brake_force * frame_scale
@@ -534,21 +560,15 @@ class Car:
         is_drifting = active and current_kmh > 30 and is_turning
         desired_velocity = pygame.Vector2(self.speed, 0).rotate(-self.angle + 180)
         if is_drifting:
-            if current_kmh <= 30:
-                speed_loss_kmh = 1.0
-            elif current_kmh <= 80:
-                speed_loss_kmh = 5.0
-            elif current_kmh <= 110:
-                speed_loss_kmh = 7.0
-            else:
-                speed_loss_kmh = 10.0
-            drift_intensity = min((current_kmh - 30) / 90, 1.0)
-            grip = 0.55 - 0.22 * drift_intensity
-            speed_reduction = (speed_loss_kmh / 8.0) * (0.25 * frame_scale)
-            if self.speed > 0:
-                self.speed = max(0.0, self.speed - speed_reduction)
-            elif self.speed < 0:
-                self.speed = min(0.0, self.speed + speed_reduction)
+            drift_intensity = min((current_kmh - 30) / 90, 1.0) ** 1.5
+            grip = 0.55 - 0.35 * drift_intensity
+            if current_kmh >= 100:
+                speed_loss_kmh_per_second = 7.0 if current_kmh <= 110 else 10.0
+                speed_reduction = speed_loss_kmh_per_second * frame_scale / (60 * 8)
+                if self.speed > 0:
+                    self.speed = max(0.0, self.speed - speed_reduction)
+                elif self.speed < 0:
+                    self.speed = min(0.0, self.speed + speed_reduction)
         elif current_kmh > 30:
             grip = 0.42
         else:
@@ -731,9 +751,16 @@ def draw_atom_character(ctx, x, y, atom_tex, angle):
 
 
 def _format_gps_distance(distance):
-    if distance >= 1000:
-        return f"{distance / 1000:.1f}k"
-    return f"{distance:.0f}"
+    if distance >= 999.5:
+        return f"{distance / 1000:.1f} km"
+    return f"{distance:.0f} m"
+
+
+def _draw_gps_marker(surface, center, radius):
+    pygame.draw.circle(surface, (15, 15, 15), center, radius + 3)
+    pygame.draw.circle(surface, (255, 255, 255), center, radius + 1)
+    pygame.draw.circle(surface, (255, 112, 0), center, radius)
+    pygame.draw.circle(surface, (255, 255, 255), center, max(2, radius // 3))
 
 
 def draw_gta_minimap(
@@ -804,8 +831,7 @@ def draw_gta_minimap(
     if gps is not None and gps.destination is not None:
         dx = gps.destination[0] * ratio_x + ox
         dy = gps.destination[1] * ratio_y + oy
-        pygame.draw.circle(mini_surf, (255, 128, 0), (int(dx), int(dy)), 6)
-        pygame.draw.circle(mini_surf, (20, 20, 20), (int(dx), int(dy)), 6, 2)
+        _draw_gps_marker(mini_surf, (int(dx), int(dy)), 9)
 
     # Apply a circular mask to crop the map edges.
     mask = pygame.Surface((size, size), pygame.SRCALPHA)
@@ -1552,8 +1578,7 @@ def full_screen_map(
         distance = gps.distance_to((target.pos.x, target.pos.y)) if gps is not None else None
         if gps is not None and gps.destination is not None:
             dx, dy = world_to_map(*gps.destination)
-            pygame.draw.circle(screen, (20, 20, 20), (dx, dy), int(12 * map_zoom))
-            pygame.draw.circle(screen, (255, 128, 0), (dx, dy), int(10 * map_zoom), max(2, int(3 * map_zoom)))
+            _draw_gps_marker(screen, (dx, dy), max(6, int(10 * map_zoom)))
 
         if distance is not None:
             distance_text = labels.get("gps_distance", "Distance: {distance}").format(
@@ -1565,7 +1590,7 @@ def full_screen_map(
 
         hint_font = pygame.font.Font(None, 24)
         set_hint = labels.get("gps_set", "Left-click: set destination")
-        clear_hint = labels.get("gps_clear", "Right-click/Delete: clear destination")
+        clear_hint = labels.get("gps_clear", "Right-click/Backspace: clear destination")
         for index, hint_text in enumerate((set_hint, clear_hint)):
             rendered_hint = hint_font.render(hint_text, True, (240, 240, 240))
             screen.blit(
