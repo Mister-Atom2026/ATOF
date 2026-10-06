@@ -32,6 +32,11 @@ except pygame.error:
     constants.WIDTH, constants.HEIGHT = 1280, 720
     WIDTH, HEIGHT = constants.WIDTH, constants.HEIGHT
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
+try:
+    icon = pygame.image.load("icon.png").convert_alpha()
+    pygame.display.set_icon(icon)
+except (pygame.error, OSError):
+    pass
 pygame.display.set_caption(f"ATOF v{VERSION} — {RELEASE_NAME}")
 
 import engine

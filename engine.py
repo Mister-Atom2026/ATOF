@@ -534,9 +534,21 @@ class Car:
         is_drifting = active and current_kmh > 30 and is_turning
         desired_velocity = pygame.Vector2(self.speed, 0).rotate(-self.angle + 180)
         if is_drifting:
-            drift_intensity = min((current_kmh - 30) / 70, 1.0)
-            grip = 0.32 - 0.22 * drift_intensity
-            self.speed *= max(0.82, 1.0 - 0.16 * drift_intensity * frame_scale)
+            if current_kmh <= 30:
+                speed_loss_kmh = 1.0
+            elif current_kmh <= 80:
+                speed_loss_kmh = 5.0
+            elif current_kmh <= 110:
+                speed_loss_kmh = 7.0
+            else:
+                speed_loss_kmh = 10.0
+            drift_intensity = min((current_kmh - 30) / 90, 1.0)
+            grip = 0.55 - 0.22 * drift_intensity
+            speed_reduction = (speed_loss_kmh / 8.0) * (0.25 * frame_scale)
+            if self.speed > 0:
+                self.speed = max(0.0, self.speed - speed_reduction)
+            elif self.speed < 0:
+                self.speed = min(0.0, self.speed + speed_reduction)
         elif current_kmh > 30:
             grip = 0.42
         else:
