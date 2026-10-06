@@ -1,10 +1,4 @@
 import os
-import sys
-from pathlib import Path
-
-if sys.platform.startswith("linux"):
-    os.environ.setdefault("SDL_VIDEO_X11_WMCLASS", "atof")
-    os.environ.setdefault("SDL_VIDEO_WAYLAND_WMCLASS", "atof")
 os.environ.setdefault("SDL_VIDEO_CENTERED", "1")
 
 import pygame
@@ -25,20 +19,6 @@ WIDTH, HEIGHT = constants.WIDTH, constants.HEIGHT
 
 pygame.init()
 
-
-def load_window_icon():
-    for filename in ("icon.ico", "icon.png", "icon.bmp"):
-        icon_path = Path(__file__).resolve().parent / filename
-        if not icon_path.exists():
-            continue
-        try:
-            icon_surface = pygame.image.load(str(icon_path)).convert_alpha()
-            if icon_surface.get_width() > 0 and icon_surface.get_height() > 0:
-                return icon_surface
-        except (pygame.error, OSError):
-            continue
-    return None
-
 try:
     pygame.mixer.init()
 except pygame.error:
@@ -53,9 +33,6 @@ except pygame.error:
     WIDTH, HEIGHT = constants.WIDTH, constants.HEIGHT
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
-window_icon = load_window_icon()
-if window_icon is not None:
-    pygame.display.set_icon(window_icon)
 pygame.display.set_caption(f"ATOF v{VERSION} — {RELEASE_NAME}")
 
 import engine

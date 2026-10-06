@@ -47,15 +47,6 @@ This is a major update for ATOF.
 The game includes English, Ukrainian, Russian, Spanish, German, and French text.
 The main menu's **Additional Content** page shows statistics from the last session.
 
-## Linux desktop icon
-
-On Linux, run `./install_linux.sh` to install ATOF's icon sizes into the hicolor
-icon theme, register a valid desktop launcher, set the SDL window class for
-X11/Wayland dock matching, and pin ATOF in GNOME-based docks. The installer
-uses a Python interpreter that already has Pygame; set `ATOF_PYTHON` if it
-should use a specific interpreter. The in-window icon is also set from the
-project icon files on platforms supported by Pygame.
-
 ## Menu sound credits
 
 - Hover sound: [Minimalist Button Hover Sound Effect by Lesiakower](https://pixabay.com/sound-effects/film-special-effects-minimalist-button-hover-sound-effect-399749/)
