@@ -2,8 +2,9 @@ import os
 import sys
 from pathlib import Path
 
-if sys.platform.startswith("linux") and os.environ.get("DISPLAY"):
-    os.environ.setdefault("SDL_VIDEODRIVER", "x11")
+if sys.platform.startswith("linux"):
+    os.environ.setdefault("SDL_VIDEO_X11_WMCLASS", "atof")
+    os.environ.setdefault("SDL_VIDEO_WAYLAND_WMCLASS", "atof")
 os.environ.setdefault("SDL_VIDEO_CENTERED", "1")
 
 import pygame
