@@ -4,6 +4,7 @@ import pygame
 import engine
 from engine import Car, KeyboardState, Player
 from house import HousePlayer
+from navigator import GPS
 from settings_manager import save_settings, save_statistics
 import traffic  # Import the traffic module.
 from constants import *
@@ -74,6 +75,7 @@ def run(screen, settings):
     car = Car(7985, 2383)
     car.angle = 270
     atom_h = HousePlayer(162, 161)
+    gps = GPS()
 
     game_font, small_font = engine.load_game_fonts()
 
@@ -90,7 +92,9 @@ def run(screen, settings):
             "confirm_w": "Progress in this session will be lost.", "yes": "YES", "no": "NO",
             "stats_title": "Session statistics", "stats_money": "Money: {money} UAH",
             "stats_time": "Time: {time}", "stats_treasures": "Treasures found: {treasures}",
-            "stats_earned": "Total earned: {amount} UAH", "stats_spent": "Total spent: {amount} UAH", "stats_hint": "Press Esc or Enter to return"
+            "stats_earned": "Total earned: {amount} UAH", "stats_spent": "Total spent: {amount} UAH", "stats_hint": "Press Esc or Enter to return",
+            "gps_distance": "Distance: {distance} units", "gps_set": "Left-click: set destination",
+            "gps_clear": "Right-click/Delete: clear destination"
         },
         "Українська": {
             "hint": "[А] Сісти в авто", "enter": "[У] Увійти в дім", "exit": "[У] Вийти з дому",
@@ -104,7 +108,9 @@ def run(screen, settings):
             "confirm_w": "Прогрес цієї сесії буде втрачено.", "yes": "ТАК", "no": "НІ",
             "stats_title": "Статистика сесії", "stats_money": "Гроші: {money} UAH",
             "stats_time": "Час: {time}", "stats_treasures": "Знайдено скарбів: {treasures}",
-            "stats_earned": "Всього зароблено: {amount} UAH", "stats_spent": "Всього витрачено: {amount} UAH", "stats_hint": "Натисніть Esc або Enter, щоб повернутися"
+            "stats_earned": "Всього зароблено: {amount} UAH", "stats_spent": "Всього витрачено: {amount} UAH", "stats_hint": "Натисніть Esc або Enter, щоб повернутися",
+            "gps_distance": "Відстань: {distance} ігрових од.", "gps_set": "ЛКМ: поставити точку",
+            "gps_clear": "ПКМ/Delete: прибрати точку"
         },
         "Русский": {
             "hint": "[А] Сесть в авто", "enter": "[У] Войти в дом", "exit": "[У] Выйти из дома",
@@ -118,7 +124,9 @@ def run(screen, settings):
             "confirm_w": "Прогресс этой сессии будет потерян.", "yes": "ДА", "no": "НЕТ",
             "stats_title": "Статистика сессии", "stats_money": "Деньги: {money} UAH",
             "stats_time": "Время: {time}", "stats_treasures": "Найдено сокровищ: {treasures}",
-            "stats_earned": "Всего заработано: {amount} UAH", "stats_spent": "Всего потрачено: {amount} UAH", "stats_hint": "Нажмите Esc или Enter, чтобы вернуться"
+            "stats_earned": "Всего заработано: {amount} UAH", "stats_spent": "Всего потрачено: {amount} UAH", "stats_hint": "Нажмите Esc или Enter, чтобы вернуться",
+            "gps_distance": "Расстояние: {distance} игровых ед.", "gps_set": "ЛКМ: поставить точку",
+            "gps_clear": "ПКМ/Delete: убрать точку"
         },
         "Español": {
             "hint": "[F] Subir al coche", "enter": "[E] Entrar en casa", "exit": "[E] Salir de casa",
@@ -134,6 +142,8 @@ def run(screen, settings):
             "stats_time": "Tiempo: {time}", "stats_treasures": "Tesoros encontrados: {treasures}",
             "stats_earned": "Total ganado: {amount} UAH", "stats_spent": "Total gastado: {amount} UAH",
             "stats_hint": "Pulsa Esc o Enter para volver",
+            "gps_distance": "Distancia: {distance} unidades", "gps_set": "Clic izquierdo: marcar destino",
+            "gps_clear": "Clic derecho/Delete: borrar destino",
         },
         "Deutsch": {
             "hint": "[F] Ins Auto steigen", "enter": "[E] Haus betreten", "exit": "[E] Haus verlassen",
@@ -149,6 +159,8 @@ def run(screen, settings):
             "stats_time": "Zeit: {time}", "stats_treasures": "Gefundene Schätze: {treasures}",
             "stats_earned": "Insgesamt verdient: {amount} UAH", "stats_spent": "Insgesamt ausgegeben: {amount} UAH",
             "stats_hint": "Esc oder Enter drücken, um zurückzukehren",
+            "gps_distance": "Entfernung: {distance} Einheiten", "gps_set": "Linksklick: Ziel setzen",
+            "gps_clear": "Rechtsklick/Delete: Ziel löschen",
         },
         "Français": {
             "hint": "[F] Monter en voiture", "enter": "[E] Entrer dans la maison", "exit": "[E] Sortir de la maison",
@@ -164,6 +176,8 @@ def run(screen, settings):
             "stats_time": "Temps : {time}", "stats_treasures": "Trésors trouvés : {treasures}",
             "stats_earned": "Total gagné : {amount} UAH", "stats_spent": "Total dépensé : {amount} UAH",
             "stats_hint": "Appuyez sur Échap ou Entrée pour revenir",
+            "gps_distance": "Distance : {distance} unités", "gps_set": "Clic gauche : définir la destination",
+            "gps_clear": "Clic droit/Delete : supprimer la destination",
         }
     }
 
@@ -259,7 +273,7 @@ def run(screen, settings):
                 if event.key == pygame.K_TAB:
                     engine.full_screen_map(
                         screen, full_map_img, (car if in_car else atom),
-                        CURR_WORLD_W, CURR_WORLD_H, controls=keyboard
+                        CURR_WORLD_W, CURR_WORLD_H, controls=keyboard, gps=gps, labels=t
                     )
                 if event.key == pygame.K_ESCAPE:
                     res = engine.pause_menu(
@@ -399,7 +413,10 @@ def run(screen, settings):
                         pygame.draw.rect(screen, (255, 255, 255), (WIDTH // 2 - 100, HEIGHT // 2 + 140, 200, 15), 2)
 
             if in_car: car.draw_speedometer(screen)
-            engine.draw_gta_minimap(screen, original_nav_map, target, CURR_WORLD_W, CURR_WORLD_H)
+            engine.draw_gta_minimap(
+                screen, original_nav_map, target, CURR_WORLD_W, CURR_WORLD_H,
+                gps=gps, labels=t,
+            )
         else:
             engine.draw_house_scene(screen, house_visual, house_info, atom_h, small_font, t)
 

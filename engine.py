@@ -717,7 +717,22 @@ def draw_atom_character(ctx, x, y, atom_tex, angle):
     ctx.blit(rotated_atom, rect)
 
 
-def draw_gta_minimap(screen, bg_img, target, world_w, world_h, house_pos=(7738, 2325)):
+def _format_gps_distance(distance):
+    if distance >= 1000:
+        return f"{distance / 1000:.1f}k"
+    return f"{distance:.0f}"
+
+
+def draw_gta_minimap(
+    screen,
+    bg_img,
+    target,
+    world_w,
+    world_h,
+    house_pos=(7738, 2325),
+    gps=None,
+    labels=None,
+):
     """Draw a minimap that stays within the world bounds."""
 
     size, margin = 200, 30
@@ -772,6 +787,14 @@ def draw_gta_minimap(screen, bg_img, target, world_w, world_h, house_pos=(7738, 
     pygame.draw.circle(mini_surf, (255, 0, 0), (int(px), int(py)), 6)
     pygame.draw.circle(mini_surf, (255, 255, 255), (int(px), int(py)), 6, 2)
 
+    distance = gps.distance_to((target.pos.x, target.pos.y)) if gps is not None else None
+    if gps is not None and gps.destination is not None:
+        dx = gps.destination[0] * ratio_x + ox
+        dy = gps.destination[1] * ratio_y + oy
+        pygame.draw.line(mini_surf, (255, 215, 0), (int(px), int(py)), (int(dx), int(dy)), 2)
+        pygame.draw.circle(mini_surf, (255, 215, 0), (int(dx), int(dy)), 6)
+        pygame.draw.circle(mini_surf, (20, 20, 20), (int(dx), int(dy)), 6, 2)
+
     # Apply a circular mask to crop the map edges.
     mask = pygame.Surface((size, size), pygame.SRCALPHA)
     pygame.draw.circle(mask, (255, 255, 255, 255), (half_size, half_size), half_size)
@@ -782,6 +805,14 @@ def draw_gta_minimap(screen, bg_img, target, world_w, world_h, house_pos=(7738, 
     pygame.draw.circle(screen, (255, 255, 255), (x + half_size, y + half_size), half_size + 3, 3)
     # Map.
     screen.blit(mini_surf, (x, y))
+    if distance is not None:
+        labels = labels or {}
+        text = labels.get("gps_distance", "Distance: {distance}").format(
+            distance=_format_gps_distance(distance)
+        )
+        distance_font = pygame.font.Font(None, 22)
+        rendered_distance = distance_font.render(text, True, (255, 215, 0))
+        screen.blit(rendered_distance, (x, y - rendered_distance.get_height() - 8))
 
 def stats_dialog(screen, font, small_font, t, stats=None, controls=None):
     stats = stats or {}
@@ -1406,7 +1437,17 @@ def draw_debug_coords(screen, target, mode_label):
     screen.blit(txt_surf, (15, 15))
 
 
-def full_screen_map(screen, map_img, target, world_w, world_h, house_pos=(7738, 2325), controls=None):
+def full_screen_map(
+    screen,
+    map_img,
+    target,
+    world_w,
+    world_h,
+    house_pos=(7738, 2325),
+    controls=None,
+    gps=None,
+    labels=None,
+):
     """Draw the zoomable full-screen map and its icons."""
     house_icon = _get_house_icon()
 
@@ -1415,9 +1456,14 @@ def full_screen_map(screen, map_img, target, world_w, world_h, house_pos=(7738, 
     map_off_x, map_off_y = 0, 0
     clock = pygame.time.Clock()
     running = True
+    labels = labels or {}
 
     while running:
         screen.fill((20, 20, 20))
+        scaled_w = int(screen_width * map_zoom)
+        scaled_h = int(screen_height * map_zoom)
+        map_rect = pygame.Rect(0, 0, scaled_w, scaled_h)
+        map_rect.center = (screen_width // 2 + map_off_x, screen_height // 2 + map_off_y)
         for event in pygame.event.get():
             if controls is not None:
                 controls.process_event(event)
@@ -1427,9 +1473,23 @@ def full_screen_map(screen, map_img, target, world_w, world_h, house_pos=(7738, 
             if event.type == pygame.MOUSEWHEEL:
                 map_zoom += event.y * 0.1
                 map_zoom = max(1.0, min(5.0, map_zoom))
+            if event.type == pygame.MOUSEBUTTONDOWN and gps is not None:
+                if event.button == 1 and map_rect.collidepoint(event.pos):
+                    map_x = (event.pos[0] - map_rect.left) / scaled_w
+                    map_y = (event.pos[1] - map_rect.top) / scaled_h
+                    gps.set_destination(
+                        (
+                            max(0.0, min(float(world_w), map_x * world_w)),
+                            max(0.0, min(float(world_h), map_y * world_h)),
+                        )
+                    )
+                elif event.button == 3:
+                    gps.clear_destination()
             if event.type == pygame.KEYDOWN:
                 if event.key in [pygame.K_TAB, pygame.K_ESCAPE]:
                     running = False
+                elif gps is not None and event.key in (pygame.K_DELETE, pygame.K_BACKSPACE):
+                    gps.clear_destination()
 
         scaled_w, scaled_h = int(screen_width * map_zoom), int(screen_height * map_zoom)
         keys = controls if controls is not None else pygame.key.get_pressed()
@@ -1474,6 +1534,31 @@ def full_screen_map(screen, map_img, target, world_w, world_h, house_pos=(7738, 
         px, py = world_to_map(target.pos.x, target.pos.y)
         pygame.draw.circle(screen, (255, 0, 0), (px, py), int(8 * map_zoom))
         pygame.draw.circle(screen, (255, 255, 255), (px, py), int(8 * map_zoom), 2)
+
+        distance = gps.distance_to((target.pos.x, target.pos.y)) if gps is not None else None
+        if gps is not None and gps.destination is not None:
+            dx, dy = world_to_map(*gps.destination)
+            pygame.draw.line(screen, (255, 215, 0), (px, py), (dx, dy), max(2, int(3 * map_zoom)))
+            pygame.draw.circle(screen, (20, 20, 20), (dx, dy), int(12 * map_zoom))
+            pygame.draw.circle(screen, (255, 215, 0), (dx, dy), int(10 * map_zoom), max(2, int(3 * map_zoom)))
+
+        if distance is not None:
+            distance_text = labels.get("gps_distance", "Distance: {distance}").format(
+                distance=_format_gps_distance(distance)
+            )
+            distance_font = pygame.font.Font(None, 30)
+            rendered_distance = distance_font.render(distance_text, True, (255, 215, 0))
+            screen.blit(rendered_distance, (20, 20))
+
+        hint_font = pygame.font.Font(None, 24)
+        set_hint = labels.get("gps_set", "Left-click: set destination")
+        clear_hint = labels.get("gps_clear", "Right-click/Delete: clear destination")
+        for index, hint_text in enumerate((set_hint, clear_hint)):
+            rendered_hint = hint_font.render(hint_text, True, (240, 240, 240))
+            screen.blit(
+                rendered_hint,
+                (20, screen_height - rendered_hint.get_height() * (2 - index) - 16),
+            )
 
         pygame.display.flip()
         clock.tick(FPS)

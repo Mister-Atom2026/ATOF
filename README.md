@@ -1,8 +1,9 @@
 # ATOF
 Game About Mister Atom
 
-## Version 0.4.1 Beta 2 — In development
+## Version 0.4.1 Release Candidate 1 — In development
 
+- Adds a GPS destination marker on the Tab map, live straight-line distance, and controls to move or clear the marker.
 - Removes the unused NEAT training script, model, and runtime loader; traffic now follows its built-in routes.
 - Fixes PyCharm type warnings in traffic and settings normalization and marks intentional repeated menu patterns.
 - Beta 1 fixed crash sounds for every collision and oversized rotated 2107 collision boxes.
