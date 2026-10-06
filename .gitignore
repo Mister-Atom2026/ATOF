@@ -227,3 +227,4 @@ __marimo__/
 /config.json.tmp
 /statistics.json
 /statistics.json.tmp
+.aider*
