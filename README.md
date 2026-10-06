@@ -1,7 +1,15 @@
 # ATOF
 Game About Mister Atom
 
-## Version 0.4.1 Release Candidate 1 — In development
+## Version 0.4.2 — “Taxi Ride”
+
+- Adds an English release title, updated release metadata, and the full 0.4.2 changelog for the public GitHub release.
+- Refines the GPS marker: the map keeps only the destination point, removes the distance line, and uses a bright orange point that is easier to see.
+- Adds set/clear marker sounds for the destination point and keeps marker actions consistent in both the minimap and the full-screen map.
+- Boosts the drift feel on turns: it now starts at 30 km/h instead of 40, produces a stronger slide, and reduces speed during cornering.
+- Keeps the settings and translations fully aligned across the supported languages and fixes the remaining UI/marker visual issues in the map screens.
+
+## Previous version: 0.4.1 Release Candidate 1
 
 - Adds a GPS destination marker on the Tab map, live straight-line distance, and controls to move or clear the marker.
 - Removes the unused NEAT training script, model, and runtime loader; traffic now follows its built-in routes.

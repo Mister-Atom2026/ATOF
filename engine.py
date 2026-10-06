@@ -531,13 +531,14 @@ class Car:
         # follows steering more slowly, so it slides sideways during turns.
         current_kmh = abs(self.speed) * 8
         is_turning = left_pressed != right_pressed
-        is_drifting = active and current_kmh > 40 and is_turning
+        is_drifting = active and current_kmh > 30 and is_turning
         desired_velocity = pygame.Vector2(self.speed, 0).rotate(-self.angle + 180)
         if is_drifting:
-            drift_intensity = min((current_kmh - 40) / 80, 1.0)
-            grip = 0.40 - 0.24 * drift_intensity
-        elif current_kmh > 40:
-            grip = 0.38
+            drift_intensity = min((current_kmh - 30) / 70, 1.0)
+            grip = 0.32 - 0.22 * drift_intensity
+            self.speed *= max(0.82, 1.0 - 0.16 * drift_intensity * frame_scale)
+        elif current_kmh > 30:
+            grip = 0.42
         else:
             grip = 0.65
         blend = 1 - (1 - grip) ** max(frame_scale, 0)
@@ -791,8 +792,7 @@ def draw_gta_minimap(
     if gps is not None and gps.destination is not None:
         dx = gps.destination[0] * ratio_x + ox
         dy = gps.destination[1] * ratio_y + oy
-        pygame.draw.line(mini_surf, (255, 215, 0), (int(px), int(py)), (int(dx), int(dy)), 2)
-        pygame.draw.circle(mini_surf, (255, 215, 0), (int(dx), int(dy)), 6)
+        pygame.draw.circle(mini_surf, (255, 128, 0), (int(dx), int(dy)), 6)
         pygame.draw.circle(mini_surf, (20, 20, 20), (int(dx), int(dy)), 6, 2)
 
     # Apply a circular mask to crop the map edges.
@@ -1483,8 +1483,10 @@ def full_screen_map(
                             max(0.0, min(float(world_h), map_y * world_h)),
                         )
                     )
+                    play_menu_sound("click")
                 elif event.button == 3:
                     gps.clear_destination()
+                    play_menu_sound("click")
             if event.type == pygame.KEYDOWN:
                 if event.key in [pygame.K_TAB, pygame.K_ESCAPE]:
                     running = False
@@ -1538,9 +1540,8 @@ def full_screen_map(
         distance = gps.distance_to((target.pos.x, target.pos.y)) if gps is not None else None
         if gps is not None and gps.destination is not None:
             dx, dy = world_to_map(*gps.destination)
-            pygame.draw.line(screen, (255, 215, 0), (px, py), (dx, dy), max(2, int(3 * map_zoom)))
             pygame.draw.circle(screen, (20, 20, 20), (dx, dy), int(12 * map_zoom))
-            pygame.draw.circle(screen, (255, 215, 0), (dx, dy), int(10 * map_zoom), max(2, int(3 * map_zoom)))
+            pygame.draw.circle(screen, (255, 128, 0), (dx, dy), int(10 * map_zoom), max(2, int(3 * map_zoom)))
 
         if distance is not None:
             distance_text = labels.get("gps_distance", "Distance: {distance}").format(
