@@ -17,6 +17,16 @@ from constants import *
 
 os.environ['SDL_VIDEO_CENTERED'] = '1'
 
+HOUSE_SLEEP_SPOT = pygame.Vector2(723, 128)
+HOUSE_SLEEP_RADIUS = 70
+
+
+def _is_at_sleep_spot(game_state, position):
+    return (
+        game_state == "HOUSE"
+        and pygame.Vector2(position).distance_to(HOUSE_SLEEP_SPOT) < HOUSE_SLEEP_RADIUS
+    )
+
 
 def run(screen, settings):
     traffic_timer = 0
@@ -75,7 +85,7 @@ def run(screen, settings):
     house_info = assets.house_info
 
     show_debug = False
-    game_state = "CITY" if game_save else "HOUSE"
+    game_state = game_save["game_state"] if game_save else "HOUSE"
     in_car = False
 
     # GAME OBJECTS
@@ -92,6 +102,12 @@ def run(screen, settings):
         car.health = game_save["car"]["health"]
         car.is_broken = game_save["car"]["is_broken"]
     atom_h = HousePlayer(162, 161)
+    if game_save and game_save["game_state"] == "HOUSE":
+        atom_h.pos.update(
+            game_save["house_player"]["x"],
+            game_save["house_player"]["y"],
+        )
+        atom_h.angle = game_save["house_player"]["angle"]
     gps = GPS()
     if game_save:
         collected_treasures.update(game_save["collected_treasures"])
@@ -207,42 +223,42 @@ def run(screen, settings):
 
     per_language_labels = {
         "English": {
-            "sleep_save": "Press [E] / [T] to sleep and save",
+            "sleep_save": "Press [E] / [T] by the sofa to sleep and save",
             "handbrake_hint": "Space: handbrake",
             "stats_max_speed": "Top speed: {value} km/h",
             "stats_longest_drift": "Longest drift: {value} m",
             "stats_no_crash": "Longest drive without a crash: {value} m",
         },
         "Українська": {
-            "sleep_save": "Натисніть [Е] / [Т], щоб заснути й зберегтися",
+            "sleep_save": "Натисніть [Е] / [Т] біля дивана, щоб заснути й зберегтися",
             "handbrake_hint": "Пробіл: ручне гальмо",
             "stats_max_speed": "Максимальна швидкість: {value} км/год",
             "stats_longest_drift": "Найдовший занос: {value} м",
             "stats_no_crash": "Найдовша поїздка без аварій: {value} м",
         },
         "Русский": {
-            "sleep_save": "Нажмите [Е] / [Т], чтобы поспать и сохраниться",
+            "sleep_save": "Нажмите [Е] / [Т] у дивана, чтобы поспать и сохраниться",
             "handbrake_hint": "Пробел: ручной тормоз",
             "stats_max_speed": "Максимальная скорость: {value} км/ч",
             "stats_longest_drift": "Самый длинный занос: {value} м",
             "stats_no_crash": "Самая длинная поездка без аварий: {value} м",
         },
         "Español": {
-            "sleep_save": "Pulsa [E] / [T] para dormir y guardar",
+            "sleep_save": "Pulsa [E] / [T] junto al sofá para dormir y guardar",
             "handbrake_hint": "Espacio: freno de mano",
             "stats_max_speed": "Velocidad máxima: {value} km/h",
             "stats_longest_drift": "Derrape más largo: {value} m",
             "stats_no_crash": "Trayecto más largo sin choque: {value} m",
         },
         "Deutsch": {
-            "sleep_save": "[E] / [T] drücken, um zu schlafen und zu speichern",
+            "sleep_save": "Am Sofa [E] / [T] drücken, um zu schlafen und zu speichern",
             "handbrake_hint": "Leertaste: Handbremse",
             "stats_max_speed": "Höchstgeschwindigkeit: {value} km/h",
             "stats_longest_drift": "Längster Drift: {value} m",
             "stats_no_crash": "Längste Fahrt ohne Unfall: {value} m",
         },
         "Français": {
-            "sleep_save": "Appuyez sur [E] / [T] pour dormir et sauvegarder",
+            "sleep_save": "Appuyez sur [E] / [T] près du canapé pour dormir et sauvegarder",
             "handbrake_hint": "Espace : frein à main",
             "stats_max_speed": "Vitesse maximale : {value} km/h",
             "stats_longest_drift": "Dérapage le plus long : {value} m",
@@ -266,10 +282,16 @@ def run(screen, settings):
 
     def save_sleep_game():
         save_game_save({
+            "game_state": game_state,
             "player": {
                 "x": atom.pos.x,
                 "y": atom.pos.y,
                 "angle": atom.angle,
+            },
+            "house_player": {
+                "x": atom_h.pos.x,
+                "y": atom_h.pos.y,
+                "angle": atom_h.angle,
             },
             "car": {
                 "x": car.pos.x,
@@ -418,17 +440,18 @@ def run(screen, settings):
                     or getattr(event, "unicode", "").lower() in ("t", "т")
                 )
                 if sleep_key_pressed:
-                    spawn_distance = atom.pos.distance_to(pygame.Vector2(7738, 2330))
-                    if game_state == "CITY" and not in_car and 80 <= spawn_distance < 130:
-                        sleep_requested = True
-                    elif keyboard.matches(event, pygame.K_e) and game_state == "CITY" and not in_car:
-                        if spawn_distance < 80:
-                            game_state = "HOUSE"
-                            atom_h.pos = pygame.Vector2(294, 11)
-                    elif keyboard.matches(event, pygame.K_e) and game_state == "HOUSE":
-                        if engine.check_house_exit(atom_h, house_info):
+                    if game_state == "HOUSE":
+                        if _is_at_sleep_spot(game_state, atom_h.pos):
+                            sleep_requested = True
+                        elif keyboard.matches(event, pygame.K_e) and engine.check_house_exit(
+                            atom_h, house_info
+                        ):
                             game_state = "CITY"
                             atom.pos = pygame.Vector2(7731, 2326)
+                    elif keyboard.matches(event, pygame.K_e) and not in_car:
+                        if atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
+                            game_state = "HOUSE"
+                            atom_h.pos = pygame.Vector2(294, 11)
 
         # 2. Update the game state.
 
@@ -549,13 +572,6 @@ def run(screen, settings):
             if not in_car:
                 engine.draw_atom_character(screen, atom.pos.x + off_x, atom.pos.y + off_y, atom_img, atom.angle)
                 engine.draw_city_hints(screen, small_font, atom, car, t)
-                spawn_distance = atom.pos.distance_to(pygame.Vector2(7738, 2330))
-                if 80 <= spawn_distance < 130:
-                    sleep_text = small_font.render(t["sleep_save"], True, (255, 255, 255))
-                    screen.blit(
-                        sleep_text,
-                        sleep_text.get_rect(center=(WIDTH // 2, HEIGHT - 80)),
-                    )
 
                 # Repair prompt.
                 if car.is_broken and atom.pos.distance_to(car.pos) < 100:
@@ -583,6 +599,12 @@ def run(screen, settings):
             )
         else:
             engine.draw_house_scene(screen, house_visual, house_info, atom_h, small_font, t)
+            if _is_at_sleep_spot(game_state, atom_h.pos):
+                sleep_text = small_font.render(t["sleep_save"], True, (255, 255, 255))
+                screen.blit(
+                    sleep_text,
+                    sleep_text.get_rect(center=(WIDTH // 2, HEIGHT - 80)),
+                )
 
         if game_state == "CITY":
                 ambient = engine.get_ambient_color(game_time)

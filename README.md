@@ -1,11 +1,18 @@
 # ATOF
 Game About Mister Atom
 
-## Version 0.5.0 Alpha 2 — “(NOT) Sad City”
+## Version 0.5.0 Beta 1 — “(NOT) Sad City”
+
+- Restricts sleeping and saving to the sofa area inside the house; the sleep prompt is localized in every supported language.
+- Saves and restores the indoor player position when continuing from a sleep save.
+- Removes the sleep interaction from the city and keeps house entry/exit controls separate from sleeping.
+- Keeps gameplay and interface prompts translated into English, Ukrainian, Russian, Spanish, German, and French.
+
+## Previous version: 0.5.0 Alpha 2 — “(NOT) Sad City”
 
 - Adjusts vehicle grip for asphalt, dirt, and grass; wet patches on the map reduce grip and acceleration.
 - Adds a spacebar handbrake for tight turns and longer drifts.
-- Adds a translated sleep-and-save interaction near the starting point; sleeping fades the screen, advances the clock by nine in-game hours, and saves the player's and car's state.
+- Adds a translated sleep-and-save interaction; sleeping fades the screen, advances the clock by nine in-game hours, and saves the player's and car's state.
 - Resumes from the sleep save and smoothly transitions lighting through dawn and dusk.
 - Opens the full map centered on the player's current position.
 - Tracks personal records for top speed, longest drift, and longest distance without a crash.

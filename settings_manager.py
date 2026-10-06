@@ -89,6 +89,9 @@ def load_game_save():
     if not isinstance(player, dict) or not isinstance(car, dict):
         return None
 
+    house_player = values.get("house_player", {})
+    if not isinstance(house_player, dict):
+        house_player = {}
     required_positions = (player.get("x"), player.get("y"), car.get("x"), car.get("y"))
     if any(not isinstance(value, (int, float)) or not math.isfinite(value) for value in required_positions):
         return None
@@ -98,6 +101,9 @@ def load_game_save():
         treasures = []
 
     return {
+        "game_state": values.get("game_state")
+        if values.get("game_state") in ("CITY", "HOUSE")
+        else "CITY",
         "player": {
             "x": _finite_number(player["x"], minimum=-1_000_000_000.0),
             "y": _finite_number(player["y"], minimum=-1_000_000_000.0),
@@ -110,6 +116,15 @@ def load_game_save():
             "speed": _finite_number(car.get("speed"), minimum=-15.0, maximum=15.0),
             "health": _finite_number(car.get("health"), default=200.0, maximum=200.0),
             "is_broken": bool(car.get("is_broken", False)),
+        },
+        "house_player": {
+            "x": _finite_number(house_player.get("x"), default=162.0, maximum=750.0),
+            "y": _finite_number(house_player.get("y"), default=161.0, maximum=300.0),
+            "angle": _finite_number(
+                house_player.get("angle"),
+                minimum=-360_000.0,
+                maximum=360_000.0,
+            ),
         },
         "money": _bounded_int(values.get("money"), 100, 0, 2**31 - 1),
         "earned": _bounded_int(values.get("earned"), 0, 0, 2**31 - 1),
