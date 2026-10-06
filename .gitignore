@@ -153,6 +153,8 @@ activemq-data/
 .env
 .envrc
 .venv
+savegame.json
+savegame.json.tmp
 env/
 venv/
 ENV/

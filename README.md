@@ -1,10 +1,20 @@
 # ATOF
 Game About Mister Atom
 
-## Version 0.5.0 Alpha 1
+## Version 0.5.0 Alpha 2 — “(NOT) Sad City”
+
+- Adjusts vehicle grip for asphalt, dirt, and grass; wet patches on the map reduce grip and acceleration.
+- Adds a spacebar handbrake for tight turns and longer drifts.
+- Adds a translated sleep-and-save interaction near the starting point; sleeping fades the screen, advances the clock by nine in-game hours, and saves the player's and car's state.
+- Resumes from the sleep save and smoothly transitions lighting through dawn and dusk.
+- Opens the full map centered on the player's current position.
+- Tracks personal records for top speed, longest drift, and longest distance without a crash.
+- Keeps the staged acceleration and high-speed turn speed loss from Alpha 1.
+
+## Previous version: 0.5.0 Alpha 1
 
 - Strengthens drifting progressively as speed rises.
-- Reduces speed during turns only from 100 km/h; high-speed turn losses are limited to 7 km/h/s up to 110 km/h and 10 km/h/s above that.
+- Reduces speed during turns only from 100 km/h.
 - Tunes acceleration to reach 70 km/h quickly, 90 km/h more gradually, and 120 km/h more slowly.
 - Makes the GPS destination marker on the radar larger and easier to distinguish with a dark outline, orange body, and white center.
 - Displays GPS distance in meters and kilometers, with map prompts translated in all supported languages.

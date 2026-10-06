@@ -447,6 +447,36 @@ class Player:
         else:
             pygame.draw.circle(screen, (255, 200, 0), (int(self.pos.x + offset_x), int(self.pos.y + offset_y)), 15)
 
+
+def _get_surface_grip(col_mask, surface_map, position, angle):
+    grip = 1.0
+    sample_offsets = (
+        pygame.Vector2(),
+        pygame.Vector2(20, 12),
+        pygame.Vector2(20, -12),
+        pygame.Vector2(-20, 12),
+        pygame.Vector2(-20, -12),
+    )
+    for offset in sample_offsets:
+        sample_pos = position + offset.rotate(-angle + 180)
+        x, y = int(sample_pos.x), int(sample_pos.y)
+        if surface_map is not None and surface_map.get_rect().collidepoint(x, y):
+            color = surface_map.get_at((x, y))[:3]
+            if color[2] > 120 and color[1] > 100 and color[0] < 60:
+                grip = min(grip, 0.32)
+                continue
+        if col_mask is None or not col_mask.get_rect().collidepoint(x, y):
+            continue
+        red, green, blue = col_mask.get_at((x, y))[:3]
+        if red > 220 and green > 210 and blue < 60:
+            grip = min(grip, 1.0)
+        elif 150 <= red <= 215 and 85 <= green <= 150 and 55 <= blue <= 120:
+            grip = min(grip, 0.78)
+        elif green > red and green > blue:
+            grip = min(grip, 0.58)
+    return grip
+
+
 class Car:
     _ACCELERATION_BANDS = ((70.0, 0.9), (90.0, 0.35), (120.0, 0.16))
 
@@ -488,7 +518,7 @@ class Car:
             self.image = pygame.Surface((96, 48))
             self.image.fill((0, 0, 255))
 
-    def _accelerate_forward(self, frame_scale):
+    def _accelerate_forward(self, frame_scale, traction=1.0):
         remaining_frames = frame_scale
         max_kmh = self.max_speed * 8
 
@@ -501,10 +531,11 @@ class Car:
             for limit_kmh, acceleration_per_frame in self._ACCELERATION_BANDS:
                 if current_kmh < limit_kmh:
                     band_limit = min(limit_kmh, max_kmh)
+                    acceleration_per_frame *= traction
                     break
             else:
                 band_limit = max_kmh
-                acceleration_per_frame = self._ACCELERATION_BANDS[-1][1]
+                acceleration_per_frame = self._ACCELERATION_BANDS[-1][1] * traction
 
             frames_to_limit = (band_limit - current_kmh) / acceleration_per_frame
             applied_frames = min(remaining_frames, frames_to_limit)
@@ -512,9 +543,12 @@ class Car:
             self.speed = min(current_kmh / 8, self.max_speed)
             remaining_frames -= applied_frames
 
-    def update(self, keys, col_mask, active, npc_cars=None, frame_scale=1.0):
+    def update(self, keys, col_mask, active, npc_cars=None, frame_scale=1.0, surface_map=None):
         left_pressed = False
         right_pressed = False
+        handbrake_pressed = False
+        self.is_drifting = False
+        surface_grip = _get_surface_grip(col_mask, surface_map, self.pos, self.angle)
         # A broken car does not respond to acceleration.
         if self.is_broken:
             active = False
@@ -535,7 +569,7 @@ class Car:
                 if self.speed < 0:
                     self.speed += self.brake_force * frame_scale
                 else:
-                    self._accelerate_forward(frame_scale)
+                    self._accelerate_forward(frame_scale, surface_grip)
             elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
                 if self.speed > 0:
                     self.speed -= self.brake_force * frame_scale
@@ -547,8 +581,13 @@ class Car:
             # 2. Steering.
             left_pressed = keys[pygame.K_a] or keys[pygame.K_LEFT]
             right_pressed = keys[pygame.K_d] or keys[pygame.K_RIGHT]
+            handbrake_pressed = keys[pygame.K_SPACE] and abs(self.speed) > 0.5
+            if handbrake_pressed:
+                self.speed *= 0.985 ** frame_scale
             if abs(self.speed) > 0.5:
                 steer = 5.0 - (min(abs(self.speed) / 2, 1.0))
+                if handbrake_pressed:
+                    steer *= 1.5
                 direction = 1 if self.speed > 0 else -1
                 if left_pressed: self.angle += steer * direction * frame_scale
                 if right_pressed: self.angle -= steer * direction * frame_scale
@@ -557,11 +596,13 @@ class Car:
         # follows steering more slowly, so it slides sideways during turns.
         current_kmh = abs(self.speed) * 8
         is_turning = left_pressed != right_pressed
-        is_drifting = active and current_kmh > 30 and is_turning
+        self.is_drifting = active and current_kmh > 30 and (is_turning or handbrake_pressed)
         desired_velocity = pygame.Vector2(self.speed, 0).rotate(-self.angle + 180)
-        if is_drifting:
+        if self.is_drifting:
             drift_intensity = min((current_kmh - 30) / 90, 1.0) ** 1.5
-            grip = 0.55 - 0.35 * drift_intensity
+            grip = (0.55 - 0.35 * drift_intensity) * surface_grip
+            if handbrake_pressed:
+                grip *= 0.28
             if current_kmh >= 100:
                 speed_loss_kmh_per_second = 7.0 if current_kmh <= 110 else 10.0
                 speed_reduction = speed_loss_kmh_per_second * frame_scale / (60 * 8)
@@ -570,9 +611,9 @@ class Car:
                 elif self.speed < 0:
                     self.speed = min(0.0, self.speed + speed_reduction)
         elif current_kmh > 30:
-            grip = 0.42
+            grip = 0.42 * surface_grip
         else:
-            grip = 0.65
+            grip = 0.65 * surface_grip
         blend = 1 - (1 - grip) ** max(frame_scale, 0)
         self.motion_velocity += (desired_velocity - self.motion_velocity) * blend
         velocity = self.motion_velocity
@@ -650,7 +691,7 @@ class Car:
 
             # Tire tracks.
             is_braking = active and ((keys[pygame.K_s] and self.speed > 2) or (keys[pygame.K_w] and self.speed < -2))
-            if is_braking or is_drifting:
+            if is_braking or self.is_drifting:
                 forward_vec = pygame.Vector2(1, 0).rotate(-self.angle + 180)
                 off_l = pygame.Vector2(0, 16).rotate(-self.angle + 180)
                 off_r = pygame.Vector2(0, -16).rotate(-self.angle + 180)
@@ -876,10 +917,36 @@ def stats_dialog(screen, font, small_font, t, stats=None, controls=None):
             t.get("stats_spent", "Total spent: {amount} UAH").format(
                 amount=stats.get("spent", 0)
             ),
+            t.get("stats_max_speed", "Top speed: {value} km/h").format(
+                value=round(stats.get("max_speed_kmh", 0))
+            ),
+            t.get("stats_longest_drift", "Longest drift: {value} m").format(
+                value=round(stats.get("longest_drift_m", 0))
+            ),
+            t.get("stats_no_crash", "Longest drive without a crash: {value} m").format(
+                value=round(stats.get("distance_without_crash_m", 0))
+            ),
         ]
+        line_step = min(48, max(32, (height - 300) // len(lines)))
         for index, line in enumerate(lines):
             rendered = small_font.render(line, True, (220, 220, 220))
-            screen.blit(rendered, rendered.get_rect(center=(width // 2, 230 + index * 54)))
+            scale = min(
+                1.0,
+                (width - 80) / rendered.get_width(),
+                (line_step - 4) / rendered.get_height(),
+            )
+            if scale < 1:
+                rendered = pygame.transform.smoothscale(
+                    rendered,
+                    (
+                        max(1, int(rendered.get_width() * scale)),
+                        max(1, int(rendered.get_height() * scale)),
+                    ),
+                )
+            screen.blit(
+                rendered,
+                rendered.get_rect(center=(width // 2, 135 + index * line_step)),
+            )
 
         mouse_pos = pygame.mouse.get_pos()
         hovered = back_rect.collidepoint(mouse_pos)
@@ -1490,8 +1557,11 @@ def full_screen_map(
     house_icon = _get_house_icon()
 
     screen_width, screen_height = screen.get_size()
-    map_zoom = 1.0
-    map_off_x, map_off_y = 0, 0
+    map_zoom = 1.5
+    scaled_w = int(screen_width * map_zoom)
+    scaled_h = int(screen_height * map_zoom)
+    map_off_x = int((0.5 - target.pos.x / world_w) * scaled_w)
+    map_off_y = int((0.5 - target.pos.y / world_h) * scaled_h)
     clock = pygame.time.Clock()
     running = True
     labels = labels or {}
@@ -1725,19 +1795,32 @@ def get_ambient_color(game_time_minutes):
     # Daytime (08:00–18:00) is fully lit.
     if 8 <= h < 18:
         return 0, 0, 0, 0
-    # Night (21:00–05:00) uses a dark blue overlay.
-    elif h >= 21 or h < 5:
+    if h >= 21 or h < 5:
         return 15, 15, 40, 160
-    # Dawn and dusk use a gradual transition.
+    if 5 <= h < 8:
+        transition = (h - 5) / 3.0
     else:
-        if 5 <= h < 8:  # Morning.
-            factor = (h - 5) / 3.0
-        else:  # Evening (18:00–21:00).
-            factor = 1.0 - (h - 18) / 3.0
+        transition = (h - 18) / 3.0
+    smooth_transition = transition * transition * (3 - 2 * transition)
+    darkness = 1 - smooth_transition if h < 8 else smooth_transition
+    return 15, 15, 40, round(160 * darkness)
 
-        # A lower factor produces a darker overlay.
-        alpha = int(160 * (1.0 - factor))
-        return 15, 15, 40, alpha
+
+def fade_screen(screen, fade_out, duration=0.8):
+    frame = screen.copy()
+    overlay = pygame.Surface(screen.get_size())
+    overlay.fill((0, 0, 0))
+    clock = pygame.time.Clock()
+    elapsed = 0.0
+    while elapsed < duration:
+        elapsed = min(duration, elapsed + clock.tick(60) / 1000)
+        progress = elapsed / duration
+        alpha = round(255 * (progress if fade_out else 1 - progress))
+        screen.blit(frame, (0, 0))
+        overlay.set_alpha(alpha)
+        screen.blit(overlay, (0, 0))
+        pygame.display.flip()
+        pygame.event.pump()
 def draw_car_smoke(screen, car, off_x, off_y):
     """Draw the car smoke particles using the camera offset."""
     # Use a temporary surface for alpha blending.

@@ -5,8 +5,8 @@ import pygame
 
 from settings_manager import load_settings, load_statistics, save_settings
 
-VERSION = "0.5.0-alpha.1"
-RELEASE_NAME = "Taxi Ride"
+VERSION = "0.5.0-alpha.2"
+RELEASE_NAME = "(NOT) Sad City"
 LANGUAGES = ["English", "Українська", "Русский", "Español", "Deutsch", "Français"]
 APP_SETTINGS = load_settings()
 
@@ -276,6 +276,41 @@ translations = {
         "no": "NON",
     },
 }
+
+_RECORD_TRANSLATIONS = {
+    "English": {
+        "stats_max_speed": "Top speed: {value} km/h",
+        "stats_longest_drift": "Longest drift: {value} m",
+        "stats_no_crash": "Longest drive without a crash: {value} m",
+    },
+    "Українська": {
+        "stats_max_speed": "Максимальна швидкість: {value} км/год",
+        "stats_longest_drift": "Найдовший занос: {value} м",
+        "stats_no_crash": "Найдовша поїздка без аварій: {value} м",
+    },
+    "Русский": {
+        "stats_max_speed": "Максимальная скорость: {value} км/ч",
+        "stats_longest_drift": "Самый длинный занос: {value} м",
+        "stats_no_crash": "Самая длинная поездка без аварий: {value} м",
+    },
+    "Español": {
+        "stats_max_speed": "Velocidad máxima: {value} km/h",
+        "stats_longest_drift": "Derrape más largo: {value} m",
+        "stats_no_crash": "Trayecto más largo sin choque: {value} m",
+    },
+    "Deutsch": {
+        "stats_max_speed": "Höchstgeschwindigkeit: {value} km/h",
+        "stats_longest_drift": "Längster Drift: {value} m",
+        "stats_no_crash": "Längste Fahrt ohne Unfall: {value} m",
+    },
+    "Français": {
+        "stats_max_speed": "Vitesse maximale : {value} km/h",
+        "stats_longest_drift": "Dérapage le plus long : {value} m",
+        "stats_no_crash": "Trajet le plus long sans accident : {value} m",
+    },
+}
+for _language, _labels in _RECORD_TRANSLATIONS.items():
+    translations[_language].update(_labels)
 
 _VIDEO_TRANSLATIONS = {
     "English": {

@@ -5,7 +5,13 @@ import engine
 from engine import Car, KeyboardState, Player
 from house import HousePlayer
 from navigator import GPS
-from settings_manager import save_settings, save_statistics
+from settings_manager import (
+    load_game_save,
+    load_statistics,
+    save_game_save,
+    save_settings,
+    save_statistics,
+)
 import traffic  # Import the traffic module.
 from constants import *
 
@@ -25,17 +31,19 @@ def run(screen, settings):
     game_audio = engine.load_game_audio()
     phone_click_sfx = game_audio.phone_click
     current_app = 0  # 0 is the phone menu; 1–9 are apps.
-    money = 100  # Starting cash.
-    total_earned = 0
-    total_spent = 0
-    money_history = [("+100", "start")]
+    game_save = load_game_save()
+    money = game_save["money"] if game_save else 100
+    total_earned = game_save["earned"] if game_save else 0
+    total_spent = game_save["spent"] if game_save else 0
+    money_history = [("+100", "start")] if not game_save else []
     # Keep track of collected treasures so they cannot be collected repeatedly.
     collected_treasures = set()
     phone_active = False  # Phone state.
     phone_settings = engine.get_phone_settings()
     # --- Time and lighting ---
-    game_time = 480
+    game_time = game_save["game_time"] if game_save else 480.0
     night_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    wake_overlay = pygame.Surface(screen.get_size())
     car_sfx = game_audio.car_sounds
     step_sounds = game_audio.footsteps
 
@@ -67,15 +75,31 @@ def run(screen, settings):
     house_info = assets.house_info
 
     show_debug = False
-    game_state = "HOUSE"
+    game_state = "CITY" if game_save else "HOUSE"
     in_car = False
 
     # GAME OBJECTS
     atom = Player(7738, 2330)
     car = Car(7985, 2383)
     car.angle = 270
+    if game_save:
+        atom.pos.update(game_save["player"]["x"], game_save["player"]["y"])
+        atom.angle = game_save["player"]["angle"]
+        car.pos.update(game_save["car"]["x"], game_save["car"]["y"])
+        car.angle = game_save["car"]["angle"]
+        car.speed = game_save["car"]["speed"]
+        car.motion_velocity = pygame.Vector2(car.speed, 0).rotate(-car.angle + 180)
+        car.health = game_save["car"]["health"]
+        car.is_broken = game_save["car"]["is_broken"]
     atom_h = HousePlayer(162, 161)
     gps = GPS()
+    if game_save:
+        collected_treasures.update(game_save["collected_treasures"])
+    personal_records = load_statistics()
+    distance_since_crash = game_save["distance_streak"] if game_save else 0.0
+    current_drift_distance = game_save["drift_streak"] if game_save else 0.0
+    sleep_requested = False
+    wake_fade_started = None
 
     game_font, small_font = engine.load_game_fonts()
 
@@ -181,6 +205,53 @@ def run(screen, settings):
         }
     }
 
+    per_language_labels = {
+        "English": {
+            "sleep_save": "Press [E] / [T] to sleep and save",
+            "handbrake_hint": "Space: handbrake",
+            "stats_max_speed": "Top speed: {value} km/h",
+            "stats_longest_drift": "Longest drift: {value} m",
+            "stats_no_crash": "Longest drive without a crash: {value} m",
+        },
+        "Українська": {
+            "sleep_save": "Натисніть [Е] / [Т], щоб заснути й зберегтися",
+            "handbrake_hint": "Пробіл: ручне гальмо",
+            "stats_max_speed": "Максимальна швидкість: {value} км/год",
+            "stats_longest_drift": "Найдовший занос: {value} м",
+            "stats_no_crash": "Найдовша поїздка без аварій: {value} м",
+        },
+        "Русский": {
+            "sleep_save": "Нажмите [Е] / [Т], чтобы поспать и сохраниться",
+            "handbrake_hint": "Пробел: ручной тормоз",
+            "stats_max_speed": "Максимальная скорость: {value} км/ч",
+            "stats_longest_drift": "Самый длинный занос: {value} м",
+            "stats_no_crash": "Самая длинная поездка без аварий: {value} м",
+        },
+        "Español": {
+            "sleep_save": "Pulsa [E] / [T] para dormir y guardar",
+            "handbrake_hint": "Espacio: freno de mano",
+            "stats_max_speed": "Velocidad máxima: {value} km/h",
+            "stats_longest_drift": "Derrape más largo: {value} m",
+            "stats_no_crash": "Trayecto más largo sin choque: {value} m",
+        },
+        "Deutsch": {
+            "sleep_save": "[E] / [T] drücken, um zu schlafen und zu speichern",
+            "handbrake_hint": "Leertaste: Handbremse",
+            "stats_max_speed": "Höchstgeschwindigkeit: {value} km/h",
+            "stats_longest_drift": "Längster Drift: {value} m",
+            "stats_no_crash": "Längste Fahrt ohne Unfall: {value} m",
+        },
+        "Français": {
+            "sleep_save": "Appuyez sur [E] / [T] pour dormir et sauvegarder",
+            "handbrake_hint": "Espace : frein à main",
+            "stats_max_speed": "Vitesse maximale : {value} km/h",
+            "stats_longest_drift": "Dérapage le plus long : {value} m",
+            "stats_no_crash": "Trajet le plus long sans accident : {value} m",
+        },
+    }
+    for language, labels in per_language_labels.items():
+        translations[language].update(labels)
+
     def save_last_session_stats():
         save_statistics({
             "money": money,
@@ -188,7 +259,35 @@ def run(screen, settings):
             "spent": total_spent,
             "time": f"{int(game_time / 60):02d}:{int(game_time % 60):02d}",
             "treasures": len(collected_treasures),
+            "max_speed_kmh": personal_records["max_speed_kmh"],
+            "longest_drift_m": personal_records["longest_drift_m"],
+            "distance_without_crash_m": personal_records["distance_without_crash_m"],
         })
+
+    def save_sleep_game():
+        save_game_save({
+            "player": {
+                "x": atom.pos.x,
+                "y": atom.pos.y,
+                "angle": atom.angle,
+            },
+            "car": {
+                "x": car.pos.x,
+                "y": car.pos.y,
+                "angle": car.angle,
+                "speed": car.speed,
+                "health": car.health,
+                "is_broken": car.is_broken,
+            },
+            "money": money,
+            "earned": total_earned,
+            "spent": total_spent,
+            "game_time": game_time,
+            "collected_treasures": sorted(collected_treasures),
+            "distance_streak": distance_since_crash,
+            "drift_streak": current_drift_distance,
+        })
+        save_last_session_stats()
 
     running = True
     last_frame_time = time.perf_counter()
@@ -226,6 +325,7 @@ def run(screen, settings):
                 screen = engine.apply_window_resize(event.size, settings)
                 full_map_img = pygame.transform.scale(original_nav_map, (WIDTH, HEIGHT))
                 night_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+                wake_overlay = pygame.Surface(screen.get_size())
                 save_settings(settings)
             if event.type == pygame.QUIT:
                 save_last_session_stats()
@@ -284,6 +384,11 @@ def run(screen, settings):
                             "spent": total_spent,
                             "time": f"{int(game_time / 60):02d}:{int(game_time % 60):02d}",
                             "treasures": len(collected_treasures),
+                            "max_speed_kmh": personal_records["max_speed_kmh"],
+                            "longest_drift_m": personal_records["longest_drift_m"],
+                            "distance_without_crash_m": personal_records[
+                                "distance_without_crash_m"
+                            ],
                         },
                         on_change=save_settings,
                     )
@@ -307,12 +412,20 @@ def run(screen, settings):
                             car_sfx['door_open'].play()
                         else:
                             car_sfx['door_close'].play()
-                if keyboard.matches(event, pygame.K_e):
-                    if game_state == "CITY" and not in_car:
-                        if atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
+                sleep_key_pressed = (
+                    keyboard.matches(event, pygame.K_e)
+                    or event.key == pygame.K_t
+                    or getattr(event, "unicode", "").lower() in ("t", "т")
+                )
+                if sleep_key_pressed:
+                    spawn_distance = atom.pos.distance_to(pygame.Vector2(7738, 2330))
+                    if game_state == "CITY" and not in_car and 80 <= spawn_distance < 130:
+                        sleep_requested = True
+                    elif keyboard.matches(event, pygame.K_e) and game_state == "CITY" and not in_car:
+                        if spawn_distance < 80:
                             game_state = "HOUSE"
                             atom_h.pos = pygame.Vector2(294, 11)
-                    elif game_state == "HOUSE":
+                    elif keyboard.matches(event, pygame.K_e) and game_state == "HOUSE":
                         if engine.check_house_exit(atom_h, house_info):
                             game_state = "CITY"
                             atom.pos = pygame.Vector2(7731, 2326)
@@ -328,11 +441,48 @@ def run(screen, settings):
                 # Pass the arguments used by traffic.py.
                 npc.update(col_mask, car, npc_cars, traffic_state, frame_scale)
             if in_car:
-                car.update(keys, col_mask, True, npc_cars, frame_scale)
+                previous_car_pos = pygame.Vector2(car.pos)
+                car.update(
+                    keys,
+                    col_mask,
+                    True,
+                    npc_cars,
+                    frame_scale,
+                    surface_map=world_bg,
+                )
                 atom.pos = pygame.Vector2(car.pos)
+                travelled = previous_car_pos.distance_to(car.pos)
+                if car.just_hit:
+                    distance_since_crash = 0.0
+                    current_drift_distance = 0.0
+                else:
+                    distance_since_crash += travelled
+                    personal_records["distance_without_crash_m"] = max(
+                        personal_records["distance_without_crash_m"],
+                        distance_since_crash,
+                    )
+                    if car.is_drifting:
+                        current_drift_distance += travelled
+                        personal_records["longest_drift_m"] = max(
+                            personal_records["longest_drift_m"],
+                            current_drift_distance,
+                        )
+                    else:
+                        current_drift_distance = 0.0
+                personal_records["max_speed_kmh"] = max(
+                    personal_records["max_speed_kmh"],
+                    abs(car.speed) * 8,
+                )
             else:
                 atom.update(keys, col_mask, car, npc_cars, frame_scale)
-                car.update(keys, col_mask, False, npc_cars, frame_scale)
+                car.update(
+                    keys,
+                    col_mask,
+                    False,
+                    npc_cars,
+                    frame_scale,
+                    surface_map=world_bg,
+                )
 
                 # Treasures and secrets.
                 if "guard" not in collected_treasures and atom.pos.distance_to(pygame.Vector2(8909, 1139)) < 60:
@@ -399,6 +549,13 @@ def run(screen, settings):
             if not in_car:
                 engine.draw_atom_character(screen, atom.pos.x + off_x, atom.pos.y + off_y, atom_img, atom.angle)
                 engine.draw_city_hints(screen, small_font, atom, car, t)
+                spawn_distance = atom.pos.distance_to(pygame.Vector2(7738, 2330))
+                if 80 <= spawn_distance < 130:
+                    sleep_text = small_font.render(t["sleep_save"], True, (255, 255, 255))
+                    screen.blit(
+                        sleep_text,
+                        sleep_text.get_rect(center=(WIDTH // 2, HEIGHT - 80)),
+                    )
 
                 # Repair prompt.
                 if car.is_broken and atom.pos.distance_to(car.pos) < 100:
@@ -412,7 +569,14 @@ def run(screen, settings):
                         pygame.draw.rect(screen, (0, 120, 255), (WIDTH // 2 - 100, HEIGHT // 2 + 140, w, 15))
                         pygame.draw.rect(screen, (255, 255, 255), (WIDTH // 2 - 100, HEIGHT // 2 + 140, 200, 15), 2)
 
-            if in_car: car.draw_speedometer(screen)
+            if in_car:
+                car.draw_speedometer(screen)
+                handbrake_hint = small_font.render(
+                    t["handbrake_hint"],
+                    True,
+                    (235, 235, 235),
+                )
+                screen.blit(handbrake_hint, (20, HEIGHT - 40))
             engine.draw_gta_minimap(
                 screen, original_nav_map, target, CURR_WORLD_W, CURR_WORLD_H,
                 gps=gps, labels=t,
@@ -437,7 +601,22 @@ def run(screen, settings):
                                      current_app, phone_settings, phone_y_offset, money_history,
                                      current_lang_name)
 
+        if wake_fade_started is not None:
+            fade_progress = (time.perf_counter() - wake_fade_started) / 1.2
+            if fade_progress >= 1:
+                wake_fade_started = None
+            else:
+                wake_overlay.fill((0, 0, 0))
+                wake_overlay.set_alpha(round(255 * (1 - fade_progress)))
+                screen.blit(wake_overlay, (0, 0))
+
         pygame.display.flip()
+        if sleep_requested:
+            engine.fade_screen(screen, True)
+            game_time = (game_time + 540) % 1440
+            save_sleep_game()
+            sleep_requested = False
+            wake_fade_started = time.perf_counter()
 
     save_last_session_stats()
     return "EXIT"
