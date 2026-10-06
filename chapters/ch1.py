@@ -17,8 +17,8 @@ from constants import *
 
 os.environ['SDL_VIDEO_CENTERED'] = '1'
 
-HOUSE_SLEEP_SPOT = pygame.Vector2(723, 128)
-HOUSE_SLEEP_RADIUS = 70
+HOUSE_SLEEP_SPOT = pygame.Vector2(147, 156)
+HOUSE_SLEEP_RADIUS = 24
 
 
 def _is_at_sleep_spot(game_state, position):
@@ -69,11 +69,12 @@ def run(screen, settings):
     clock = pygame.time.Clock()
     languages = ["English", "Українська", "Русский", "Español", "Deutsch", "Français"]
 
-    MAP_SCALE = 4.0
-    CURR_WORLD_W, CURR_WORLD_H = int(WORLD_WIDTH * MAP_SCALE), int(WORLD_HEIGHT * MAP_SCALE)
+    map_scale = 4.0
+    current_world_width = int(WORLD_WIDTH * map_scale)
+    current_world_height = int(WORLD_HEIGHT * map_scale)
     assets = engine.load_game_assets(
         screen.get_size(),
-        (CURR_WORLD_W, CURR_WORLD_H),
+        (current_world_width, current_world_height),
     )
     atom_img = assets.atom
     original_nav_map = assets.original_nav_map
@@ -102,6 +103,7 @@ def run(screen, settings):
         car.health = game_save["car"]["health"]
         car.is_broken = game_save["car"]["is_broken"]
     atom_h = HousePlayer(162, 161)
+    atom_h.pos.update(HOUSE_SLEEP_SPOT)
     if game_save and game_save["game_state"] == "HOUSE":
         atom_h.pos.update(
             game_save["house_player"]["x"],
@@ -116,6 +118,7 @@ def run(screen, settings):
     current_drift_distance = game_save["drift_streak"] if game_save else 0.0
     sleep_requested = False
     wake_fade_started = None
+    manual_headlights = False
 
     game_font, small_font = engine.load_game_fonts()
 
@@ -223,43 +226,61 @@ def run(screen, settings):
 
     per_language_labels = {
         "English": {
-            "sleep_save": "Press [E] / [T] by the sofa to sleep and save",
-            "handbrake_hint": "Space: handbrake",
+            "sleep_save": "Press [E] / [T] by the bed to sleep and save",
+            "video": "Video", "window_mode": "Window mode", "window_mode_value": "Resizable",
+            "resolution": "Resolution", "fps_limit": "Frame rate limit",
+            "fps_unlimited": "Unlimited",
+            "video_hint": "FPS is not monitor Hz. Use the title bar button to maximize.",
             "stats_max_speed": "Top speed: {value} km/h",
             "stats_longest_drift": "Longest drift: {value} m",
             "stats_no_crash": "Longest drive without a crash: {value} m",
         },
         "Українська": {
-            "sleep_save": "Натисніть [Е] / [Т] біля дивана, щоб заснути й зберегтися",
-            "handbrake_hint": "Пробіл: ручне гальмо",
+            "sleep_save": "Натисніть [Е] / [Т] біля ліжка, щоб заснути й зберегтися",
+            "video": "Відео", "window_mode": "Режим вікна", "window_mode_value": "Змінний розмір",
+            "resolution": "Роздільність", "fps_limit": "Ліміт кадрів (FPS)",
+            "fps_unlimited": "Без обмежень",
+            "video_hint": "FPS — не герци монітора. Натисніть кнопку в заголовку, щоб розгорнути вікно.",
             "stats_max_speed": "Максимальна швидкість: {value} км/год",
             "stats_longest_drift": "Найдовший занос: {value} м",
             "stats_no_crash": "Найдовша поїздка без аварій: {value} м",
         },
         "Русский": {
-            "sleep_save": "Нажмите [Е] / [Т] у дивана, чтобы поспать и сохраниться",
-            "handbrake_hint": "Пробел: ручной тормоз",
+            "sleep_save": "Нажмите [Е] / [Т] у кровати, чтобы поспать и сохраниться",
+            "video": "Видео", "window_mode": "Режим окна", "window_mode_value": "Изменяемый размер",
+            "resolution": "Разрешение", "fps_limit": "Лимит кадров (FPS)",
+            "fps_unlimited": "Без ограничений",
+            "video_hint": "FPS — не герцы монитора. Нажмите кнопку в заголовке, чтобы развернуть окно.",
             "stats_max_speed": "Максимальная скорость: {value} км/ч",
             "stats_longest_drift": "Самый длинный занос: {value} м",
             "stats_no_crash": "Самая длинная поездка без аварий: {value} м",
         },
         "Español": {
-            "sleep_save": "Pulsa [E] / [T] junto al sofá para dormir y guardar",
-            "handbrake_hint": "Espacio: freno de mano",
+            "sleep_save": "Pulsa [E] / [T] junto a la cama para dormir y guardar",
+            "video": "Vídeo", "window_mode": "Modo de ventana", "window_mode_value": "Redimensionable",
+            "resolution": "Resolución", "fps_limit": "Límite de fotogramas (FPS)",
+            "fps_unlimited": "Sin límite",
+            "video_hint": "FPS no son los Hz. Usa el botón de la barra superior para maximizar.",
             "stats_max_speed": "Velocidad máxima: {value} km/h",
             "stats_longest_drift": "Derrape más largo: {value} m",
             "stats_no_crash": "Trayecto más largo sin choque: {value} m",
         },
         "Deutsch": {
-            "sleep_save": "Am Sofa [E] / [T] drücken, um zu schlafen und zu speichern",
-            "handbrake_hint": "Leertaste: Handbremse",
+            "sleep_save": "Am Bett [E] / [T] drücken, um zu schlafen und zu speichern",
+            "video": "Video", "window_mode": "Fenstermodus", "window_mode_value": "Größe änderbar",
+            "resolution": "Auflösung", "fps_limit": "Bildratenlimit (FPS)",
+            "fps_unlimited": "Unbegrenzt",
+            "video_hint": "FPS sind nicht Monitor-Hz. Mit der Schaltfläche in der Titelleiste maximieren.",
             "stats_max_speed": "Höchstgeschwindigkeit: {value} km/h",
             "stats_longest_drift": "Längster Drift: {value} m",
             "stats_no_crash": "Längste Fahrt ohne Unfall: {value} m",
         },
         "Français": {
-            "sleep_save": "Appuyez sur [E] / [T] près du canapé pour dormir et sauvegarder",
-            "handbrake_hint": "Espace : frein à main",
+            "sleep_save": "Appuyez sur [E] / [T] près du lit pour dormir et sauvegarder",
+            "video": "Vidéo", "window_mode": "Mode fenêtre", "window_mode_value": "Redimensionnable",
+            "resolution": "Résolution", "fps_limit": "Limite d’images (FPS)",
+            "fps_unlimited": "Illimitée",
+            "video_hint": "Les FPS ne sont pas les Hz. Utilisez le bouton de la barre de titre.",
             "stats_max_speed": "Vitesse maximale : {value} km/h",
             "stats_longest_drift": "Dérapage le plus long : {value} m",
             "stats_no_crash": "Trajet le plus long sans accident : {value} m",
@@ -395,7 +416,8 @@ def run(screen, settings):
                 if event.key == pygame.K_TAB:
                     engine.full_screen_map(
                         screen, full_map_img, (car if in_car else atom),
-                        CURR_WORLD_W, CURR_WORLD_H, controls=keyboard, gps=gps, labels=t
+                        current_world_width, current_world_height,
+                        controls=keyboard, gps=gps, labels=t
                     )
                 if event.key == pygame.K_ESCAPE:
                     res = engine.pause_menu(
@@ -434,6 +456,9 @@ def run(screen, settings):
                             car_sfx['door_open'].play()
                         else:
                             car_sfx['door_close'].play()
+                if game_state == "CITY" and in_car and not getattr(event, "repeat", False):
+                    if keyboard.matches(event, pygame.K_h):
+                        manual_headlights = not manual_headlights
                 sleep_key_pressed = (
                     keyboard.matches(event, pygame.K_e)
                     or event.key == pygame.K_t
@@ -451,7 +476,7 @@ def run(screen, settings):
                     elif keyboard.matches(event, pygame.K_e) and not in_car:
                         if atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
                             game_state = "HOUSE"
-                            atom_h.pos = pygame.Vector2(294, 11)
+                            atom_h.pos = pygame.Vector2(HOUSE_SLEEP_SPOT)
 
         # 2. Update the game state.
 
@@ -536,8 +561,14 @@ def run(screen, settings):
 
             engine.handle_surface_footsteps(keys, in_car, game_state, atom.pos, col_mask, step_sounds, foot_chan)
             engine.handle_car_audio(car, in_car, car_sfx, engine_chan, crash_chan, keyboard)
-            off_x = max(-(CURR_WORLD_W - WIDTH), min(0, WIDTH // 2 - target.pos.x))
-            off_y = max(-(CURR_WORLD_H - HEIGHT), min(0, HEIGHT // 2 - target.pos.y))
+            off_x = max(
+                -(current_world_width - WIDTH),
+                min(0, WIDTH // 2 - target.pos.x),
+            )
+            off_y = max(
+                -(current_world_height - HEIGHT),
+                min(0, HEIGHT // 2 - target.pos.y),
+            )
         else:
             atom_h.update(keys, house_collision, frame_scale)
             if "nightstand" not in collected_treasures:
@@ -561,7 +592,13 @@ def run(screen, settings):
             screen.blit(world_bg, (off_x, off_y))
 
             # 1. Draw the player’s car and its smoke.
-            car.draw(screen, off_x, off_y)
+            is_night = engine.get_ambient_color(game_time)[3] >= 40
+            car.draw(
+                screen,
+                off_x,
+                off_y,
+                lights_on=manual_headlights or is_night,
+            )
             engine.draw_car_smoke(screen, car, off_x, off_y)
 
             # 2. Draw traffic and police.
@@ -587,14 +624,9 @@ def run(screen, settings):
 
             if in_car:
                 car.draw_speedometer(screen)
-                handbrake_hint = small_font.render(
-                    t["handbrake_hint"],
-                    True,
-                    (235, 235, 235),
-                )
-                screen.blit(handbrake_hint, (20, HEIGHT - 40))
             engine.draw_gta_minimap(
-                screen, original_nav_map, target, CURR_WORLD_W, CURR_WORLD_H,
+                screen, original_nav_map, target,
+                current_world_width, current_world_height,
                 gps=gps, labels=t,
             )
         else:
@@ -617,7 +649,12 @@ def run(screen, settings):
         screen.blit(time_text, (WIDTH - 100, 20))
 
         if show_debug:
-            engine.draw_debug_coords(screen, (atom_h if game_state == "HOUSE" else target), game_state)
+            engine.draw_debug_coords(
+                screen,
+                (atom_h if game_state == "HOUSE" else target),
+                game_state,
+                clock.get_fps(),
+            )
         if phone_y_offset < 449.0:
             engine.draw_mobile_phone(screen, money, game_time, small_font,
                                      current_app, phone_settings, phone_y_offset, money_history,

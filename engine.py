@@ -477,6 +477,40 @@ def _get_surface_grip(col_mask, surface_map, position, angle):
     return grip
 
 
+def _rotated_rect(image, center, angle):
+    width, height = image.get_size()
+    radians = math.radians(angle)
+    rotated_width = math.ceil(
+        abs(width * math.cos(radians)) + abs(height * math.sin(radians))
+    )
+    rotated_height = math.ceil(
+        abs(width * math.sin(radians)) + abs(height * math.cos(radians))
+    )
+    return pygame.Rect(0, 0, rotated_width, rotated_height).move(
+        round(center[0] - rotated_width / 2),
+        round(center[1] - rotated_height / 2),
+    )
+
+
+_HEADLIGHT_BEAM_BASE = pygame.Surface((340, 220), pygame.SRCALPHA)
+pygame.draw.polygon(
+    _HEADLIGHT_BEAM_BASE,
+    (255, 245, 190, 80),
+    ((0, 82), (340, 0), (340, 220), (0, 138)),
+)
+pygame.draw.polygon(
+    _HEADLIGHT_BEAM_BASE,
+    (255, 250, 215, 70),
+    ((0, 96), (290, 55), (290, 165), (0, 124)),
+)
+
+
+def _get_headlight_beam(angle):
+    forward = pygame.Vector2(1, 0).rotate(-angle + 180)
+    screen_angle = math.degrees(math.atan2(forward.y, forward.x))
+    return pygame.transform.rotate(_HEADLIGHT_BEAM_BASE, -screen_angle)
+
+
 class Car:
     _ACCELERATION_BANDS = ((70.0, 0.9), (90.0, 0.35), (120.0, 0.16))
 
@@ -492,6 +526,8 @@ class Car:
 
         self.skid_marks = []
         self.just_hit = False
+        self.is_drifting = False
+        self.is_braking = False
 
         # --- Vehicle damage system ---
         self.health = 200.0  # Current health.
@@ -548,6 +584,7 @@ class Car:
         right_pressed = False
         handbrake_pressed = False
         self.is_drifting = False
+        self.is_braking = False
         surface_grip = _get_surface_grip(col_mask, surface_map, self.pos, self.angle)
         # A broken car does not respond to acceleration.
         if self.is_broken:
@@ -561,6 +598,11 @@ class Car:
                 self.speed = 0
         else:
             # 1. Speed control.
+            self.is_braking = (
+                (keys[pygame.K_s] or keys[pygame.K_DOWN]) and self.speed > 0
+            ) or (
+                (keys[pygame.K_w] or keys[pygame.K_UP]) and self.speed < 0
+            )
             current_accel = self.accel * frame_scale
             if abs(self.speed) > 10: current_accel = self.accel / 3
             if abs(self.speed) > 10: current_accel *= frame_scale
@@ -640,20 +682,21 @@ class Car:
                 for npc in npc_cars:
                     # Check nearby traffic around the player’s car.
                     if test_pos.distance_to(npc.pos) < 95:  # Detection distance.
-                        # Build rectangles for the sprite collision check.
-                        my_rect = self.image.get_rect(center=test_pos)
-                        # npc.image.get_rect(center=npc.pos) is the other car’s rectangle.
-                        if my_rect.colliderect(npc.image.get_rect(center=npc.pos)):
+                        my_rect = _rotated_rect(self.image, test_pos, self.angle)
+                        npc_rect = _rotated_rect(
+                            npc.image,
+                            npc.pos,
+                            getattr(npc, "angle", 0),
+                        )
+                        if my_rect.colliderect(npc_rect):
                             return True  # Treat the other car as an obstacle.
-            w, h = 45, 22
+            w, h = 40, 18
             points = [
-                test_pos + pygame.Vector2(w, h).rotate(-self.angle + 180),
-                test_pos + pygame.Vector2(w, -h).rotate(-self.angle + 180),
-                test_pos + pygame.Vector2(-w, h).rotate(-self.angle + 180),
-                test_pos + pygame.Vector2(-w, -h).rotate(-self.angle + 180),
-                test_pos + pygame.Vector2(w, 0).rotate(-self.angle + 180),
-                test_pos + pygame.Vector2(-w, 0).rotate(-self.angle + 180)
+                test_pos + pygame.Vector2(dx, dy).rotate(-self.angle + 180)
+                for dx in (-w, -w / 2, 0, w / 2, w)
+                for dy in (-h, -h / 2, 0, h / 2, h)
             ]
+            red_hits = 0
             for point in points:
                 mask_x, mask_y = int(point.x), int(point.y)
                 if (
@@ -662,11 +705,14 @@ class Car:
                 ):
                     return True
                 pixel = col_mask.get_at((mask_x, mask_y))
-                is_red_wall = pixel.r > 200 and pixel.g < 50 and pixel.b < 50
                 is_black_wall = pixel.r < 50 and pixel.g < 50 and pixel.b < 50
-                if is_red_wall or is_black_wall:
+                is_red_marking = pixel.r > 200 and pixel.g < 50 and pixel.b < 50
+                if is_black_wall:
                     return True
-            return False
+                red_hits += int(is_red_marking)
+            # Red is also used for dashed road markings; only broad red blocks
+            # in the collision mask represent solid obstacles.
+            return red_hits >= 8
 
         if check_at_pos(next_pos):
             # --- Damage handling ---
@@ -727,7 +773,18 @@ class Car:
             # Remove particles when they fade out or expire.
             if p[3] <= 0 or p[5] <= 0:
                 self.smoke_particles.remove(p)
-    def draw(self, screen, offset_x, offset_y):
+    def draw(self, screen, offset_x, offset_y, lights_on=False):
+        center = pygame.Vector2(
+            self.pos.x + offset_x,
+            self.pos.y + offset_y,
+        )
+        forward = pygame.Vector2(1, 0).rotate(-self.angle + 180)
+        side = pygame.Vector2(-forward.y, forward.x)
+
+        if lights_on:
+            beam = _get_headlight_beam(self.angle)
+            screen.blit(beam, beam.get_rect(center=center + forward * 215))
+
         for p1l, p2l, p1r, p2r in self.skid_marks:
             pygame.draw.line(screen, (45, 45, 45), (p1l.x + offset_x, p1l.y + offset_y),
                              (p2l.x + offset_x, p2l.y + offset_y), 5)
@@ -735,10 +792,28 @@ class Car:
                              (p2r.x + offset_x, p2r.y + offset_y), 5)
 
         rotated = pygame.transform.rotate(self.image, self.angle)
-        rect = rotated.get_rect(center=(self.pos.x + offset_x, self.pos.y + offset_y))
+        rect = rotated.get_rect(center=center)
 
-        # Optional: add vibration or light smoke below 30% health.
         screen.blit(rotated, rect)
+        front_center = center + forward * 43
+        if lights_on:
+            for lamp_center in (front_center + side * 13, front_center - side * 13):
+                pygame.draw.circle(
+                    screen,
+                    (255, 250, 190),
+                    (round(lamp_center.x), round(lamp_center.y)),
+                    4,
+                )
+        rear_light_color = (255, 0, 0) if self.is_braking else (125, 18, 12)
+        rear_light_radius = 7 if self.is_braking else 3
+        rear_center = center - forward * 39
+        for lamp_center in (rear_center + side * 13, rear_center - side * 13):
+            pygame.draw.circle(
+                screen,
+                rear_light_color,
+                (round(lamp_center.x), round(lamp_center.y)),
+                rear_light_radius,
+            )
 
     def draw_speedometer(self, screen):
         center = (screen.get_width() - 330, screen.get_height() - 120)
@@ -791,7 +866,7 @@ def draw_atom_character(ctx, x, y, atom_tex, angle):
     ctx.blit(rotated_atom, rect)
 
 
-def _format_gps_distance(distance):
+def _format_gps_distance(distance: float) -> str:
     if distance >= 999.5:
         return f"{distance / 1000:.1f} km"
     return f"{distance:.0f} m"
@@ -802,6 +877,33 @@ def _draw_gps_marker(surface, center, radius):
     pygame.draw.circle(surface, (255, 255, 255), center, radius + 1)
     pygame.draw.circle(surface, (255, 112, 0), center, radius)
     pygame.draw.circle(surface, (255, 255, 255), center, max(2, radius // 3))
+
+
+def _minimap_gps_position(player_position, destination, ratio_x, ratio_y, offset, center, radius):
+    player_point = pygame.Vector2(
+        player_position[0] * ratio_x + offset[0],
+        player_position[1] * ratio_y + offset[1],
+    )
+    destination_point = pygame.Vector2(
+        destination[0] * ratio_x + offset[0],
+        destination[1] * ratio_y + offset[1],
+    )
+    center_point = pygame.Vector2(center)
+    relative_destination = destination_point - center_point
+    if relative_destination.length_squared() <= radius**2:
+        return round(destination_point.x), round(destination_point.y)
+
+    direction = destination_point - player_point
+    a = direction.length_squared()
+    if a == 0:
+        return round(center_point.x), round(center_point.y)
+    relative_player = player_point - center_point
+    b = relative_player.dot(direction)
+    c = relative_player.length_squared() - radius**2
+    discriminant = max(0.0, b * b - a * c)
+    distance = (-b + math.sqrt(discriminant)) / a
+    edge_point = player_point + direction * distance
+    return round(edge_point.x), round(edge_point.y)
 
 
 def draw_gta_minimap(
@@ -869,15 +971,24 @@ def draw_gta_minimap(
     pygame.draw.circle(mini_surf, (255, 255, 255), (int(px), int(py)), 6, 2)
 
     distance = gps.distance_to((target.pos.x, target.pos.y)) if gps is not None else None
-    if gps is not None and gps.destination is not None:
-        dx = gps.destination[0] * ratio_x + ox
-        dy = gps.destination[1] * ratio_y + oy
-        _draw_gps_marker(mini_surf, (int(dx), int(dy)), 9)
-
+    destination = gps.destination if gps is not None else None
     # Apply a circular mask to crop the map edges.
     mask = pygame.Surface((size, size), pygame.SRCALPHA)
     pygame.draw.circle(mask, (255, 255, 255, 255), (half_size, half_size), half_size)
     mini_surf.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+
+    # Keep distant destinations visible at the radar edge, pointing outward.
+    if destination is not None:
+        marker_pos = _minimap_gps_position(
+            (target.pos.x, target.pos.y),
+            destination,
+            ratio_x,
+            ratio_y,
+            (ox, oy),
+            (half_size, half_size),
+            half_size - 14,
+        )
+        _draw_gps_marker(mini_surf, marker_pos, 9)
 
     # Draw the minimap on the main screen.
     # Border.
@@ -1516,8 +1627,8 @@ def confirm_dialog(screen, font, small_font, t, controls=None):
                     return False
 
         clock.tick(FPS)
-def draw_debug_coords(screen, target, mode_label):
-    """Draw the target's world coordinates for debugging."""
+def draw_debug_coords(screen, target, mode_label, fps=None):
+    """Draw the target's world coordinates and frame rate for debugging."""
     if target is None:
         return
     position = getattr(target, "pos", None)
@@ -1530,7 +1641,8 @@ def draw_debug_coords(screen, target, mode_label):
 
     curr_x, curr_y = map(int, position)
 
-    debug_text = f"X: {curr_x} Y: {curr_y} | MODE: {mode_label}"
+    fps_text = f" | FPS: {fps:.0f}" if fps is not None else ""
+    debug_text = f"X: {curr_x} Y: {curr_y} | MODE: {mode_label}{fps_text}"
     txt_surf = debug_f.render(debug_text, True, (255, 255, 0))
 
     # Text background.
@@ -1646,8 +1758,9 @@ def full_screen_map(
         pygame.draw.circle(screen, (255, 255, 255), (px, py), int(8 * map_zoom), 2)
 
         distance = gps.distance_to((target.pos.x, target.pos.y)) if gps is not None else None
-        if gps is not None and gps.destination is not None:
-            dx, dy = world_to_map(*gps.destination)
+        destination = gps.destination if gps is not None else None
+        if destination is not None:
+            dx, dy = world_to_map(*destination)
             _draw_gps_marker(screen, (dx, dy), max(6, int(10 * map_zoom)))
 
         if distance is not None:
@@ -1778,7 +1891,7 @@ def handle_car_audio(car, in_car, sounds, e_chan, c_chan, controls=None):
 
     # 2. Horn audio.
     keys = controls if controls is not None else pygame.key.get_pressed()
-    if keys[pygame.K_h]:
+    if keys[pygame.K_e]:
         # Use a separate channel so the horn does not interrupt the engine.
         # The horn may overlap other sounds on its channel.
         if not pygame.mixer.Channel(4).get_busy():

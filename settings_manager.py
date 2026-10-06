@@ -92,6 +92,12 @@ def load_game_save():
     house_player = values.get("house_player", {})
     if not isinstance(house_player, dict):
         house_player = {}
+    house_x = _finite_number(house_player.get("x"), default=147.0, maximum=750.0)
+    house_y = _finite_number(house_player.get("y"), default=156.0, maximum=300.0)
+    if "x" not in house_player or "y" not in house_player or (
+        abs(house_x - 723) < 40 and abs(house_y - 128) < 40
+    ):
+        house_x, house_y = 147.0, 156.0
     required_positions = (player.get("x"), player.get("y"), car.get("x"), car.get("y"))
     if any(not isinstance(value, (int, float)) or not math.isfinite(value) for value in required_positions):
         return None
@@ -118,8 +124,8 @@ def load_game_save():
             "is_broken": bool(car.get("is_broken", False)),
         },
         "house_player": {
-            "x": _finite_number(house_player.get("x"), default=162.0, maximum=750.0),
-            "y": _finite_number(house_player.get("y"), default=161.0, maximum=300.0),
+            "x": house_x,
+            "y": house_y,
             "angle": _finite_number(
                 house_player.get("angle"),
                 minimum=-360_000.0,
