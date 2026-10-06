@@ -4,11 +4,12 @@ import random
 from dataclasses import dataclass
 from pathlib import Path
 import sys
-from typing import Optional
+from typing import Mapping, Optional
 
 import pygame
 
 import constants as _constants
+from navigator import GPS
 
 WIDTH = _constants.WIDTH
 HEIGHT = _constants.HEIGHT
@@ -470,26 +471,33 @@ def _get_surface_grip(col_mask, surface_map, position, angle):
         red, green, blue = col_mask.get_at((x, y))[:3]
         if red > 220 and green > 210 and blue < 60:
             grip = min(grip, 1.0)
-        elif 150 <= red <= 215 and 85 <= green <= 150 and 55 <= blue <= 120:
+        elif red in range(150, 216) and green in range(85, 151) and blue in range(55, 121):
             grip = min(grip, 0.78)
         elif green > red and green > blue:
             grip = min(grip, 0.58)
     return grip
 
 
-def _rotated_rect(image, center, angle):
-    width, height = image.get_size()
-    radians = math.radians(angle)
-    rotated_width = math.ceil(
-        abs(width * math.cos(radians)) + abs(height * math.sin(radians))
+def _sprites_overlap(
+    first_image: pygame.Surface,
+    first_center: tuple[float, float] | pygame.Vector2,
+    second_image: pygame.Surface,
+    second_center: tuple[float, float] | pygame.Vector2,
+    angle: float = 0,
+) -> bool:
+    rotated_first = pygame.transform.rotate(first_image, angle)
+    first_rect = rotated_first.get_rect(
+        center=(round(first_center[0]), round(first_center[1]))
     )
-    rotated_height = math.ceil(
-        abs(width * math.sin(radians)) + abs(height * math.cos(radians))
+    second_rect = second_image.get_rect(
+        center=(round(second_center[0]), round(second_center[1]))
     )
-    return pygame.Rect(0, 0, rotated_width, rotated_height).move(
-        round(center[0] - rotated_width / 2),
-        round(center[1] - rotated_height / 2),
-    )
+    if not first_rect.colliderect(second_rect):
+        return False
+    offset = (second_rect.left - first_rect.left, second_rect.top - first_rect.top)
+    first_mask = pygame.mask.from_surface(rotated_first)
+    second_mask = pygame.mask.from_surface(second_image)
+    return first_mask.overlap(second_mask, offset) is not None
 
 
 _HEADLIGHT_BEAM_BASE = pygame.Surface((340, 220), pygame.SRCALPHA)
@@ -682,13 +690,13 @@ class Car:
                 for npc in npc_cars:
                     # Check nearby traffic around the player’s car.
                     if test_pos.distance_to(npc.pos) < 95:  # Detection distance.
-                        my_rect = _rotated_rect(self.image, test_pos, self.angle)
-                        npc_rect = _rotated_rect(
+                        if _sprites_overlap(
+                            self.image,
+                            test_pos,
                             npc.image,
                             npc.pos,
-                            getattr(npc, "angle", 0),
-                        )
-                        if my_rect.colliderect(npc_rect):
+                            self.angle,
+                        ):
                             return True  # Treat the other car as an obstacle.
             w, h = 40, 18
             points = [
@@ -913,8 +921,8 @@ def draw_gta_minimap(
     world_w,
     world_h,
     house_pos=(7738, 2325),
-    gps=None,
-    labels=None,
+    gps: GPS | None = None,
+    labels: Mapping[str, str] | None = None,
 ):
     """Draw a minimap that stays within the world bounds."""
 
@@ -970,8 +978,11 @@ def draw_gta_minimap(
     pygame.draw.circle(mini_surf, (255, 0, 0), (int(px), int(py)), 6)
     pygame.draw.circle(mini_surf, (255, 255, 255), (int(px), int(py)), 6, 2)
 
-    distance = gps.distance_to((target.pos.x, target.pos.y)) if gps is not None else None
-    destination = gps.destination if gps is not None else None
+    distance: float | None = None
+    destination: tuple[float, float] | None = None
+    if gps is not None:
+        distance = gps.distance_to((target.pos.x, target.pos.y))
+        destination = gps.destination
     # Apply a circular mask to crop the map edges.
     mask = pygame.Surface((size, size), pygame.SRCALPHA)
     pygame.draw.circle(mask, (255, 255, 255, 255), (half_size, half_size), half_size)
@@ -996,8 +1007,8 @@ def draw_gta_minimap(
     # Map.
     screen.blit(mini_surf, (x, y))
     if distance is not None:
-        labels = labels or {}
-        text = labels.get("gps_distance", "Distance: {distance}").format(
+        text_labels = labels or {}
+        text = text_labels.get("gps_distance", "Distance: {distance}").format(
             distance=_format_gps_distance(distance)
         )
         distance_font = pygame.font.Font(None, 22)
@@ -1662,8 +1673,8 @@ def full_screen_map(
     world_h,
     house_pos=(7738, 2325),
     controls=None,
-    gps=None,
-    labels=None,
+    gps: GPS | None = None,
+    labels: Mapping[str, str] | None = None,
 ):
     """Draw the zoomable full-screen map and its icons."""
     house_icon = _get_house_icon()
@@ -1757,14 +1768,18 @@ def full_screen_map(
         pygame.draw.circle(screen, (255, 0, 0), (px, py), int(8 * map_zoom))
         pygame.draw.circle(screen, (255, 255, 255), (px, py), int(8 * map_zoom), 2)
 
-        distance = gps.distance_to((target.pos.x, target.pos.y)) if gps is not None else None
-        destination = gps.destination if gps is not None else None
+        distance: float | None = None
+        destination: tuple[float, float] | None = None
+        if gps is not None:
+            distance = gps.distance_to((target.pos.x, target.pos.y))
+            destination = gps.destination
         if destination is not None:
             dx, dy = world_to_map(*destination)
             _draw_gps_marker(screen, (dx, dy), max(6, int(10 * map_zoom)))
 
         if distance is not None:
-            distance_text = labels.get("gps_distance", "Distance: {distance}").format(
+            text_labels = labels or {}
+            distance_text = text_labels.get("gps_distance", "Distance: {distance}").format(
                 distance=_format_gps_distance(distance)
             )
             distance_font = pygame.font.Font(None, 30)
@@ -1772,8 +1787,9 @@ def full_screen_map(
             screen.blit(rendered_distance, (20, 20))
 
         hint_font = pygame.font.Font(None, 24)
-        set_hint = labels.get("gps_set", "Left-click: set destination")
-        clear_hint = labels.get("gps_clear", "Right-click/Backspace: clear destination")
+        text_labels = labels or {}
+        set_hint = text_labels.get("gps_set", "Left-click: set destination")
+        clear_hint = text_labels.get("gps_clear", "Right-click/Backspace: clear destination")
         for index, hint_text in enumerate((set_hint, clear_hint)):
             rendered_hint = hint_font.render(hint_text, True, (240, 240, 240))
             screen.blit(

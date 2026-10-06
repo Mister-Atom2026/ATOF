@@ -1,7 +1,7 @@
 # ATOF
 Game About Mister Atom
 
-## Version 0.5.0 Beta 2 — “(NOT) Sad City”
+## Version 0.5.0 Release — “(NOT) Sad City”
 
 - Keeps the GPS destination marker visible on the minimap edge when the destination is outside the radar view.
 - Fixes false vehicle collisions with road markings and accounts for the rotated shapes of cars.
@@ -9,10 +9,15 @@ Game About Mister Atom
 - Translates the in-game Video settings tab in all six supported languages.
 - Adds the horn on E and manual headlights on H; headlights also turn on automatically at night, and brake lights brighten while braking.
 - Shows the current FPS in the F3 debug overlay.
+- Includes the Alpha 2 driving, terrain, sleep-save, map, lighting, and personal-record features.
+
+## Previous version: 0.5.0 Beta 2 — “(NOT) Sad City”
+
+- Beta 2 added the minimap, collision, bed-save, in-game Video translation, vehicle lights and horn, and debug FPS fixes.
 
 ## Previous version: 0.5.0 Beta 1 — “(NOT) Sad City”
 
-- Restricts sleeping and saving to the sofa area inside the house; the sleep prompt is localized in every supported language.
+- Restricts sleeping and saving to the house; the sleep prompt is localized in every supported language.
 - Saves and restores the indoor player position when continuing from a sleep save.
 - Removes the sleep interaction from the city and keeps house entry/exit controls separate from sleeping.
 - Keeps gameplay and interface prompts translated into English, Ukrainian, Russian, Spanish, German, and French.
