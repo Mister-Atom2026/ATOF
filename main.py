@@ -26,7 +26,7 @@ pygame.init()
 
 
 def load_window_icon():
-    for filename in ("icon.png", "icon.ico", "icon.bmp"):
+    for filename in ("icon.ico", "icon.png", "icon.bmp"):
         icon_path = Path(__file__).resolve().parent / filename
         if not icon_path.exists():
             continue

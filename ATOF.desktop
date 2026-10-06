@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=ATOF
+Comment=Game About Mister Atom
+Exec=/usr/bin/env bash -lc 'cd "/home/atom/PycharmProjects/ATOF" && python3 main.py'
+Icon=/home/atom/PycharmProjects/ATOF/icon.png
+Terminal=false
+Categories=Game;
+StartupNotify=true
