@@ -1,6 +1,9 @@
 import os
+import sys
 from pathlib import Path
 
+if sys.platform.startswith("linux") and os.environ.get("DISPLAY"):
+    os.environ.setdefault("SDL_VIDEODRIVER", "x11")
 os.environ.setdefault("SDL_VIDEO_CENTERED", "1")
 
 import pygame
@@ -35,11 +38,6 @@ def load_window_icon():
             continue
     return None
 
-
-window_icon = load_window_icon()
-if window_icon is not None:
-    pygame.display.set_icon(window_icon)
-
 try:
     pygame.mixer.init()
 except pygame.error:
@@ -53,6 +51,10 @@ except pygame.error:
     constants.WIDTH, constants.HEIGHT = 1280, 720
     WIDTH, HEIGHT = constants.WIDTH, constants.HEIGHT
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
+
+window_icon = load_window_icon()
+if window_icon is not None:
+    pygame.display.set_icon(window_icon)
 pygame.display.set_caption(f"ATOF v{VERSION} — {RELEASE_NAME}")
 
 import engine
