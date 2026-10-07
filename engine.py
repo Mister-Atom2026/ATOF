@@ -737,11 +737,12 @@ class Car:
                 is_red_marking = pixel.r > 200 and pixel.g < 50 and pixel.b < 50
                 if is_black_wall:
                     sample_offset = point - test_pos
-                    collision_normal = (
-                        -sample_offset.normalize()
-                        if sample_offset.length_squared() > 0
-                        else -velocity.normalize()
-                    )
+                    if sample_offset.length_squared() > 0:
+                        collision_normal = -sample_offset.normalize()
+                    elif velocity.length_squared() > 0:
+                        collision_normal = -velocity.normalize()
+                    else:
+                        collision_normal = None
                     return True
                 if is_red_marking:
                     red_hits += 1
