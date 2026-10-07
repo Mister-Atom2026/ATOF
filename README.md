@@ -1,7 +1,7 @@
 # ATOF
 Game About Mister Atom
 
-## Version 0.6.0 Alpha 3 — “Driver Inferno”
+## Version 0.6.0 Alpha 2 — “Driver Inferno”
 
 - Expands the in-car radio to two named stations with four downloaded songs across ambient and road-trip playlists.
 - Uses **V** to pause/resume at the same point and **C** to switch stations; each track keeps its own playback position, and playlists advance automatically.
