@@ -210,12 +210,125 @@ def configure_game_audio(settings, audio: GameAudio) -> None:
         sound.set_volume(0.2 * footsteps_gain)
 
 
-def play_radio(settings) -> None:
-    """Start the bundled CC0 radio track using the configured music volume."""
-    track_path = _ASSET_ROOT / "radio" / "driver_inferno" / "crystal_cave_song18.mp3"
-    pygame.mixer.music.load(str(track_path))
-    pygame.mixer.music.play(-1)
-    configure_audio(settings)
+_RADIO_STATIONS = (
+    (
+        "Midnight FM",
+        (
+            ("Crystal Cave", "radio/driver_inferno/crystal_cave_song18.mp3"),
+            ("Observing the Star", "radio/driver_inferno/observing_the_star.ogg"),
+        ),
+    ),
+    (
+        "Freeway Radio",
+        (
+            ("Freeway Fumes", "radio/driver_inferno/freeway_fumes.mp3"),
+            ("Detour", "radio/driver_inferno/detour.mp3"),
+        ),
+    ),
+)
+
+
+class GameRadio:
+    """Play two bundled stations while preserving each song's paused position."""
+
+    def __init__(self, settings):
+        self.settings = settings
+        self.station_index = 0
+        self.track_indexes = [0 for _ in _RADIO_STATIONS]
+        self.positions = [
+            [0.0 for _ in station_tracks]
+            for _, station_tracks in _RADIO_STATIONS
+        ]
+        self.is_playing = False
+        self._loaded_track: tuple[int, int] | None = None
+        self._playback_offset = 0.0
+
+    @property
+    def station_name(self) -> str:
+        return _RADIO_STATIONS[self.station_index][0]
+
+    @property
+    def track_name(self) -> str:
+        tracks = _RADIO_STATIONS[self.station_index][1]
+        return tracks[self.track_indexes[self.station_index]][0]
+
+    def _current_track(self) -> tuple[int, int]:
+        return self.station_index, self.track_indexes[self.station_index]
+
+    def _remember_position(self) -> None:
+        position_ms = pygame.mixer.music.get_pos()
+        if position_ms >= 0:
+            station_index, track_index = self._current_track()
+            self.positions[station_index][track_index] = (
+                self._playback_offset + position_ms / 1000
+            )
+
+    def _play_selected_track(self) -> None:
+        station_index, track_index = self._current_track()
+        tracks = _RADIO_STATIONS[station_index][1]
+        _, relative_path = tracks[track_index]
+        track_path = _ASSET_ROOT / relative_path
+        self._playback_offset = self.positions[station_index][track_index]
+        pygame.mixer.music.load(str(track_path))
+        pygame.mixer.music.play(start=self._playback_offset)
+        self._loaded_track = (station_index, track_index)
+        self.is_playing = True
+        configure_audio(self.settings)
+
+    def toggle(self) -> None:
+        if self.is_playing:
+            self._remember_position()
+            pygame.mixer.music.pause()
+            self.is_playing = False
+            return
+
+        if self._loaded_track == self._current_track():
+            pygame.mixer.music.unpause()
+            self.is_playing = True
+        else:
+            self._play_selected_track()
+
+    def pause(self) -> None:
+        if self.is_playing:
+            self._remember_position()
+            pygame.mixer.music.pause()
+            self.is_playing = False
+
+    def resume(self) -> None:
+        if self.is_playing:
+            return
+        if self._loaded_track == self._current_track():
+            pygame.mixer.music.unpause()
+            self.is_playing = True
+        else:
+            self._play_selected_track()
+
+    def next_station(self) -> None:
+        was_playing = self.is_playing
+        if was_playing:
+            self._remember_position()
+            pygame.mixer.music.stop()
+            self._loaded_track = None
+            self.is_playing = False
+        self.station_index = (self.station_index + 1) % len(_RADIO_STATIONS)
+        if was_playing:
+            self._play_selected_track()
+
+    def update(self) -> None:
+        if not self.is_playing or pygame.mixer.music.get_busy():
+            return
+        station_index = self.station_index
+        tracks = _RADIO_STATIONS[station_index][1]
+        track_index = self.track_indexes[station_index]
+        self.positions[station_index][track_index] = 0.0
+        self.track_indexes[station_index] = (track_index + 1) % len(tracks)
+        self._playback_offset = 0.0
+        self._play_selected_track()
+
+    def stop(self) -> None:
+        self.pause()
+        pygame.mixer.music.stop()
+        self._loaded_track = None
 
 
 def configure_audio(settings):

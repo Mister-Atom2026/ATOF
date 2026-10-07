@@ -1,6 +1,12 @@
 # ATOF
 Game About Mister Atom
 
+## Version 0.6.0 Alpha 3 — “Driver Inferno”
+
+- Expands the in-car radio to two named stations with four downloaded songs across ambient and road-trip playlists.
+- Uses **V** to pause/resume at the same point and **C** to switch stations; each track keeps its own playback position, and playlists advance automatically.
+- Translates radio status and controls into all six supported languages.
+
 ## Version 0.6.0 Alpha 1 — “Driver Inferno”
 
 - Adds an in-car radio toggle on V, with a bundled looping CC0 track and localized on-screen status in all six supported languages.
@@ -102,3 +108,5 @@ Both effects were shortened/volume-adjusted and converted for in-game use under 
 ## Radio music credit
 
 - “Crystal Cave (song18)” by [Cynic Project](https://cynicmusic.com/), downloaded from [OpenGameArt.org](https://opengameart.org/content/crystal-cave-song18). The track is marked [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) by its uploader. It is looped in-game; credit is included in appreciation of the creator.
+- “Observing the Star” by yd, downloaded from [OpenGameArt.org](https://opengameart.org/content/another-space-background-track), marked CC0 1.0.
+- “Freeway Fumes” and “Detour” by [Zane Little Music](https://zanelittle.com/), downloaded from [OpenGameArt.org](https://opengameart.org/content/freeway-fumes) and [OpenGameArt.org](https://opengameart.org/content/detour), both marked CC0 1.0.

@@ -119,7 +119,7 @@ def run(screen, settings):
     sleep_requested = False
     wake_fade_started = None
     manual_headlights = False
-    radio_on = False
+    radio = engine.GameRadio(settings)
 
     game_font, small_font = engine.load_game_fonts()
 
@@ -139,8 +139,8 @@ def run(screen, settings):
             "stats_earned": "Total earned: {amount} UAH", "stats_spent": "Total spent: {amount} UAH", "stats_hint": "Press Esc or Enter to return",
             "gps_distance": "Distance: {distance}", "gps_set": "Left-click: set destination",
             "gps_clear": "Right-click/Backspace: clear destination",
-            "radio_on": "RADIO: Crystal Cave (V to turn off)",
-            "radio_off": "RADIO OFF (V to turn on)",
+            "radio_on": "{station} — {track} | V: pause, C: next station",
+            "radio_off": "{station} — {track} | V: play, C: next station",
         },
         "Українська": {
             "hint": "[А] Сісти в авто", "enter": "[У] Увійти в дім", "exit": "[У] Вийти з дому",
@@ -157,8 +157,8 @@ def run(screen, settings):
             "stats_earned": "Всього зароблено: {amount} UAH", "stats_spent": "Всього витрачено: {amount} UAH", "stats_hint": "Натисніть Esc або Enter, щоб повернутися",
             "gps_distance": "Відстань: {distance}", "gps_set": "ЛКМ: поставити точку",
             "gps_clear": "ПКМ/Backspace: прибрати точку",
-            "radio_on": "РАДІО: Crystal Cave (V — вимкнути)",
-            "radio_off": "РАДІО ВИМКНЕНО (V — увімкнути)",
+            "radio_on": "{station} — {track} | V: пауза, C: наступна станція",
+            "radio_off": "{station} — {track} | V: слухати, C: наступна станція",
         },
         "Русский": {
             "hint": "[А] Сесть в авто", "enter": "[У] Войти в дом", "exit": "[У] Выйти из дома",
@@ -175,8 +175,8 @@ def run(screen, settings):
             "stats_earned": "Всего заработано: {amount} UAH", "stats_spent": "Всего потрачено: {amount} UAH", "stats_hint": "Нажмите Esc или Enter, чтобы вернуться",
             "gps_distance": "Расстояние: {distance}", "gps_set": "ЛКМ: поставить точку",
             "gps_clear": "ПКМ/Backspace: убрать точку",
-            "radio_on": "РАДИО: Crystal Cave (V — выключить)",
-            "radio_off": "РАДИО ВЫКЛЮЧЕНО (V — включить)",
+            "radio_on": "{station} — {track} | V: пауза, C: следующая станция",
+            "radio_off": "{station} — {track} | V: слушать, C: следующая станция",
         },
         "Español": {
             "hint": "[F] Subir al coche", "enter": "[E] Entrar en casa", "exit": "[E] Salir de casa",
@@ -194,8 +194,8 @@ def run(screen, settings):
             "stats_hint": "Pulsa Esc o Enter para volver",
             "gps_distance": "Distancia: {distance}", "gps_set": "Clic izquierdo: marcar destino",
             "gps_clear": "Clic derecho/Retroceso: borrar destino",
-            "radio_on": "RADIO: Crystal Cave (V para apagar)",
-            "radio_off": "RADIO APAGADA (V para encender)",
+            "radio_on": "{station} — {track} | V: pausa, C: emisora siguiente",
+            "radio_off": "{station} — {track} | V: escuchar, C: emisora siguiente",
         },
         "Deutsch": {
             "hint": "[F] Ins Auto steigen", "enter": "[E] Haus betreten", "exit": "[E] Haus verlassen",
@@ -213,8 +213,8 @@ def run(screen, settings):
             "stats_hint": "Esc oder Enter drücken, um zurückzukehren",
             "gps_distance": "Entfernung: {distance}", "gps_set": "Linksklick: Ziel setzen",
             "gps_clear": "Rechtsklick/Backspace: Ziel löschen",
-            "radio_on": "RADIO: Crystal Cave (V zum Ausschalten)",
-            "radio_off": "RADIO AUS (V zum Einschalten)",
+            "radio_on": "{station} — {track} | V: Pause, C: nächster Sender",
+            "radio_off": "{station} — {track} | V: abspielen, C: nächster Sender",
         },
         "Français": {
             "hint": "[F] Monter en voiture", "enter": "[E] Entrer dans la maison", "exit": "[E] Sortir de la maison",
@@ -232,8 +232,8 @@ def run(screen, settings):
             "stats_hint": "Appuyez sur Échap ou Entrée pour revenir",
             "gps_distance": "Distance : {distance}", "gps_set": "Clic gauche : définir la destination",
             "gps_clear": "Clic droit/Retour arrière : supprimer la destination",
-            "radio_on": "RADIO : Crystal Cave (V pour éteindre)",
-            "radio_off": "RADIO ÉTEINTE (V pour allumer)",
+            "radio_on": "{station} — {track} | V : pause, C : station suivante",
+            "radio_off": "{station} — {track} | V : écouter, C : station suivante",
         }
     }
 
@@ -433,8 +433,8 @@ def run(screen, settings):
                         controls=keyboard, gps=gps, labels=t
                     )
                 if event.key == pygame.K_ESCAPE:
-                    if radio_on:
-                        pygame.mixer.music.pause()
+                    radio_was_playing = radio.is_playing
+                    radio.pause()
                     res = engine.pause_menu(
                         screen, game_font, small_font, settings, translations, languages, keyboard,
                         {
@@ -459,12 +459,11 @@ def run(screen, settings):
                     clock.tick(0)
                     last_frame_time = time.perf_counter()
                     if res in ["MENU", "EXIT"]:
-                        pygame.mixer.music.stop()
-                        radio_on = False
+                        radio.stop()
                         save_last_session_stats()
                         return res
-                    if radio_on:
-                        pygame.mixer.music.unpause()
+                    if radio_was_playing:
+                        radio.resume()
                 if keyboard.matches(event, pygame.K_f) and game_state == "CITY":
                     old_in_car = in_car  # Save the previous state before toggling.
                     in_car = engine.handle_car_logic(atom, car, in_car)
@@ -475,19 +474,14 @@ def run(screen, settings):
                             car_sfx['door_open'].play()
                         else:
                             car_sfx['door_close'].play()
-                            if radio_on:
-                                pygame.mixer.music.stop()
-                                radio_on = False
+                            radio.pause()
                 if game_state == "CITY" and in_car and not getattr(event, "repeat", False):
                     if keyboard.matches(event, pygame.K_h):
                         manual_headlights = not manual_headlights
                     if keyboard.matches(event, pygame.K_v):
-                        if radio_on:
-                            pygame.mixer.music.stop()
-                            radio_on = False
-                        else:
-                            engine.play_radio(settings)
-                            radio_on = True
+                        radio.toggle()
+                    if keyboard.matches(event, pygame.K_c):
+                        radio.next_station()
                 sleep_key_pressed = (
                     keyboard.matches(event, pygame.K_e)
                     or event.key == pygame.K_t
@@ -506,6 +500,8 @@ def run(screen, settings):
                         if atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
                             game_state = "HOUSE"
                             atom_h.pos = pygame.Vector2(HOUSE_SLEEP_SPOT)
+
+        radio.update()
 
         # 2. Update the game state.
 
@@ -659,9 +655,16 @@ def run(screen, settings):
                 gps=gps, labels=t,
             )
             if in_car:
-                radio_label = t["radio_on"] if radio_on else t["radio_off"]
+                radio_label = t["radio_on"] if radio.is_playing else t["radio_off"]
                 screen.blit(
-                    small_font.render(radio_label, True, (255, 255, 255)),
+                    small_font.render(
+                        radio_label.format(
+                            station=radio.station_name,
+                            track=radio.track_name,
+                        ),
+                        True,
+                        (255, 255, 255),
+                    ),
                     (20, 50),
                 )
         else:
