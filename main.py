@@ -5,8 +5,8 @@ import pygame
 
 from settings_manager import load_settings, load_statistics, save_settings
 
-VERSION = "0.5.0"
-RELEASE_NAME = "(NOT) Sad City"
+VERSION = "0.6.0-alpha.1"
+RELEASE_NAME = "Driver Inferno"
 LANGUAGES = ["English", "Українська", "Русский", "Español", "Deutsch", "Français"]
 APP_SETTINGS = load_settings()
 
@@ -386,6 +386,7 @@ def activate_menu_option(index):
         engine.configure_audio(APP_SETTINGS)
         if result == "EXIT":
             return False
+        pygame.mixer.music.load("6729032246362112.wav")
         pygame.mixer.music.play(-1)
         engine.configure_audio(APP_SETTINGS)
         return True

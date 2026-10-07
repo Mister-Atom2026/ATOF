@@ -177,13 +177,15 @@ class TrafficCar:
     def __init__(self, start_node_id, bot_id):
         self.id = bot_id
         self.is_police = False
+        self.vehicle_class = "sedan"
+        self.impact_mass = 1.35
         self.is_alive = True
         self.pos = pygame.Vector2(TRAFFIC_NODES[start_node_id]["pos"])
         self.target_node = random.choice(TRAFFIC_NODES[start_node_id]["next"])
         target = pygame.Vector2(TRAFFIC_NODES[self.target_node]["pos"])
         direction = target - self.pos
         self.angle = math.degrees(math.atan2(direction.y, direction.x)) + 180
-        self.max_speed = random.uniform(3.5, 4.2)
+        self.max_speed = random.uniform(3.0, 3.7)
         self.current_speed = 0.0
         self.speed = 0.0  # Kept in sync for compatibility with the copied police logic.
         self.rotation_speed = 4.0
@@ -272,9 +274,11 @@ class PoliceTrafficCar(TrafficCar):
     def __init__(self, start_node_id, bot_id):
         super().__init__(start_node_id, bot_id)
         self.is_police = True
+        self.vehicle_class = "pursuit"
+        self.impact_mass = 1.05
         self.target_car = None
         self.state = "patrol"
-        self.max_speed = random.uniform(4.0, 4.5)
+        self.max_speed = random.uniform(4.3, 4.9)
         self.image = get_rotated_police_resources(self.angle)
 
     def _find_target(self, other_traffic):

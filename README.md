@@ -1,6 +1,12 @@
 # ATOF
 Game About Mister Atom
 
+## Version 0.6.0 Alpha 1 — “Driver Inferno”
+
+- Adds an in-car radio toggle on V, with a bundled looping CC0 track and localized on-screen status in all six supported languages.
+- Improves crash response: impact damage and rebound now depend on relative closing speed, contact direction, and vehicle mass.
+- Gives existing vehicles distinct handling: the player Tornado is faster and more slippery, regular traffic is slower and heavier, and police cars are faster pursuit vehicles.
+
 ## Version 0.5.0 Release — “(NOT) Sad City”
 
 - Keeps the GPS destination marker visible on the minimap edge when the destination is outside the radar view.
@@ -92,3 +98,7 @@ The main menu's **Additional Content** page shows statistics from the last sessi
 - Click sound: [UI Click Soft by SoundShelfStudio](https://pixabay.com/sound-effects/technology-ui-click-soft-512213/)
 
 Both effects were shortened/volume-adjusted and converted for in-game use under the [Pixabay Content License](https://pixabay.com/service/license-summary/).
+
+## Radio music credit
+
+- “Crystal Cave (song18)” by [Cynic Project](https://cynicmusic.com/), downloaded from [OpenGameArt.org](https://opengameart.org/content/crystal-cave-song18). The track is marked [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) by its uploader. It is looped in-game; credit is included in appreciation of the creator.
