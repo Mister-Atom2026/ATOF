@@ -178,7 +178,6 @@ class TrafficCar:
         self.id = bot_id
         self.is_police = False
         self.vehicle_class = "sedan"
-        self.impact_mass = 1.35
         self.is_alive = True
         self.pos = pygame.Vector2(TRAFFIC_NODES[start_node_id]["pos"])
         self.target_node = random.choice(TRAFFIC_NODES[start_node_id]["next"])
@@ -286,7 +285,6 @@ class PoliceTrafficCar(TrafficCar):
         super().__init__(start_node_id, bot_id)
         self.is_police = True
         self.vehicle_class = "pursuit"
-        self.impact_mass = 1.05
         self.target_car = None
         self.state = "patrol"
         self.max_speed = random.uniform(4.3, 4.9)

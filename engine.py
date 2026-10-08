@@ -4,7 +4,7 @@ import random
 from dataclasses import dataclass
 from pathlib import Path
 import sys
-from typing import Mapping, Optional, Protocol
+from typing import Mapping, Optional
 
 import pygame
 
@@ -106,11 +106,6 @@ class ChapterResources:
     audio: "GameAudio"
     game_font: pygame.font.Font
     small_font: pygame.font.Font
-
-
-class _CollisionVehicle(Protocol):
-    pos: pygame.Vector2
-    angle: float
 
 
 @dataclass(frozen=True)
@@ -764,7 +759,6 @@ class Car:
         self.angle = 0
         self.speed: float = 0.0
         self.vehicle_class = "sport"
-        self.impact_mass = 0.9
         self.handling = 0.82
         self.max_speed = 16.25
         self.accel = 0.09
@@ -927,11 +921,7 @@ class Car:
             if random.random() < min(1.0, frame_scale / spawn_chance):
                 self.create_smoke_particle()  # <-- This method is defined below.
 
-        collision_vehicle: Optional[_CollisionVehicle] = None
-        collision_normal: Optional[pygame.Vector2] = None
-
         def check_at_pos(test_pos):
-            nonlocal collision_vehicle, collision_normal
             if npc_cars:
                 for npc in npc_cars:
                     # Check nearby traffic around the player’s car.
@@ -943,7 +933,6 @@ class Car:
                             npc.pos,
                             self.angle,
                         ):
-                            collision_vehicle = npc
                             return True  # Treat the other car as an obstacle.
             w, h = 40, 18
             points = [
@@ -958,100 +947,32 @@ class Car:
                     col_mask is None
                     or not col_mask.get_rect().collidepoint(mask_x, mask_y)
                 ):
-                    if velocity.length_squared() > 0:
-                        collision_normal = -velocity.normalize()
                     return True
                 pixel = col_mask.get_at((mask_x, mask_y))
                 is_black_wall = pixel.r < 50 and pixel.g < 50 and pixel.b < 50
                 is_red_marking = pixel.r > 200 and pixel.g < 50 and pixel.b < 50
                 if is_black_wall:
-                    sample_offset = point - test_pos
-                    if sample_offset.length_squared() > 0:
-                        collision_normal = -sample_offset.normalize()
-                    elif velocity.length_squared() > 0:
-                        collision_normal = -velocity.normalize()
-                    else:
-                        collision_normal = None
                     return True
                 if is_red_marking:
                     red_hits += 1
-                    if collision_normal is None:
-                        sample_offset = point - test_pos
-                        if sample_offset.length_squared() > 0:
-                            collision_normal = -sample_offset.normalize()
             # Red is also used for dashed road markings; only broad red blocks
             # in the collision mask represent solid obstacles.
-            if red_hits >= 8:
-                if collision_normal is None and velocity.length_squared() > 0:
-                    collision_normal = -velocity.normalize()
-                return True
-            return False
+            return red_hits >= 8
 
         if check_at_pos(next_pos):
-            impact_normal: Optional[pygame.Vector2] = collision_normal
-            obstacle_mass: float = 1.0
-            if collision_vehicle is not None:
-                impact_normal = pygame.Vector2(next_pos) - collision_vehicle.pos
-                if impact_normal.length_squared() == 0:
-                    impact_normal = -velocity
-                if impact_normal.length_squared() > 0:
-                    impact_normal = impact_normal.normalize()
-                obstacle_mass = getattr(collision_vehicle, "impact_mass", 1.0)
-                obstacle_speed: float = getattr(
-                    collision_vehicle,
-                    "current_speed",
-                    getattr(collision_vehicle, "speed", 0.0),
-                )
-                obstacle_angle: float = collision_vehicle.angle
-                obstacle_velocity = pygame.Vector2(obstacle_speed, 0).rotate(
-                    obstacle_angle + 180
-                )
-                relative_velocity = velocity - obstacle_velocity
-                closing_speed: float = (
-                    max(0.0, -relative_velocity.dot(impact_normal))
-                    if impact_normal is not None
-                    else relative_velocity.length()
-                )
-                if impact_normal is not None:
-                    restitution = min(
-                        0.35,
-                        0.2 + 0.08 * obstacle_mass / self.impact_mass,
-                    )
-                    rebound_velocity = velocity + impact_normal * (
-                        (1 + restitution) * closing_speed
-                    )
-                else:
-                    rebound_velocity = -velocity * 0.35
-            else:
-                closing_speed: float = (
-                    max(0.0, -velocity.dot(impact_normal))
-                    if impact_normal is not None
-                    else velocity.length()
-                )
-                if impact_normal is not None:
-                    rebound_velocity = velocity + impact_normal * (
-                        1.25 * closing_speed
-                    )
-                else:
-                    rebound_velocity = -velocity * 0.35
-
-            impact_speed = closing_speed
+            impact_speed = velocity.length()
             if impact_speed > 1.5:
                 self.just_hit = True
-                damage = min(
-                    65.0,
-                    (impact_speed - 0.75) * 4.0 * obstacle_mass / self.impact_mass,
-                )
+                damage = min(65.0, impact_speed * 2.0)
                 self.health -= damage
                 if self.health <= 0:
                     self.health = 0
                     self.is_broken = True
 
-            if impact_normal is not None:
-                self.pos -= impact_normal * 5 * frame_scale
-            elif velocity.length() > 0:
+            if velocity.length_squared() > 0:
                 self.pos -= velocity.normalize() * 5 * frame_scale
-            self.motion_velocity = rebound_velocity
+            bounce_factor = min(0.9, 0.45 + impact_speed * 0.04)
+            self.motion_velocity *= -bounce_factor
             forward = pygame.Vector2(1, 0).rotate(-self.angle + 180)
             self.speed = max(
                 -self.max_speed / 2,
