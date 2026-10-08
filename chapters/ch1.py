@@ -139,8 +139,9 @@ def run(screen, settings):
             "stats_earned": "Total earned: {amount} UAH", "stats_spent": "Total spent: {amount} UAH", "stats_hint": "Press Esc or Enter to return",
             "gps_distance": "Distance: {distance}", "gps_set": "Left-click: set destination",
             "gps_clear": "Right-click/Backspace: clear destination",
-            "radio_on": "{station} — {track} | V: pause, C: next station",
-            "radio_off": "{station} — {track} | V: play, C: next station",
+            "radio_on": "{station} — {track} | V: pause | ,/<: previous | ./>: next",
+            "radio_paused": "{station} — {track} | V: play | ,/<: previous | ./>: next",
+            "radio_off": "RADIO OFF | ,/<: previous | ./>: next",
         },
         "Українська": {
             "hint": "[А] Сісти в авто", "enter": "[У] Увійти в дім", "exit": "[У] Вийти з дому",
@@ -157,8 +158,9 @@ def run(screen, settings):
             "stats_earned": "Всього зароблено: {amount} UAH", "stats_spent": "Всього витрачено: {amount} UAH", "stats_hint": "Натисніть Esc або Enter, щоб повернутися",
             "gps_distance": "Відстань: {distance}", "gps_set": "ЛКМ: поставити точку",
             "gps_clear": "ПКМ/Backspace: прибрати точку",
-            "radio_on": "{station} — {track} | V: пауза, C: наступна станція",
-            "radio_off": "{station} — {track} | V: слухати, C: наступна станція",
+            "radio_on": "{station} — {track} | V: пауза | ,/<: попередня | ./>: наступна",
+            "radio_paused": "{station} — {track} | V: слухати | ,/<: попередня | ./>: наступна",
+            "radio_off": "РАДІО ВИМКНЕНО | ,/<: попередня | ./>: наступна",
         },
         "Русский": {
             "hint": "[А] Сесть в авто", "enter": "[У] Войти в дом", "exit": "[У] Выйти из дома",
@@ -175,8 +177,9 @@ def run(screen, settings):
             "stats_earned": "Всего заработано: {amount} UAH", "stats_spent": "Всего потрачено: {amount} UAH", "stats_hint": "Нажмите Esc или Enter, чтобы вернуться",
             "gps_distance": "Расстояние: {distance}", "gps_set": "ЛКМ: поставить точку",
             "gps_clear": "ПКМ/Backspace: убрать точку",
-            "radio_on": "{station} — {track} | V: пауза, C: следующая станция",
-            "radio_off": "{station} — {track} | V: слушать, C: следующая станция",
+            "radio_on": "{station} — {track} | V: пауза | ,/<: предыдущая | ./>: следующая",
+            "radio_paused": "{station} — {track} | V: слушать | ,/<: предыдущая | ./>: следующая",
+            "radio_off": "РАДИО ВЫКЛЮЧЕНО | ,/<: предыдущая | ./>: следующая",
         },
         "Español": {
             "hint": "[F] Subir al coche", "enter": "[E] Entrar en casa", "exit": "[E] Salir de casa",
@@ -194,8 +197,9 @@ def run(screen, settings):
             "stats_hint": "Pulsa Esc o Enter para volver",
             "gps_distance": "Distancia: {distance}", "gps_set": "Clic izquierdo: marcar destino",
             "gps_clear": "Clic derecho/Retroceso: borrar destino",
-            "radio_on": "{station} — {track} | V: pausa, C: emisora siguiente",
-            "radio_off": "{station} — {track} | V: escuchar, C: emisora siguiente",
+            "radio_on": "{station} — {track} | V: pausa | ,/<: anterior | ./>: siguiente",
+            "radio_paused": "{station} — {track} | V: escuchar | ,/<: anterior | ./>: siguiente",
+            "radio_off": "RADIO APAGADA | ,/<: anterior | ./>: siguiente",
         },
         "Deutsch": {
             "hint": "[F] Ins Auto steigen", "enter": "[E] Haus betreten", "exit": "[E] Haus verlassen",
@@ -213,8 +217,9 @@ def run(screen, settings):
             "stats_hint": "Esc oder Enter drücken, um zurückzukehren",
             "gps_distance": "Entfernung: {distance}", "gps_set": "Linksklick: Ziel setzen",
             "gps_clear": "Rechtsklick/Backspace: Ziel löschen",
-            "radio_on": "{station} — {track} | V: Pause, C: nächster Sender",
-            "radio_off": "{station} — {track} | V: abspielen, C: nächster Sender",
+            "radio_on": "{station} — {track} | V: Pause | ,/<: vorheriger | ./>: nächster",
+            "radio_paused": "{station} — {track} | V: abspielen | ,/<: vorheriger | ./>: nächster",
+            "radio_off": "RADIO AUS | ,/<: vorheriger | ./>: nächster",
         },
         "Français": {
             "hint": "[F] Monter en voiture", "enter": "[E] Entrer dans la maison", "exit": "[E] Sortir de la maison",
@@ -232,8 +237,9 @@ def run(screen, settings):
             "stats_hint": "Appuyez sur Échap ou Entrée pour revenir",
             "gps_distance": "Distance : {distance}", "gps_set": "Clic gauche : définir la destination",
             "gps_clear": "Clic droit/Retour arrière : supprimer la destination",
-            "radio_on": "{station} — {track} | V : pause, C : station suivante",
-            "radio_off": "{station} — {track} | V : écouter, C : station suivante",
+            "radio_on": "{station} — {track} | V : pause | ,/< : précédente | ./> : suivante",
+            "radio_paused": "{station} — {track} | V : écouter | ,/< : précédente | ./> : suivante",
+            "radio_off": "RADIO ÉTEINTE | ,/< : précédente | ./> : suivante",
         }
     }
 
@@ -480,8 +486,10 @@ def run(screen, settings):
                         manual_headlights = not manual_headlights
                     if keyboard.matches(event, pygame.K_v):
                         radio.toggle()
-                    if keyboard.matches(event, pygame.K_c):
-                        radio.next_station()
+                    if keyboard.matches(event, pygame.K_COMMA):
+                        radio.cycle_station(-1)
+                    if keyboard.matches(event, pygame.K_PERIOD):
+                        radio.cycle_station(1)
                 sleep_key_pressed = (
                     keyboard.matches(event, pygame.K_e)
                     or event.key == pygame.K_t
@@ -655,7 +663,12 @@ def run(screen, settings):
                 gps=gps, labels=t,
             )
             if in_car:
-                radio_label = t["radio_on"] if radio.is_playing else t["radio_off"]
+                if not radio.is_on:
+                    radio_label = t["radio_off"]
+                elif radio.is_playing:
+                    radio_label = t["radio_on"]
+                else:
+                    radio_label = t["radio_paused"]
                 screen.blit(
                     small_font.render(
                         radio_label.format(

@@ -1,6 +1,11 @@
 # ATOF
 Game About Mister Atom
 
+## Version 0.6.0 Beta 1 — “Driver Inferno”
+
+- Cycles the in-car radio through Midnight FM, Freeway Radio, and radio off using **,** (previous) and **.** (next).
+- Keeps **V** for pausing/resuming playback; all six supported languages show the same English key labels.
+
 ## Version 0.6.0 Alpha 2 — “Driver Inferno”
 
 - Expands the in-car radio to two named stations with four downloaded songs across ambient and road-trip playlists.

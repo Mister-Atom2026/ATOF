@@ -40,6 +40,14 @@ PHYSICAL_SCANCODES.update({
     for number in "0123456789"
     if hasattr(pygame, f"K_{number}") and hasattr(pygame, f"KSCAN_{number}")
 })
+PHYSICAL_SCANCODES.update({
+    getattr(pygame, key_name): getattr(pygame, scancode_name)
+    for key_name, scancode_name in (
+        ("K_COMMA", "KSCAN_COMMA"),
+        ("K_PERIOD", "KSCAN_PERIOD"),
+    )
+    if hasattr(pygame, key_name) and hasattr(pygame, scancode_name)
+})
 
 
 class KeyboardState:
@@ -229,11 +237,12 @@ _RADIO_STATIONS = (
 
 
 class GameRadio:
-    """Play two bundled stations while preserving each song's paused position."""
+    """Cycle through two bundled stations and radio-off, preserving song positions."""
 
     def __init__(self, settings):
         self.settings = settings
-        self.station_index = 0
+        self.off_index = len(_RADIO_STATIONS)
+        self.station_index = self.off_index
         self.track_indexes = [0 for _ in _RADIO_STATIONS]
         self.positions = [
             [0.0 for _ in station_tracks]
@@ -245,10 +254,18 @@ class GameRadio:
 
     @property
     def station_name(self) -> str:
+        if self.station_index == self.off_index:
+            return ""
         return _RADIO_STATIONS[self.station_index][0]
 
     @property
+    def is_on(self) -> bool:
+        return self.station_index != self.off_index
+
+    @property
     def track_name(self) -> str:
+        if self.station_index == self.off_index:
+            return ""
         tracks = _RADIO_STATIONS[self.station_index][1]
         return tracks[self.track_indexes[self.station_index]][0]
 
@@ -276,6 +293,8 @@ class GameRadio:
         configure_audio(self.settings)
 
     def toggle(self) -> None:
+        if self.station_index == self.off_index:
+            return
         if self.is_playing:
             self._remember_position()
             pygame.mixer.music.pause()
@@ -295,7 +314,7 @@ class GameRadio:
             self.is_playing = False
 
     def resume(self) -> None:
-        if self.is_playing:
+        if self.is_playing or self.station_index == self.off_index:
             return
         if self._loaded_track == self._current_track():
             pygame.mixer.music.unpause()
@@ -303,15 +322,22 @@ class GameRadio:
         else:
             self._play_selected_track()
 
-    def next_station(self) -> None:
+    def cycle_station(self, direction: int) -> None:
+        was_off = self.station_index == self.off_index
         was_playing = self.is_playing
         if was_playing:
             self._remember_position()
             pygame.mixer.music.stop()
             self._loaded_track = None
             self.is_playing = False
-        self.station_index = (self.station_index + 1) % len(_RADIO_STATIONS)
-        if was_playing:
+        self.station_index = (
+            self.station_index + direction
+        ) % (len(_RADIO_STATIONS) + 1)
+        if self.station_index == self.off_index:
+            pygame.mixer.music.stop()
+            self._loaded_track = None
+            return
+        if was_playing or was_off:
             self._play_selected_track()
 
     def update(self) -> None:
