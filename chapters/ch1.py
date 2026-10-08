@@ -17,17 +17,6 @@ from constants import *
 
 os.environ['SDL_VIDEO_CENTERED'] = '1'
 
-HOUSE_SLEEP_SPOT = pygame.Vector2(147, 156)
-HOUSE_SLEEP_RADIUS = 24
-
-
-def _is_at_sleep_spot(game_state, position):
-    return (
-        game_state == "HOUSE"
-        and pygame.Vector2(position).distance_to(HOUSE_SLEEP_SPOT) < HOUSE_SLEEP_RADIUS
-    )
-
-
 def run(screen, settings):
     traffic_timer = 0
     traffic_state = "RED"  # RED pauses route N; GREEN pauses route A1.
@@ -35,10 +24,17 @@ def run(screen, settings):
     keyboard = KeyboardState()
     # Spawn the configured traffic and police at game start.
     npc_cars = traffic.init_traffic(11)
+    map_scale = 4.0
+    current_world_width = int(WORLD_WIDTH * map_scale)
+    current_world_height = int(WORLD_HEIGHT * map_scale)
+    resources = engine.load_chapter_resources(
+        screen.get_size(),
+        (current_world_width, current_world_height),
+    )
     # Load the game resources.
     target_y = 450.0
     phone_y_offset = 450.0
-    game_audio = engine.load_game_audio()
+    game_audio = resources.audio
     phone_click_sfx = game_audio.phone_click
     current_app = 0  # 0 is the phone menu; 1–9 are apps.
     game_save = load_game_save()
@@ -66,16 +62,11 @@ def run(screen, settings):
     engine_chan = game_audio.engine_channel
     crash_chan = game_audio.crash_channel
     foot_chan = game_audio.footstep_channel
+    horn_chan = game_audio.horn_channel
     clock = pygame.time.Clock()
     languages = ["English", "Українська", "Русский", "Español", "Deutsch", "Français"]
 
-    map_scale = 4.0
-    current_world_width = int(WORLD_WIDTH * map_scale)
-    current_world_height = int(WORLD_HEIGHT * map_scale)
-    assets = engine.load_game_assets(
-        screen.get_size(),
-        (current_world_width, current_world_height),
-    )
+    assets = resources.assets
     atom_img = assets.atom
     original_nav_map = assets.original_nav_map
     world_bg = assets.world_background
@@ -103,7 +94,7 @@ def run(screen, settings):
         car.health = min(game_save["car"]["health"], car.max_health)
         car.is_broken = game_save["car"]["is_broken"]
     atom_h = HousePlayer(162, 161)
-    atom_h.pos.update(HOUSE_SLEEP_SPOT)
+    atom_h.pos.update(engine.HOUSE_SLEEP_SPOT)
     if game_save and game_save["game_state"] == "HOUSE":
         atom_h.pos.update(
             game_save["house_player"]["x"],
@@ -121,7 +112,7 @@ def run(screen, settings):
     manual_headlights = False
     radio = engine.GameRadio(settings)
 
-    game_font, small_font = engine.load_game_fonts()
+    game_font, small_font = resources.game_font, resources.small_font
 
     translations = {
         "English": {
@@ -484,6 +475,9 @@ def run(screen, settings):
                 if game_state == "CITY" and in_car and not getattr(event, "repeat", False):
                     if keyboard.matches(event, pygame.K_h):
                         manual_headlights = not manual_headlights
+                    if keyboard.matches(event, pygame.K_e):
+                        engine.play_car_horn(car_sfx, horn_chan)
+                        traffic.respond_to_horn(npc_cars, car.pos)
                     if keyboard.matches(event, pygame.K_v):
                         radio.toggle()
                     if keyboard.matches(event, pygame.K_COMMA):
@@ -497,7 +491,7 @@ def run(screen, settings):
                 )
                 if sleep_key_pressed:
                     if game_state == "HOUSE":
-                        if _is_at_sleep_spot(game_state, atom_h.pos):
+                        if engine.is_at_sleep_spot(game_state, atom_h.pos):
                             sleep_requested = True
                         elif keyboard.matches(event, pygame.K_e) and engine.check_house_exit(
                             atom_h, house_info
@@ -507,7 +501,7 @@ def run(screen, settings):
                     elif keyboard.matches(event, pygame.K_e) and not in_car:
                         if atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
                             game_state = "HOUSE"
-                            atom_h.pos = pygame.Vector2(HOUSE_SLEEP_SPOT)
+                            atom_h.pos = pygame.Vector2(engine.HOUSE_SLEEP_SPOT)
 
         radio.update()
 
@@ -593,7 +587,7 @@ def run(screen, settings):
                         car.repair_progress = 0
 
             engine.handle_surface_footsteps(keys, in_car, game_state, atom.pos, col_mask, step_sounds, foot_chan)
-            engine.handle_car_audio(car, in_car, car_sfx, engine_chan, crash_chan, keyboard)
+            engine.handle_car_audio(car, in_car, car_sfx, engine_chan, crash_chan)
             off_x = max(
                 -(current_world_width - WIDTH),
                 min(0, WIDTH // 2 - target.pos.x),
@@ -626,11 +620,13 @@ def run(screen, settings):
 
             # 1. Draw the player’s car and its smoke.
             is_night = engine.get_ambient_color(game_time)[3] >= 40
+            headlights_on = is_night or (in_car and manual_headlights)
             car.draw(
                 screen,
                 off_x,
                 off_y,
-                lights_on=manual_headlights or is_night,
+                lights_on=headlights_on,
+                col_mask=col_mask,
             )
             engine.draw_car_smoke(screen, car, off_x, off_y)
 
@@ -682,7 +678,7 @@ def run(screen, settings):
                 )
         else:
             engine.draw_house_scene(screen, house_visual, house_info, atom_h, small_font, t)
-            if _is_at_sleep_spot(game_state, atom_h.pos):
+            if engine.is_at_sleep_spot(game_state, atom_h.pos):
                 sleep_text = small_font.render(t["sleep_save"], True, (255, 255, 255))
                 screen.blit(
                     sleep_text,

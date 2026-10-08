@@ -28,6 +28,8 @@ _AUDIO_DEFAULTS = {
 _audio_settings: dict[str, float] = {key: value / 100 for key, value in _AUDIO_DEFAULTS.items()}
 _MENU_SOUND_LEVELS = {"hover": 0.22, "click": 0.38}
 _ASSET_ROOT = Path(__file__).resolve().parent
+HOUSE_SLEEP_SPOT = (147, 156)
+_HOUSE_SLEEP_RADIUS = 24
 
 
 PHYSICAL_SCANCODES = {
@@ -98,6 +100,14 @@ class GameAssets:
     house_info: pygame.Surface
 
 
+@dataclass(frozen=True)
+class ChapterResources:
+    assets: GameAssets
+    audio: "GameAudio"
+    game_font: pygame.font.Font
+    small_font: pygame.font.Font
+
+
 class _CollisionVehicle(Protocol):
     pos: pygame.Vector2
     angle: float
@@ -111,6 +121,7 @@ class GameAudio:
     engine_channel: pygame.mixer.Channel
     crash_channel: pygame.mixer.Channel
     footstep_channel: pygame.mixer.Channel
+    horn_channel: pygame.mixer.Channel
 
 
 def load_game_assets(
@@ -154,6 +165,22 @@ def load_game_assets(
     )
 
 
+def load_chapter_resources(
+    screen_size: tuple[int, int],
+    world_size: tuple[int, int],
+) -> ChapterResources:
+    """Load the chapter's prepared visual, audio, and font resources."""
+    audio = load_game_audio()
+    assets = load_game_assets(screen_size, world_size)
+    game_font, small_font = load_game_fonts()
+    return ChapterResources(
+        assets=assets,
+        audio=audio,
+        game_font=game_font,
+        small_font=small_font,
+    )
+
+
 def load_game_audio() -> GameAudio:
     """Create the chapter's sound effects and dedicated mixer channels."""
     sound_root = _ASSET_ROOT / "sounds"
@@ -192,6 +219,7 @@ def load_game_audio() -> GameAudio:
         engine_channel=pygame.mixer.Channel(6),
         crash_channel=pygame.mixer.Channel(7),
         footstep_channel=pygame.mixer.Channel(5),
+        horn_channel=pygame.mixer.Channel(4),
     )
 
 
@@ -205,6 +233,13 @@ def load_game_fonts() -> tuple[pygame.font.Font, pygame.font.Font]:
             pygame.font.SysFont("Arial", 40, bold=True),
             pygame.font.SysFont("Arial", 25),
         )
+
+
+def is_at_sleep_spot(game_state, position) -> bool:
+    return (
+        game_state == "HOUSE"
+        and pygame.Vector2(position).distance_to(HOUSE_SLEEP_SPOT) < _HOUSE_SLEEP_RADIUS
+    )
 
 
 def configure_game_audio(settings, audio: GameAudio) -> None:
@@ -671,6 +706,56 @@ def _get_headlight_beam(angle):
     return pygame.transform.rotate(_HEADLIGHT_BEAM_BASE, -screen_angle)
 
 
+def _headlight_obstacle(col_mask, x, y):
+    mask_width, mask_height = col_mask.get_size()
+    if not (0 <= x < mask_width and 0 <= y < mask_height):
+        return True
+
+    pixel = col_mask.get_at((x, y))
+    if pixel.r < 50 and pixel.g < 50 and pixel.b < 50:
+        return True
+    if pixel.r <= 200 or pixel.g >= 50 or pixel.b >= 50:
+        return False
+
+    red_neighbors = 0
+    for neighbor_y in range(max(0, y - 1), min(mask_height, y + 2)):
+        for neighbor_x in range(max(0, x - 1), min(mask_width, x + 2)):
+            neighbor = col_mask.get_at((neighbor_x, neighbor_y))
+            if neighbor.r > 200 and neighbor.g < 50 and neighbor.b < 50:
+                red_neighbors += 1
+    return red_neighbors >= 5
+
+
+def _clip_headlight_beam(beam, beam_rect, car_pos, center, forward, col_mask):
+    origin = pygame.Vector2(car_pos) + forward * 43
+    screen_origin = pygame.Vector2(center) + forward * 43
+    forward_angle = math.degrees(math.atan2(forward.y, forward.x))
+    endpoints = []
+
+    for angle_offset in range(-18, 19, 3):
+        ray_direction = pygame.Vector2(1, 0).rotate(forward_angle + angle_offset)
+        distance = 340
+        for step in range(3, 341, 3):
+            sample = origin + ray_direction * step
+            if _headlight_obstacle(col_mask, int(sample.x), int(sample.y)):
+                distance = step
+                break
+        endpoints.append(screen_origin + ray_direction * distance)
+
+    clip_mask = pygame.Surface(beam.get_size(), pygame.SRCALPHA)
+    polygon = [
+        (round(screen_origin.x - beam_rect.left), round(screen_origin.y - beam_rect.top)),
+        *[
+            (round(point.x - beam_rect.left), round(point.y - beam_rect.top))
+            for point in endpoints
+        ],
+    ]
+    pygame.draw.polygon(clip_mask, (255, 255, 255, 255), polygon)
+    clipped_beam = beam.copy()
+    clipped_beam.blit(clip_mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+    return clipped_beam
+
+
 class Car:
     _ACCELERATION_BANDS = ((70.0, 0.9), (90.0, 0.35), (120.0, 0.16))
 
@@ -1014,7 +1099,7 @@ class Car:
             # Remove particles when they fade out or expire.
             if p[3] <= 0 or p[5] <= 0:
                 self.smoke_particles.remove(p)
-    def draw(self, screen, offset_x, offset_y, lights_on=False):
+    def draw(self, screen, offset_x, offset_y, lights_on=False, col_mask=None):
         center = pygame.Vector2(
             self.pos.x + offset_x,
             self.pos.y + offset_y,
@@ -1024,7 +1109,17 @@ class Car:
 
         if lights_on:
             beam = _get_headlight_beam(self.angle)
-            screen.blit(beam, beam.get_rect(center=center + forward * 215))
+            beam_rect = beam.get_rect(center=center + forward * 215)
+            if col_mask is not None:
+                beam = _clip_headlight_beam(
+                    beam,
+                    beam_rect,
+                    self.pos,
+                    center,
+                    forward,
+                    col_mask,
+                )
+            screen.blit(beam, beam_rect)
 
         for p1l, p2l, p1r, p2r in self.skid_marks:
             pygame.draw.line(screen, (45, 45, 45), (p1l.x + offset_x, p1l.y + offset_y),
@@ -2119,7 +2214,7 @@ def handle_surface_footsteps(keys, in_car, game_state, pos, col_mask, sounds, ch
     # Play the selected sound if the channel is idle.
     if target_sound and not channel.get_busy():
         channel.play(target_sound)
-def handle_car_audio(car, in_car, sounds, e_chan, c_chan, controls=None):
+def handle_car_audio(car, in_car, sounds, e_chan, c_chan):
     if getattr(car, 'just_hit', False):
         crash_sound = sounds.get('crash')
         if crash_sound is not None:
@@ -2138,13 +2233,10 @@ def handle_car_audio(car, in_car, sounds, e_chan, c_chan, controls=None):
     vol = min(0.6, 0.2 + (abs(car.speed) / 20.0))
     e_chan.set_volume(vol)
 
-    # 2. Horn audio.
-    keys = controls if controls is not None else pygame.key.get_pressed()
-    if keys[pygame.K_e]:
-        # Use a separate channel so the horn does not interrupt the engine.
-        # The horn may overlap other sounds on its channel.
-        if not pygame.mixer.Channel(4).get_busy():
-            pygame.mixer.Channel(4).play(sounds['beep'])
+def play_car_horn(sounds, channel) -> None:
+    horn = sounds.get("beep")
+    if horn is not None:
+        channel.play(horn)
 
 
 def get_ambient_color(game_time_minutes):

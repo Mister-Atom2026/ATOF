@@ -1,6 +1,13 @@
 # ATOF
 Game About Mister Atom
 
+## Version 0.6.0 RC 1 — “Driver Inferno”
+
+- Restarts the car horn on every press and briefly yields nearby traffic without changing its routes.
+- Fixes manual headlight toggling and clips headlight beams at collision-mask obstacles.
+- Consolidates chapter resource loading and shared sleep-spot handling in the engine.
+- Removes the obsolete root-level `Додай` file.
+
 ## Version 0.6.0 Beta 2 — “Driver Inferno”
 
 - Shows control keys in their English/US-layout form in every supported language.

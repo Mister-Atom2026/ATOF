@@ -190,6 +190,7 @@ class TrafficCar:
         self.speed = 0.0  # Kept in sync for compatibility with the copied police logic.
         self.rotation_speed = 4.0
         self.stuck_timer = 0
+        self.horn_pause_timer = 0.0
         self.is_arrested = False
         self.arrest_timer = 0
         self.is_stopped_by_police = False
@@ -211,9 +212,12 @@ class TrafficCar:
             return
         if self.is_arrested:
             self.current_speed = self.speed = 0
+            self.horn_pause_timer = 0
             self.arrest_timer -= frame_scale
             if self.arrest_timer <= 0:
                 self.is_arrested = False
+            return
+        if self._pause_for_horn(frame_scale):
             return
 
         distance_to_node, angle_diff = _route_heading(self)
@@ -246,6 +250,13 @@ class TrafficCar:
         self.image = get_rotated_resources(self.angle)
         if distance_to_node < 45:
             self.target_node = random.choice(TRAFFIC_NODES[self.target_node]["next"])
+
+    def _pause_for_horn(self, frame_scale):
+        if self.horn_pause_timer <= 0:
+            return False
+        self.horn_pause_timer = max(0.0, self.horn_pause_timer - frame_scale)
+        self.current_speed = self.speed = 0
+        return True
 
     def play_horn(self, player_car):
         if beep_sound is None:
@@ -311,9 +322,12 @@ class PoliceTrafficCar(TrafficCar):
     def update(self, col_mask, player_car, other_traffic, _traffic_state, frame_scale=1.0):
         if self.is_arrested:
             self.current_speed = self.speed = 0
+            self.horn_pause_timer = 0
             self.arrest_timer -= frame_scale
             if self.arrest_timer <= 0:
                 self.is_arrested = False
+            return
+        if self.state != "stopping" and self._pause_for_horn(frame_scale):
             return
 
         obstacles = [*other_traffic, player_car]
@@ -373,6 +387,21 @@ class PoliceTrafficCar(TrafficCar):
 
 def analyze_traffic_jams(_cars):
     return []
+
+
+def respond_to_horn(cars, position, radius=500, pause_frames=45):
+    """Briefly yield nearby traffic without changing its route or police state."""
+    position = pygame.Vector2(position)
+    radius_squared = radius * radius
+    for car in cars:
+        if (
+            not getattr(car, "is_alive", True)
+            or getattr(car, "is_arrested", False)
+            or getattr(car, "state", None) == "stopping"
+            or car.pos.distance_squared_to(position) > radius_squared
+        ):
+            continue
+        car.horn_pause_timer = max(car.horn_pause_timer, pause_frames)
 
 
 def init_traffic(count, police_chance=0.25):
