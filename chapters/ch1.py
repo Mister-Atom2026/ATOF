@@ -13,7 +13,7 @@ def run(screen, settings, *, continue_game=True):
     frame_count = 0
     keyboard = engine.KeyboardState()
     # Spawn the configured traffic and police at game start.
-    npc_cars = engine.traffic.init_traffic(11)
+    npc_cars = engine.traffic.init_traffic(18)
     fleeing_drivers: list[engine.FleeingDriver] = []
     hostile_officers: list[engine.HostileOfficer] = []
     projectiles: list[engine.Projectile] = []
@@ -106,7 +106,7 @@ def run(screen, settings, *, continue_game=True):
         car.health = min(game_save["car"]["health"], car.max_health)
         car.is_broken = game_save["car"]["is_broken"]
     atom_h = engine.HousePlayer(162, 161)
-    atom_h.pos.update(engine.HOUSE_SLEEP_SPOT)
+    atom_h.pos.update(HOUSE_SLEEP_SPOT)
     if game_save and game_save["game_state"] == "HOUSE":
         atom_h.pos.update(
             game_save["house_player"]["x"],
@@ -770,7 +770,7 @@ def run(screen, settings, *, continue_game=True):
                         if atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
                             scene_manager.transition("HOUSE")
                             game_state = scene_manager.current
-                            atom_h.pos = pygame.Vector2(engine.HOUSE_SLEEP_SPOT)
+                            atom_h.pos = pygame.Vector2(HOUSE_SLEEP_SPOT)
             if (
                 event.type == pygame.MOUSEBUTTONDOWN
                 and event.button == 1
@@ -886,7 +886,7 @@ def run(screen, settings, *, continue_game=True):
                 scene_manager.transition("HOUSE")
                 game_state = scene_manager.current
                 in_car = False
-                atom_h.pos.update(engine.HOUSE_SLEEP_SPOT)
+                atom_h.pos.update(HOUSE_SLEEP_SPOT)
                 atom.health = atom.max_health
                 wanted.clear()
                 projectiles.clear()

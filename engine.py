@@ -46,8 +46,6 @@ _AUDIO_DEFAULTS = {
 _audio_settings: dict[str, float] = {key: value / 100 for key, value in _AUDIO_DEFAULTS.items()}
 _MENU_SOUND_LEVELS = {"hover": 0.22, "click": 0.38}
 _ASSET_ROOT = Path(__file__).resolve().parent
-HOUSE_SLEEP_SPOT = (147, 156)
-_HOUSE_SLEEP_RADIUS = 24
 _image_cache: dict[tuple[Path, bool], pygame.Surface] = {}
 
 
@@ -468,7 +466,7 @@ def load_game_fonts() -> tuple[pygame.font.Font, pygame.font.Font]:
 def is_at_sleep_spot(game_state, position) -> bool:
     return (
         game_state == "HOUSE"
-        and pygame.Vector2(position).distance_to(HOUSE_SLEEP_SPOT) < _HOUSE_SLEEP_RADIUS
+        and pygame.Vector2(position).distance_to(_constants.HOUSE_SLEEP_SPOT) < _constants.HOUSE_SLEEP_RADIUS
     )
 
 

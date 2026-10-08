@@ -5,7 +5,7 @@ import pygame
 
 from settings_manager import load_settings, load_statistics, save_settings
 
-VERSION = "0.7.0-beta.1"
+VERSION = "0.7.0-beta.2"
 RELEASE_NAME = "Driver Inferno"
 APP_SETTINGS = load_settings()
 
@@ -68,12 +68,17 @@ rebuild_fonts()
 APP_STATS = load_statistics()
 engine.configure_audio(APP_SETTINGS)
 
-try:
-    pygame.mixer.music.load("6729032246362112.wav")
-    pygame.mixer.music.play(-1)
-    engine.configure_audio(APP_SETTINGS)
-except (pygame.error, OSError):
-    print("Файл музики не знайдено!")
+
+def load_and_play_menu_music():
+    try:
+        pygame.mixer.music.load("6729032246362112.wav")
+        pygame.mixer.music.play(-1)
+        engine.configure_audio(APP_SETTINGS)
+    except (pygame.error, OSError):
+        print("Файл музики не знайдено!")
+
+
+load_and_play_menu_music()
 
 translations = {
     "English": {
@@ -433,9 +438,7 @@ def launch_chapter(chapter, continue_story):
     engine.configure_audio(APP_SETTINGS)
     if result == "EXIT":
         return False
-    pygame.mixer.music.load("6729032246362112.wav")
-    pygame.mixer.music.play(-1)
-    engine.configure_audio(APP_SETTINGS)
+    load_and_play_menu_music()
     return True
 
 

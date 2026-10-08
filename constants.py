@@ -12,3 +12,7 @@ MAP_NAV = "мона їздити.png"
 C_WALL = (136, 0, 21)   # Red represents a wall.
 C_ROAD = (255, 242, 0)  # Yellow represents the main road.
 C_DIRT = (185, 122, 87) # Brown represents the dirt road.
+
+# House sleep spot position.
+HOUSE_SLEEP_SPOT = (147, 156)
+HOUSE_SLEEP_RADIUS = 24
