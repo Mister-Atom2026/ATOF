@@ -1,6 +1,12 @@
 # ATOF
 Game About Mister Atom
 
+## Version 0.7.0 RC 1 — "Story Foundations"
+
+- Fixed type hints in traffic.py (get_traffic_car_image and get_police_car_image now return Optional[pygame.Surface]).
+- Refactored player status UI: health bar now appears above the speedometer position, ammo and wanted status moved to bottom-right corner.
+- Updated version to 0.7.0-rc.1.
+
 ## Version 0.7.0 Beta 2 — "Story Foundations"
 
 - Increased traffic count from 11 to 18 vehicles.

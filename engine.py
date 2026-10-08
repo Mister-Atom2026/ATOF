@@ -1657,32 +1657,44 @@ def draw_handgun(screen, player_position, target_position, offset_x, offset_y):
 
 
 def draw_player_status(screen, player, ammo, reserve_ammo, wanted_level, labels):
-    """Draw on-foot health, ammunition, and wanted status."""
-    width = 230
-    pygame.draw.rect(screen, (12, 12, 16), (18, 18, width, 116), border_radius=8)
-    pygame.draw.rect(screen, (55, 55, 55), (30, 32, 190, 14), border_radius=4)
-    health_ratio = max(0.0, min(1.0, player.health / player.max_health))
-    health_color = (int(220 * (1 - health_ratio)), int(210 * health_ratio), 20)
-    pygame.draw.rect(
-        screen,
-        health_color,
-        (30, 32, round(190 * health_ratio), 14),
-        border_radius=4,
-    )
+    """Draw on-foot health, ammunition, and wanted status in the bottom-right corner."""
+    screen_width = screen.get_width()
+    screen_height = screen.get_height()
     small_font = pygame.font.Font(None, 24)
+
+    # Draw health bar above the speedometer position
+    bar_width = 100
+    bar_height = 10
+    bar_x = screen_width - 330 - bar_width // 2
+    bar_y = screen_height - 120 - 75 - 30  # Above where speedometer would be
+
+    health_ratio = max(0.0, min(1.0, player.health / player.max_health))
+    health_color = (int(255 * (1 - health_ratio)), int(255 * health_ratio), 0)
+
+    pygame.draw.rect(screen, (50, 50, 50), (bar_x, bar_y, bar_width, bar_height))
+    pygame.draw.rect(screen, health_color, (bar_x, bar_y, int(bar_width * health_ratio), bar_height))
+    pygame.draw.rect(screen, (200, 200, 200), (bar_x, bar_y, bar_width, bar_height), 1)
+
+    # Draw HP text
     health_text = labels.get("player_hp", "HP: {current}/{maximum}").format(
         current=round(player.health),
         maximum=round(player.max_health),
     )
-    screen.blit(small_font.render(health_text, True, (255, 255, 255)), (30, 50))
+    health_surface = small_font.render(health_text, True, (255, 255, 255))
+    screen.blit(health_surface, (screen_width - 330 - health_surface.get_width() // 2, bar_y - 20))
+
+    # Draw ammo and wanted in bottom-right corner
     ammo_text = labels.get("ammo", "Ammo: {current}/{reserve}").format(
         current=ammo,
         reserve=reserve_ammo,
     )
-    screen.blit(small_font.render(ammo_text, True, (255, 255, 255)), (30, 72))
+    ammo_surface = small_font.render(ammo_text, True, (255, 255, 255))
+    screen.blit(ammo_surface, (screen_width - ammo_surface.get_width() - 20, screen_height - 50))
+
     stars = "* " * wanted_level + "- " * (5 - wanted_level)
     wanted_text = labels.get("wanted", "Wanted: {stars}").format(stars=stars)
-    screen.blit(small_font.render(wanted_text, True, (255, 190, 90)), (30, 91))
+    wanted_surface = small_font.render(wanted_text, True, (255, 190, 90))
+    screen.blit(wanted_surface, (screen_width - wanted_surface.get_width() - 20, screen_height - 25))
 
 
 def _format_gps_distance(distance: float) -> str:

@@ -5,7 +5,7 @@ import pygame
 
 from settings_manager import load_settings, load_statistics, save_settings
 
-VERSION = "0.7.0-beta.2"
+VERSION = "0.7.0-rc.1"
 RELEASE_NAME = "Driver Inferno"
 APP_SETTINGS = load_settings()
 

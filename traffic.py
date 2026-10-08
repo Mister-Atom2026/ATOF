@@ -64,7 +64,7 @@ def get_rotated_resources(angle: float) -> pygame.Surface:
     return image_cache[key]
 
 
-def get_traffic_car_image() -> pygame.Surface:
+def get_traffic_car_image() -> Optional[pygame.Surface]:
     global base_traffic_img
     if base_traffic_img is None:
         base_traffic_img = _load_car_image(
@@ -86,7 +86,7 @@ def get_rotated_police_resources(angle: float) -> pygame.Surface:
     return image_cache[key]
 
 
-def get_police_car_image() -> pygame.Surface:
+def get_police_car_image() -> Optional[pygame.Surface]:
     global base_police_img
     if base_police_img is None:
         base_police_img = _load_car_image(
