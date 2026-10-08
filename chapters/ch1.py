@@ -619,8 +619,7 @@ def run(screen, settings):
             screen.blit(world_bg, (off_x, off_y))
 
             # 1. Draw the player’s car and its smoke.
-            is_night = engine.get_ambient_color(game_time)[3] >= 40
-            headlights_on = is_night or (in_car and manual_headlights)
+            headlights_on = in_car and manual_headlights
             car.draw(
                 screen,
                 off_x,

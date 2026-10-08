@@ -1,6 +1,10 @@
 # ATOF
 Game About Mister Atom
 
+## Version 0.6.2 Release — “Driver Inferno”
+
+- Removes automatic night headlights; headlights now turn on only when manually toggled with **H** while driving.
+
 ## Version 0.6.1 Release — “Driver Inferno”
 
 - Replaces normal-based, mass-weighted collision response with a simple speed-scaled bounce.
