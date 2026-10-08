@@ -9,8 +9,8 @@ import pygame
 
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-image_cache: dict[tuple[str, int], pygame.Surface] = {}
-mask_cache: dict[tuple[str, int], pygame.Mask] = {}
+image_cache: dict[tuple[object, ...], pygame.Surface] = {}
+mask_cache: dict[tuple[object, ...], pygame.Mask] = {}
 base_traffic_img: Optional[pygame.Surface] = None
 base_police_img: Optional[pygame.Surface] = None
 beep_sound: Optional[pygame.mixer.Sound] = None
@@ -64,6 +64,15 @@ def get_rotated_resources(angle: float) -> pygame.Surface:
     return image_cache[key]
 
 
+def get_traffic_car_image() -> pygame.Surface:
+    global base_traffic_img
+    if base_traffic_img is None:
+        base_traffic_img = _load_car_image(
+            os.path.join("cars", "ntk", "ntk-2107_classic.png"), (200, 50, 50)
+        )
+    return base_traffic_img
+
+
 def get_rotated_police_resources(angle: float) -> pygame.Surface:
     global base_police_img
     angle_int = int(angle % 360)
@@ -75,6 +84,16 @@ def get_rotated_police_resources(angle: float) -> pygame.Surface:
             )
         image_cache[key] = pygame.transform.rotate(base_police_img, -angle_int)
     return image_cache[key]
+
+
+def get_police_car_image() -> pygame.Surface:
+    global base_police_img
+    if base_police_img is None:
+        base_police_img = _load_car_image(
+            os.path.join("cars", "tornado", "tornado_2025_police.png"),
+            (255, 140, 0),
+        )
+    return base_police_img
 
 
 def configure_audio(settings):
@@ -96,7 +115,8 @@ def _car_image(car):
         if not isinstance(image, pygame.Surface):
             image = pygame.Surface((96, 48), pygame.SRCALPHA)
         angle = int(getattr(car, "angle", 0) % 360)
-        return pygame.transform.rotate(image, -angle), ("player", angle)
+        vehicle_class = getattr(car, "vehicle_class", "sport")
+        return pygame.transform.rotate(image, -angle), ("player", vehicle_class, angle)
 
 
 def _rotated_car_rect(car, center):
@@ -190,6 +210,7 @@ class TrafficCar:
         self.rotation_speed = 4.0
         self.stuck_timer = 0
         self.horn_pause_timer = 0.0
+        self.fire_cooldown = 0.0
         self.is_arrested = False
         self.arrest_timer = 0
         self.is_stopped_by_police = False
@@ -267,6 +288,8 @@ class TrafficCar:
             beep_sound.play()
 
     def draw(self, screen, off_x, off_y):
+        if not self.is_alive:
+            return
         draw_pos = (self.pos.x + off_x, self.pos.y + off_y)
         screen.blit(self.image, self.image.get_rect(center=draw_pos))
 
@@ -318,6 +341,8 @@ class PoliceTrafficCar(TrafficCar):
         return False
 
     def update(self, col_mask, player_car, other_traffic, _traffic_state, frame_scale=1.0):
+        if not self.is_alive:
+            return
         if self.is_arrested:
             self.current_speed = self.speed = 0
             self.horn_pause_timer = 0
@@ -379,6 +404,8 @@ class PoliceTrafficCar(TrafficCar):
         self.image = get_rotated_police_resources(self.angle)
 
     def draw(self, screen, off_x, off_y):
+        if not self.is_alive:
+            return
         draw_pos = (self.pos.x + off_x, self.pos.y + off_y)
         screen.blit(self.image, self.image.get_rect(center=draw_pos))
 

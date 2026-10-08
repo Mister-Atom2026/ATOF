@@ -1,5 +1,6 @@
 import os
 import time
+import math
 import pygame
 import engine
 from constants import *
@@ -13,6 +14,9 @@ def run(screen, settings, *, continue_game=True):
     keyboard = engine.KeyboardState()
     # Spawn the configured traffic and police at game start.
     npc_cars = engine.traffic.init_traffic(11)
+    fleeing_drivers: list[engine.FleeingDriver] = []
+    hostile_officers: list[engine.HostileOfficer] = []
+    projectiles: list[engine.Projectile] = []
     map_scale = 4.0
     current_world_width = int(WORLD_WIDTH * map_scale)
     current_world_height = int(WORLD_HEIGHT * map_scale)
@@ -39,6 +43,15 @@ def run(screen, settings, *, continue_game=True):
     collected_treasures = set()
     phone_active = False  # Phone state.
     phone_settings = engine.get_phone_settings()
+    weapons = engine.WeaponWheel(
+        game_save["ammo"] if game_save else 12,
+        game_save["reserve_ammo"] if game_save else 48,
+        game_save["weapon"] if game_save else "pistol",
+    )
+    wanted = engine.WantedLevel(
+        game_save["wanted_level"] if game_save else 0,
+        game_save["wanted_escape_timer"] if game_save else 0,
+    )
     # --- Time and lighting ---
     game_time = game_save["game_time"] if game_save else 480.0
     night_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
@@ -85,6 +98,7 @@ def run(screen, settings, *, continue_game=True):
     if game_save:
         atom.pos.update(game_save["player"]["x"], game_save["player"]["y"])
         atom.angle = game_save["player"]["angle"]
+        atom.health = game_save["hero_health"]
         car.pos.update(game_save["car"]["x"], game_save["car"]["y"])
         car.angle = game_save["car"]["angle"]
         car.speed = game_save["car"]["speed"]
@@ -103,6 +117,10 @@ def run(screen, settings, *, continue_game=True):
     if game_save:
         collected_treasures.update(game_save["collected_treasures"])
     personal_records = engine.load_statistics()
+    honor_and_respect = engine.HonorAndRespect(
+        game_save["honor"] if game_save else personal_records.get("honor", 0),
+        game_save["respect"] if game_save else personal_records.get("respect", 0),
+    )
     distance_since_crash = game_save["distance_streak"] if game_save else 0.0
     current_drift_distance = game_save["drift_streak"] if game_save else 0.0
     sleep_requested = False
@@ -114,7 +132,7 @@ def run(screen, settings, *, continue_game=True):
 
     translations = {
         "English": {
-            "hint": "[F] Enter Car", "enter": "[E] Enter House", "exit": "[E] Exit House",
+            "hint": "[F] Enter / steal car", "enter": "[E] Enter House", "exit": "[E] Exit House",
             "resume": "Resume", "stats": "Stats", "settings": "Settings", "menu": "To Menu",
             "vol": "Volume", "lang": "Language", "back": "Back",
             "volume": "Volume", "music_vol": "Music Volume", "npc_vol": "NPC Volume",
@@ -126,6 +144,12 @@ def run(screen, settings, *, continue_game=True):
             "stats_title": "Session statistics", "stats_money": "Money: {money} UAH",
             "stats_time": "Time: {time}", "stats_treasures": "Treasures found: {treasures}",
             "stats_earned": "Total earned: {amount} UAH", "stats_spent": "Total spent: {amount} UAH", "stats_hint": "Press Esc or Enter to return",
+            "stats_honor": "Honor: {value}", "stats_respect": "Respect: {value}",
+            "player_hp": "HP: {current}/{maximum}", "ammo": "Ammo: {current}/{reserve}",
+            "wanted": "Wanted: {stars}", "reload": "Reloaded", "empty_ammo": "Out of ammo",
+            "weapon_hint": "Left click: fire | R: reload",
+            "none": "Unarmed", "pistol": "Pistol", "knife": "Knife", "shotgun": "Shotgun",
+            "steal_hint": "[F] Steal vehicle",
             "gps_distance": "Distance: {distance}", "gps_set": "Left-click: set destination",
             "gps_clear": "Right-click/Backspace: clear destination",
             "radio_on": "{station} — {track} | V: pause | ,/<: previous | ./>: next",
@@ -133,7 +157,7 @@ def run(screen, settings, *, continue_game=True):
             "radio_off": "RADIO OFF | ,/<: previous | ./>: next",
         },
         "Українська": {
-            "hint": "[F] Сісти в авто", "enter": "[E] Увійти в дім", "exit": "[E] Вийти з дому",
+            "hint": "[F] Сісти / викрасти авто", "enter": "[E] Увійти в дім", "exit": "[E] Вийти з дому",
             "resume": "Продовжити", "stats": "Статистика", "settings": "Налаштування", "menu": "В меню",
             "vol": "Гучність", "lang": "Мова", "back": "Назад",
             "volume": "Гучність", "music_vol": "Гучність музики", "npc_vol": "Гучність НПС",
@@ -145,6 +169,12 @@ def run(screen, settings, *, continue_game=True):
             "stats_title": "Статистика сесії", "stats_money": "Гроші: {money} UAH",
             "stats_time": "Час: {time}", "stats_treasures": "Знайдено скарбів: {treasures}",
             "stats_earned": "Всього зароблено: {amount} UAH", "stats_spent": "Всього витрачено: {amount} UAH", "stats_hint": "Натисніть Esc або Enter, щоб повернутися",
+            "stats_honor": "Честь: {value}", "stats_respect": "Повага: {value}",
+            "player_hp": "ЗД: {current}/{maximum}", "ammo": "Патрони: {current}/{reserve}",
+            "wanted": "Розшук: {stars}", "reload": "Перезаряджено", "empty_ammo": "Немає патронів",
+            "weapon_hint": "ЛКМ: стріляти | R: перезарядити",
+            "none": "Без зброї", "pistol": "Пістолет", "knife": "Ніж", "shotgun": "Дробовик",
+            "steal_hint": "[F] Викрасти авто",
             "gps_distance": "Відстань: {distance}", "gps_set": "ЛКМ: поставити точку",
             "gps_clear": "ПКМ/Backspace: прибрати точку",
             "radio_on": "{station} — {track} | V: пауза | ,/<: попередня | ./>: наступна",
@@ -152,7 +182,7 @@ def run(screen, settings, *, continue_game=True):
             "radio_off": "РАДІО ВИМКНЕНО | ,/<: попередня | ./>: наступна",
         },
         "Русский": {
-            "hint": "[F] Сесть в авто", "enter": "[E] Войти в дом", "exit": "[E] Выйти из дома",
+            "hint": "[F] Сесть / угнать авто", "enter": "[E] Войти в дом", "exit": "[E] Выйти из дома",
             "resume": "Продолжить", "stats": "Статистика", "settings": "Настройки", "menu": "В меню",
             "vol": "Громкость", "lang": "Язык", "back": "Назад",
             "volume": "Громкость", "music_vol": "Громкость музыки", "npc_vol": "Громкость НПС",
@@ -164,6 +194,12 @@ def run(screen, settings, *, continue_game=True):
             "stats_title": "Статистика сессии", "stats_money": "Деньги: {money} UAH",
             "stats_time": "Время: {time}", "stats_treasures": "Найдено сокровищ: {treasures}",
             "stats_earned": "Всего заработано: {amount} UAH", "stats_spent": "Всего потрачено: {amount} UAH", "stats_hint": "Нажмите Esc или Enter, чтобы вернуться",
+            "stats_honor": "Честь: {value}", "stats_respect": "Уважение: {value}",
+            "player_hp": "ЗД: {current}/{maximum}", "ammo": "Патроны: {current}/{reserve}",
+            "wanted": "Розыск: {stars}", "reload": "Перезаряжено", "empty_ammo": "Нет патронов",
+            "weapon_hint": "ЛКМ: стрелять | R: перезарядить",
+            "none": "Без оружия", "pistol": "Пистолет", "knife": "Нож", "shotgun": "Дробовик",
+            "steal_hint": "[F] Угнать авто",
             "gps_distance": "Расстояние: {distance}", "gps_set": "ЛКМ: поставить точку",
             "gps_clear": "ПКМ/Backspace: убрать точку",
             "radio_on": "{station} — {track} | V: пауза | ,/<: предыдущая | ./>: следующая",
@@ -171,7 +207,7 @@ def run(screen, settings, *, continue_game=True):
             "radio_off": "РАДИО ВЫКЛЮЧЕНО | ,/<: предыдущая | ./>: следующая",
         },
         "Español": {
-            "hint": "[F] Subir al coche", "enter": "[E] Entrar en casa", "exit": "[E] Salir de casa",
+            "hint": "[F] Entrar / robar coche", "enter": "[E] Entrar en casa", "exit": "[E] Salir de casa",
             "resume": "Reanudar", "stats": "Estadísticas", "settings": "Ajustes", "menu": "Volver al menú",
             "vol": "Volumen", "lang": "Idioma", "back": "Atrás",
             "volume": "Volumen", "music_vol": "Volumen de la música", "npc_vol": "Volumen de los NPC",
@@ -184,6 +220,12 @@ def run(screen, settings, *, continue_game=True):
             "stats_time": "Tiempo: {time}", "stats_treasures": "Tesoros encontrados: {treasures}",
             "stats_earned": "Total ganado: {amount} UAH", "stats_spent": "Total gastado: {amount} UAH",
             "stats_hint": "Pulsa Esc o Enter para volver",
+            "stats_honor": "Honor: {value}", "stats_respect": "Respeto: {value}",
+            "player_hp": "Salud: {current}/{maximum}", "ammo": "Munición: {current}/{reserve}",
+            "wanted": "Búsqueda: {stars}", "reload": "Recargado", "empty_ammo": "Sin munición",
+            "weapon_hint": "Clic izquierdo: disparar | R: recargar",
+            "none": "Sin arma", "pistol": "Pistola", "knife": "Cuchillo", "shotgun": "Escopeta",
+            "steal_hint": "[F] Robar vehículo",
             "gps_distance": "Distancia: {distance}", "gps_set": "Clic izquierdo: marcar destino",
             "gps_clear": "Clic derecho/Retroceso: borrar destino",
             "radio_on": "{station} — {track} | V: pausa | ,/<: anterior | ./>: siguiente",
@@ -191,7 +233,7 @@ def run(screen, settings, *, continue_game=True):
             "radio_off": "RADIO APAGADA | ,/<: anterior | ./>: siguiente",
         },
         "Deutsch": {
-            "hint": "[F] Ins Auto steigen", "enter": "[E] Haus betreten", "exit": "[E] Haus verlassen",
+            "hint": "[F] Einsteigen / Auto stehlen", "enter": "[E] Haus betreten", "exit": "[E] Haus verlassen",
             "resume": "Fortsetzen", "stats": "Statistik", "settings": "Einstellungen", "menu": "Zum Hauptmenü",
             "vol": "Lautstärke", "lang": "Sprache", "back": "Zurück",
             "volume": "Lautstärke", "music_vol": "Musiklautstärke", "npc_vol": "NPC-Lautstärke",
@@ -204,6 +246,12 @@ def run(screen, settings, *, continue_game=True):
             "stats_time": "Zeit: {time}", "stats_treasures": "Gefundene Schätze: {treasures}",
             "stats_earned": "Insgesamt verdient: {amount} UAH", "stats_spent": "Insgesamt ausgegeben: {amount} UAH",
             "stats_hint": "Esc oder Enter drücken, um zurückzukehren",
+            "stats_honor": "Ehre: {value}", "stats_respect": "Ansehen: {value}",
+            "player_hp": "LP: {current}/{maximum}", "ammo": "Munition: {current}/{reserve}",
+            "wanted": "Gesucht: {stars}", "reload": "Nachgeladen", "empty_ammo": "Keine Munition",
+            "weapon_hint": "Linksklick: schießen | R: nachladen",
+            "none": "Keine Waffe", "pistol": "Pistole", "knife": "Messer", "shotgun": "Schrotflinte",
+            "steal_hint": "[F] Auto stehlen",
             "gps_distance": "Entfernung: {distance}", "gps_set": "Linksklick: Ziel setzen",
             "gps_clear": "Rechtsklick/Backspace: Ziel löschen",
             "radio_on": "{station} — {track} | V: Pause | ,/<: vorheriger | ./>: nächster",
@@ -211,7 +259,7 @@ def run(screen, settings, *, continue_game=True):
             "radio_off": "RADIO AUS | ,/<: vorheriger | ./>: nächster",
         },
         "Français": {
-            "hint": "[F] Monter en voiture", "enter": "[E] Entrer dans la maison", "exit": "[E] Sortir de la maison",
+            "hint": "[F] Monter / voler une voiture", "enter": "[E] Entrer dans la maison", "exit": "[E] Sortir de la maison",
             "resume": "Reprendre", "stats": "Statistiques", "settings": "Paramètres", "menu": "Menu principal",
             "vol": "Volume", "lang": "Langue", "back": "Retour",
             "volume": "Volume", "music_vol": "Volume de la musique", "npc_vol": "Volume des PNJ",
@@ -224,6 +272,12 @@ def run(screen, settings, *, continue_game=True):
             "stats_time": "Temps : {time}", "stats_treasures": "Trésors trouvés : {treasures}",
             "stats_earned": "Total gagné : {amount} UAH", "stats_spent": "Total dépensé : {amount} UAH",
             "stats_hint": "Appuyez sur Échap ou Entrée pour revenir",
+            "stats_honor": "Honneur : {value}", "stats_respect": "Respect : {value}",
+            "player_hp": "Santé : {current}/{maximum}", "ammo": "Munitions : {current}/{reserve}",
+            "wanted": "Recherché : {stars}", "reload": "Rechargé", "empty_ammo": "Plus de munitions",
+            "weapon_hint": "Clic gauche : tirer | R : recharger",
+            "none": "Désarmé", "pistol": "Pistolet", "knife": "Couteau", "shotgun": "Fusil à pompe",
+            "steal_hint": "[F] Voler la voiture",
             "gps_distance": "Distance : {distance}", "gps_set": "Clic gauche : définir la destination",
             "gps_clear": "Clic droit/Retour arrière : supprimer la destination",
             "radio_on": "{station} — {track} | V : pause | ,/< : précédente | ./> : suivante",
@@ -297,6 +351,192 @@ def run(screen, settings, *, continue_game=True):
     for language, labels in per_language_labels.items():
         translations[language].update(labels)
 
+    def nearby_traffic_car(
+        position,
+        radius: float = 90,
+    ) -> engine.traffic.TrafficCar | None:
+        candidates: list[engine.traffic.TrafficCar] = [
+            npc for npc in npc_cars
+            if getattr(npc, "is_alive", True)
+            and npc.pos.distance_squared_to(position) <= radius * radius
+        ]
+        closest = min(
+            candidates,
+            key=lambda npc: npc.pos.distance_squared_to(position),
+            default=None,
+        )
+        if (
+            closest is not None
+            and closest.pos.distance_squared_to(position) < car.pos.distance_squared_to(position)
+        ):
+            return closest
+        return None
+
+    def hijack_traffic_car(npc):
+        nonlocal car, in_car
+        stolen_position = pygame.Vector2(npc.pos)
+        stolen_angle = npc.angle
+        stolen_police = npc.is_police
+        forward = pygame.Vector2(1, 0).rotate(stolen_angle + 180)
+        driver_position = stolen_position - forward * 35
+        if stolen_police:
+            hostile_officers.append(engine.HostileOfficer(stolen_position + forward * 40))
+            wanted.raise_level(3)
+            honor_and_respect.change(honor=-15, respect=-8)
+        else:
+            fleeing_drivers.append(engine.FleeingDriver(driver_position, atom.pos))
+            wanted.raise_level(1)
+            honor_and_respect.change(honor=-8, respect=-5)
+
+        npc.is_alive = False
+        replacement = engine.Car(stolen_position.x, stolen_position.y)
+        replacement.angle = stolen_angle
+        replacement.vehicle_class = "stolen-police" if stolen_police else "stolen-sedan"
+        replacement.is_police = stolen_police
+        replacement.image = (
+            engine.traffic.get_police_car_image()
+            if stolen_police
+            else engine.traffic.get_traffic_car_image()
+        )
+        replacement.max_speed = 13.0 if stolen_police else 11.5
+        replacement.handling = 0.7 if stolen_police else 0.62
+        car = replacement
+        in_car = True
+        atom.pos.update(car.pos)
+
+    def reload_weapon():
+        weapons.reload()
+
+    def update_combat(frame_scale):
+        for driver in fleeing_drivers:
+            driver.update(col_mask, frame_scale)
+        fleeing_drivers[:] = [driver for driver in fleeing_drivers if driver.is_alive]
+
+        for officer in hostile_officers:
+            officer.update(frame_scale)
+        for npc in npc_cars:
+            if getattr(npc, "is_police", False):
+                npc.fire_cooldown = max(0.0, npc.fire_cooldown - frame_scale)
+
+        police_nearby = any(
+            getattr(npc, "is_police", False)
+            and getattr(npc, "is_alive", True)
+            and npc.pos.distance_to(atom.pos) < 900
+            for npc in npc_cars
+        ) or any(officer.pos.distance_to(atom.pos) < 900 for officer in hostile_officers)
+        wanted.update(frame_scale, nearby_police=police_nearby)
+
+        if wanted.level:
+            target_position = car.pos if in_car else atom.pos
+            for police in npc_cars:
+                if (
+                    not getattr(police, "is_police", False)
+                    or not getattr(police, "is_alive", True)
+                    or police.pos.distance_to(target_position) > 650
+                    or police.fire_cooldown > 0
+                ):
+                    continue
+                projectile = engine.create_projectile(
+                    police.pos,
+                    target_position,
+                    "police",
+                    speed=15.0,
+                    damage=12.0,
+                )
+                if projectile is not None:
+                    projectiles.append(projectile)
+                    police.fire_cooldown = 75.0
+
+            for officer in hostile_officers:
+                if (
+                    officer.pos.distance_to(target_position) > 650
+                    or officer.fire_cooldown > 0
+                ):
+                    continue
+                projectile = engine.create_projectile(
+                    officer.pos,
+                    target_position,
+                    "police",
+                    speed=17.0,
+                    damage=16.0,
+                )
+                if projectile is not None:
+                    projectiles.append(projectile)
+                    officer.fire_cooldown = 60.0
+
+        remaining_projectiles = []
+        for projectile in projectiles:
+            old_position = pygame.Vector2(projectile.position)
+            if not projectile.update(frame_scale):
+                continue
+            if engine.projectile_hits_wall(old_position, projectile.position, col_mask):
+                continue
+
+            if projectile.owner == "player":
+                hit_car = next(
+                    (
+                        npc for npc in npc_cars
+                        if getattr(npc, "is_alive", True)
+                        and npc.pos.distance_squared_to(projectile.position) < 38**2
+                    ),
+                    None,
+                )
+                if hit_car is not None:
+                    hit_position = pygame.Vector2(hit_car.pos)
+                    hit_police = getattr(hit_car, "is_police", False)
+                    hit_car.is_alive = False
+                    if hit_police:
+                        hostile_officers.append(
+                            engine.HostileOfficer(hit_position + pygame.Vector2(35, 0))
+                        )
+                        wanted.raise_level(2)
+                        honor_and_respect.change(honor=-12, respect=-7)
+                    else:
+                        fleeing_drivers.append(engine.FleeingDriver(hit_position, atom.pos))
+                        wanted.raise_level(1)
+                        honor_and_respect.change(honor=-10, respect=-6)
+                    continue
+
+                hit_officer = next(
+                    (
+                        officer for officer in hostile_officers
+                        if officer.is_alive
+                        and officer.pos.distance_squared_to(projectile.position) < 22**2
+                    ),
+                    None,
+                )
+                if hit_officer is not None:
+                    hit_officer.is_alive = False
+                    wanted.raise_level(1)
+                    continue
+
+                hit_driver = next(
+                    (
+                        driver for driver in fleeing_drivers
+                        if driver.is_alive
+                        and driver.pos.distance_squared_to(projectile.position) < 18**2
+                    ),
+                    None,
+                )
+                if hit_driver is not None:
+                    hit_driver.is_alive = False
+                    honor_and_respect.change(honor=-25, respect=-20)
+                    wanted.raise_level(2)
+                    continue
+            elif in_car:
+                if car.pos.distance_squared_to(projectile.position) < 42**2:
+                    car.health = max(0, car.health - projectile.damage)
+                    if car.health == 0:
+                        car.is_broken = True
+                    continue
+            elif atom.pos.distance_squared_to(projectile.position) < 20**2:
+                atom.take_damage(projectile.damage)
+                continue
+
+            remaining_projectiles.append(projectile)
+        projectiles[:] = remaining_projectiles
+        hostile_officers[:] = [officer for officer in hostile_officers if officer.is_alive]
+
     def save_last_session_stats():
         engine.save_statistics({
             "money": money,
@@ -307,6 +547,8 @@ def run(screen, settings, *, continue_game=True):
             "max_speed_kmh": personal_records["max_speed_kmh"],
             "longest_drift_m": personal_records["longest_drift_m"],
             "distance_without_crash_m": personal_records["distance_without_crash_m"],
+            "honor": honor_and_respect.honor,
+            "respect": honor_and_respect.respect,
         })
 
     def save_sleep_game():
@@ -318,6 +560,14 @@ def run(screen, settings, *, continue_game=True):
                 "y": atom.pos.y,
                 "angle": atom.angle,
             },
+            "hero_health": atom.health,
+            "ammo": weapons.ammo,
+            "reserve_ammo": weapons.reserve_ammo,
+            "weapon": weapons.selected,
+            "honor": honor_and_respect.honor,
+            "respect": honor_and_respect.respect,
+            "wanted_level": wanted.level,
+            "wanted_escape_timer": wanted.escape_timer,
             "house_player": {
                 "x": atom_h.pos.x,
                 "y": atom_h.pos.y,
@@ -369,6 +619,7 @@ def run(screen, settings, *, continue_game=True):
         # 1. Process events.
         for event in pygame.event.get():
             keyboard.process_event(event)
+            weapons.process_event(event, screen.get_size())
             if event.type == pygame.VIDEORESIZE:
                 screen = engine.apply_window_resize(event.size, settings)
                 camera.resize(screen.get_size())
@@ -441,6 +692,8 @@ def run(screen, settings, *, continue_game=True):
                             "distance_without_crash_m": personal_records[
                                 "distance_without_crash_m"
                             ],
+                            "honor": honor_and_respect.honor,
+                            "respect": honor_and_respect.respect,
                         },
                         on_change=engine.save_settings,
                     )
@@ -458,9 +711,17 @@ def run(screen, settings, *, continue_game=True):
                         return res
                     if radio_was_playing:
                         radio.resume()
-                if keyboard.matches(event, pygame.K_f) and game_state == "CITY":
+                if (
+                    keyboard.matches(event, pygame.K_f)
+                    and game_state == "CITY"
+                    and not phone_active
+                ):
                     old_in_car = in_car  # Save the previous state before toggling.
-                    in_car = engine.handle_car_logic(atom, car, in_car)
+                    nearby_car = nearby_traffic_car(atom.pos) if not in_car else None
+                    if nearby_car is not None:
+                        hijack_traffic_car(nearby_car)
+                    else:
+                        in_car = engine.handle_car_logic(atom, car, in_car)
 
                     # Play the sound only when the state changes.
                     if in_car != old_in_car:
@@ -469,6 +730,15 @@ def run(screen, settings, *, continue_game=True):
                         else:
                             car_sfx['door_close'].play()
                             radio.pause()
+                if (
+                    event.type == pygame.KEYDOWN
+                    and game_state == "CITY"
+                    and not in_car
+                    and not phone_active
+                    and not (car.is_broken and atom.pos.distance_to(car.pos) < 100)
+                    and keyboard.matches(event, pygame.K_r)
+                ):
+                    reload_weapon()
                 if game_state == "CITY" and in_car and not getattr(event, "repeat", False):
                     if keyboard.matches(event, pygame.K_h):
                         manual_headlights = not manual_headlights
@@ -501,6 +771,29 @@ def run(screen, settings, *, continue_game=True):
                             scene_manager.transition("HOUSE")
                             game_state = scene_manager.current
                             atom_h.pos = pygame.Vector2(engine.HOUSE_SLEEP_SPOT)
+            if (
+                event.type == pygame.MOUSEBUTTONDOWN
+                and event.button == 1
+                and game_state == "CITY"
+                and not in_car
+                and not phone_active
+            ):
+                target_position = camera.screen_to_world(event.pos)
+                if weapons.selected == "knife":
+                    hit = weapons.melee_target(
+                        atom.pos,
+                        target_position,
+                        [*npc_cars, *hostile_officers, *fleeing_drivers],
+                    )
+                    if hit is not None:
+                        hit.is_alive = False
+                        wanted.raise_level(2 if getattr(hit, "is_police", False) else 1)
+                        honor_and_respect.change(honor=-20, respect=-15)
+                else:
+                    projectiles.extend(weapons.fire(atom.pos, target_position))
+                direction = target_position - atom.pos
+                if direction.length_squared():
+                    atom.angle = -math.degrees(math.atan2(direction.x, direction.y))
 
         radio.update()
 
@@ -587,6 +880,21 @@ def run(screen, settings, *, continue_game=True):
 
             engine.handle_surface_footsteps(keys, in_car, game_state, atom.pos, col_mask, step_sounds, foot_chan)
             engine.handle_car_audio(car, in_car, car_sfx, engine_chan, crash_chan)
+            update_combat(frame_scale)
+            if atom.health <= 0:
+                engine.fade_screen(screen, True, duration=0.35)
+                scene_manager.transition("HOUSE")
+                game_state = scene_manager.current
+                in_car = False
+                atom_h.pos.update(engine.HOUSE_SLEEP_SPOT)
+                atom.health = atom.max_health
+                wanted.clear()
+                projectiles.clear()
+                hostile_officers.clear()
+                weapons.ammo = 12
+                car.speed = 0
+                car.motion_velocity.update(0, 0)
+                wake_fade_started = time.perf_counter()
             off_x, off_y = camera.follow(target.pos)
         else:
             atom_h.update(keys, house_collision, frame_scale)
@@ -619,6 +927,12 @@ def run(screen, settings, *, continue_game=True):
                 engine.draw_car_smoke(screen, car, off_x, off_y)
                 for npc in npc_cars:
                     npc.draw(screen, off_x, off_y)
+                for driver in fleeing_drivers:
+                    driver.draw(screen, off_x, off_y)
+                for officer in hostile_officers:
+                    officer.draw(screen, off_x, off_y)
+                for projectile in projectiles:
+                    projectile.draw(screen, off_x, off_y)
                 if in_car:
                     return
 
@@ -626,7 +940,21 @@ def run(screen, settings, *, continue_game=True):
                 engine.draw_atom_character(
                     screen, screen_position.x, screen_position.y, atom_img, atom.angle
                 )
+                if weapons.selected in ("pistol", "shotgun"):
+                    engine.draw_handgun(
+                        screen,
+                        atom.pos,
+                        camera.screen_to_world(pygame.mouse.get_pos()),
+                        off_x,
+                        off_y,
+                    )
                 engine.draw_city_hints(screen, small_font, atom, car, t)
+                if nearby_traffic_car(atom.pos) is not None:
+                    steal_text = small_font.render(t["steal_hint"], True, (255, 210, 100))
+                    screen.blit(
+                        steal_text,
+                        (WIDTH // 2 - steal_text.get_width() // 2, HEIGHT - 155),
+                    )
                 if car.is_broken and atom.pos.distance_to(car.pos) < 100:
                     rendered = small_font.render(t["repair"], True, (255, 255, 255))
                     screen.blit(
@@ -659,6 +987,15 @@ def run(screen, settings, *, continue_game=True):
             def draw_city_ui():
                 if in_car:
                     car.draw_speedometer(screen)
+                engine.draw_player_status(
+                    screen,
+                    atom,
+                    weapons.ammo,
+                    weapons.reserve_ammo,
+                    wanted.level,
+                    t,
+                )
+                weapons.draw(screen, t)
                 engine.draw_gta_minimap(
                     screen,
                     original_nav_map,
@@ -685,6 +1022,9 @@ def run(screen, settings, *, continue_game=True):
                         ),
                         (20, 50),
                     )
+                else:
+                    hint = small_font.render(t["weapon_hint"], True, (255, 255, 255))
+                    screen.blit(hint, (20, HEIGHT - hint.get_height() - 20))
 
             frame_renderer.submit(engine.RenderLayer.BACKGROUND, draw_city_background)
             frame_renderer.submit(engine.RenderLayer.WORLD, draw_city_world)

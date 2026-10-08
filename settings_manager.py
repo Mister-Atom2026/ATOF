@@ -34,6 +34,7 @@ _STATISTICS_RECORD_KEYS = (
     "longest_drift_m",
     "distance_without_crash_m",
 )
+_HONOR_MIN, _HONOR_MAX = -100.0, 100.0
 
 
 def _bounded_int(value, default, minimum, maximum):
@@ -63,6 +64,8 @@ def _normalize_statistics(values: dict) -> dict[str, int | float | str]:
         "max_speed_kmh": 0.0,
         "longest_drift_m": 0.0,
         "distance_without_crash_m": 0.0,
+        "honor": 0.0,
+        "respect": 0.0,
     }
     if not isinstance(values, dict):
         return statistics
@@ -71,6 +74,12 @@ def _normalize_statistics(values: dict) -> dict[str, int | float | str]:
         statistics[key] = _bounded_int(values.get(key), 0, 0, 2**31 - 1)
     for key in _STATISTICS_RECORD_KEYS:
         statistics[key] = _finite_number(values.get(key))
+    statistics["honor"] = _finite_number(
+        values.get("honor"), minimum=_HONOR_MIN, maximum=_HONOR_MAX
+    )
+    statistics["respect"] = _finite_number(
+        values.get("respect"), minimum=_HONOR_MIN, maximum=_HONOR_MAX
+    )
     game_time = values.get("time")
     statistics["time"] = game_time if isinstance(game_time, str) else "00:00"
     return statistics
@@ -110,6 +119,16 @@ def load_game_save():
         "chapter_id": values.get("chapter_id")
         if isinstance(values.get("chapter_id"), str) and values.get("chapter_id")
         else "ch1",
+        "hero_health": _finite_number(values.get("hero_health"), default=100.0, maximum=100.0),
+        "ammo": _bounded_int(values.get("ammo"), 12, 0, 12),
+        "reserve_ammo": _bounded_int(values.get("reserve_ammo"), 48, 0, 240),
+        "weapon": values.get("weapon")
+        if values.get("weapon") in ("none", "pistol", "knife", "shotgun")
+        else "pistol",
+        "honor": _finite_number(values.get("honor"), minimum=_HONOR_MIN, maximum=_HONOR_MAX),
+        "respect": _finite_number(values.get("respect"), minimum=_HONOR_MIN, maximum=_HONOR_MAX),
+        "wanted_level": _bounded_int(values.get("wanted_level"), 0, 0, 5),
+        "wanted_escape_timer": _finite_number(values.get("wanted_escape_timer"), maximum=100_000.0),
         "game_state": values.get("game_state")
         if values.get("game_state") in ("CITY", "HOUSE")
         else "CITY",

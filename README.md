@@ -7,6 +7,12 @@ Game About Mister Atom
 - Adds an engine-owned chapter registry and a chapter picker that shows only each available chapter's number and title.
 - Starting a selected chapter begins a fresh run; continuing loads the saved chapter, with older saves defaulting to Chapter 1.
 
+## Version 0.7.0 Beta 1 — “Story Foundations”
+
+- Adds car theft with fleeing drivers, armed police response, a wanted level, and honor/respect consequences.
+- Adds player health, ammo, and a mouse-wheel weapon selector for unarmed, pistol, knife, and shotgun.
+- Moves weapon inventory, firing, projectile collision, health, wanted status, and reputation primitives into the engine.
+
 ## Version 0.7.0 Alpha 1 — “Story Foundations”
 
 - Adds engine-owned frame timing, camera transforms, scene lifecycle, and ordered render layers for reusable chapter runtime.

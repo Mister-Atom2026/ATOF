@@ -758,12 +758,258 @@ def _get_house_icon() -> Optional[pygame.Surface]:
     return _house_icon
 
 
+class WantedLevel:
+    def __init__(self, level: int = 0, escape_timer: float = 0):
+        self.level = max(0, min(5, int(level)))
+        self.escape_timer = max(0.0, float(escape_timer))
+
+    def raise_level(self, amount: int = 1) -> None:
+        self.level = min(5, self.level + max(1, int(amount)))
+        self.escape_timer = max(self.escape_timer, 1800.0 + self.level * 600.0)
+
+    def update(self, frame_scale: float, nearby_police: bool = False) -> None:
+        if self.level == 0 or nearby_police:
+            return
+        self.escape_timer = max(0.0, self.escape_timer - frame_scale)
+        if self.escape_timer == 0:
+            self.level -= 1
+            if self.level:
+                self.escape_timer = 1800.0 + self.level * 600.0
+
+    def clear(self) -> None:
+        self.level = 0
+        self.escape_timer = 0.0
+
+
+class HonorAndRespect:
+    def __init__(self, honor: float = 0, respect: float = 0):
+        self.honor = max(-100.0, min(100.0, float(honor)))
+        self.respect = max(-100.0, min(100.0, float(respect)))
+
+    def change(self, *, honor: float = 0, respect: float = 0) -> None:
+        self.honor = max(-100.0, min(100.0, self.honor + honor))
+        self.respect = max(-100.0, min(100.0, self.respect + respect))
+
+
+@dataclass
+class Projectile:
+    position: pygame.Vector2
+    velocity: pygame.Vector2
+    owner: str
+    damage: float = 18.0
+    remaining_range: float = 900.0
+    radius: int = 4
+
+    def update(self, frame_scale: float) -> bool:
+        displacement = self.velocity * frame_scale
+        distance = displacement.length()
+        if distance >= self.remaining_range:
+            if distance:
+                displacement.scale_to_length(self.remaining_range)
+            self.remaining_range = 0
+        else:
+            self.remaining_range -= distance
+        self.position += displacement
+        return self.remaining_range > 0
+
+    def draw(self, screen, offset_x: float, offset_y: float) -> None:
+        color = (255, 221, 125) if self.owner == "player" else (255, 80, 65)
+        pygame.draw.circle(
+            screen,
+            color,
+            (round(self.position.x + offset_x), round(self.position.y + offset_y)),
+            self.radius,
+        )
+
+
+def create_projectile(start, target, owner: str, *, speed: float, damage: float) -> Projectile | None:
+    direction = pygame.Vector2(target) - pygame.Vector2(start)
+    if direction.length_squared() == 0:
+        return None
+    return Projectile(
+        pygame.Vector2(start),
+        direction.normalize() * speed,
+        owner,
+        damage=damage,
+    )
+
+
+def projectile_hits_wall(start, end, collision_mask) -> bool:
+    start = pygame.Vector2(start)
+    end = pygame.Vector2(end)
+    segment = end - start
+    steps = max(1, math.ceil(segment.length() / 6))
+    width, height = collision_mask.get_size()
+    for index in range(1, steps + 1):
+        point = start + segment * (index / steps)
+        x, y = round(point.x), round(point.y)
+        if not (0 <= x < width and 0 <= y < height):
+            return True
+        pixel = collision_mask.get_at((x, y))
+        if pixel.r < 50 and pixel.g < 50 and pixel.b < 50:
+            return True
+    return False
+
+
+class WeaponWheel:
+    WEAPONS = ("none", "pistol", "knife", "shotgun")
+
+    def __init__(self, ammo: int = 12, reserve_ammo: int = 48, selected: str = "pistol"):
+        if selected not in self.WEAPONS:
+            raise ValueError(f"Unknown weapon: {selected}")
+        self.selected = selected
+        self.ammo = max(0, min(12, int(ammo)))
+        self.reserve_ammo = max(0, min(240, int(reserve_ammo)))
+        self.wheel_open = False
+
+    def process_event(self, event, screen_size) -> None:
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 2:
+            self.wheel_open = True
+            self._select_from_pointer(event.pos, screen_size)
+        elif event.type == pygame.MOUSEMOTION and self.wheel_open:
+            self._select_from_pointer(event.pos, screen_size)
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 2:
+            if self.wheel_open:
+                self._select_from_pointer(event.pos, screen_size)
+            self.wheel_open = False
+
+    def _select_from_pointer(self, pointer, screen_size) -> None:
+        center = pygame.Vector2(screen_size) / 2
+        direction = pygame.Vector2(pointer) - center
+        if direction.length_squared() < 30**2:
+            return
+        angle = math.degrees(math.atan2(direction.y, direction.x))
+        index = round((angle + 90) / 90) % len(self.WEAPONS)
+        self.selected = self.WEAPONS[index]
+
+    def reload(self) -> int:
+        transfer = min(12 - self.ammo, self.reserve_ammo)
+        self.ammo += transfer
+        self.reserve_ammo -= transfer
+        return transfer
+
+    def fire(self, origin, target) -> list[Projectile]:
+        if self.selected not in ("pistol", "shotgun") or self.ammo <= 0:
+            return []
+        self.ammo -= 1
+        pellet_count = 5 if self.selected == "shotgun" else 1
+        speed = 21.0 if self.selected == "shotgun" else 26.0
+        damage = 11.0 if self.selected == "shotgun" else 24.0
+        spread = (-12, -6, 0, 6, 12) if pellet_count > 1 else (0,)
+        projectiles = []
+        for angle in spread:
+            projectile = create_projectile(
+                origin,
+                target,
+                "player",
+                speed=speed,
+                damage=damage,
+            )
+            if projectile is not None:
+                projectile.velocity.rotate_ip(angle)
+                projectile.remaining_range = 500.0 if pellet_count > 1 else 900.0
+                projectiles.append(projectile)
+        return projectiles
+
+    def melee_target(self, origin, target, candidates, max_distance=70.0):
+        if self.selected != "knife":
+            return None
+        origin = pygame.Vector2(origin)
+        direction = pygame.Vector2(target) - origin
+        if direction.length_squared() == 0:
+            return None
+        direction.normalize_ip()
+        for candidate in candidates:
+            if not getattr(candidate, "is_alive", True):
+                continue
+            offset = pygame.Vector2(candidate.pos) - origin
+            if (
+                0 < offset.length_squared() <= max_distance**2
+                and direction.dot(offset.normalize()) > 0.35
+            ):
+                return candidate
+        return None
+
+    def draw(self, screen, labels) -> None:
+        if not self.wheel_open:
+            return
+        center = pygame.Vector2(screen.get_size()) / 2
+        pygame.draw.circle(screen, (12, 12, 18), center, 148)
+        pygame.draw.circle(screen, (180, 180, 190), center, 148, 2)
+        positions = (
+            center + pygame.Vector2(0, -88),
+            center + pygame.Vector2(88, 0),
+            center + pygame.Vector2(0, 88),
+            center + pygame.Vector2(-88, 0),
+        )
+        font = pygame.font.Font(None, 27)
+        for weapon, position in zip(self.WEAPONS, positions):
+            selected = weapon == self.selected
+            pygame.draw.circle(
+                screen,
+                (212, 91, 18) if selected else (58, 58, 68),
+                position,
+                48,
+            )
+            label = font.render(labels.get(weapon, weapon.title()), True, (255, 255, 255))
+            screen.blit(label, label.get_rect(center=position))
+
+
+class FleeingDriver:
+    def __init__(self, position, fleeing_from):
+        self.pos = pygame.Vector2(position)
+        direction = self.pos - pygame.Vector2(fleeing_from)
+        if direction.length_squared() == 0:
+            direction.update(1, 0)
+        self.direction = direction.normalize()
+        self.is_alive = True
+        self.lifetime = 1800.0
+
+    def update(self, col_mask, frame_scale: float) -> None:
+        self.lifetime -= frame_scale
+        if self.lifetime <= 0:
+            self.is_alive = False
+            return
+        candidate = self.pos + self.direction * 2.8 * frame_scale
+        x, y = round(candidate.x), round(candidate.y)
+        if (
+            0 <= x < col_mask.get_width()
+            and 0 <= y < col_mask.get_height()
+            and col_mask.get_at((x, y))[:3] != (0, 0, 0)
+        ):
+            self.pos = candidate
+        elif random.random() < 0.04:
+            self.direction.rotate_ip(random.choice((-90, 90)))
+
+    def draw(self, screen, offset_x: float, offset_y: float) -> None:
+        center = round(self.pos.x + offset_x), round(self.pos.y + offset_y)
+        pygame.draw.circle(screen, (40, 90, 220), center, 8)
+        pygame.draw.circle(screen, (238, 190, 150), center, 4)
+
+
+class HostileOfficer:
+    def __init__(self, position):
+        self.pos = pygame.Vector2(position)
+        self.fire_cooldown = 0.0
+        self.is_alive = True
+
+    def update(self, frame_scale: float) -> None:
+        self.fire_cooldown = max(0.0, self.fire_cooldown - frame_scale)
+
+    def draw(self, screen, offset_x: float, offset_y: float) -> None:
+        center = round(self.pos.x + offset_x), round(self.pos.y + offset_y)
+        pygame.draw.circle(screen, (35, 45, 80), center, 9)
+        pygame.draw.circle(screen, (220, 175, 135), center, 4)
+
+
 class Player:
     def __init__(self, x, y):
         self.pos = pygame.Vector2(x, y)
         self.speed = 2
         self.angle = 0  # 0 degrees points south (down) by default.
         self.is_moving = False
+        self.health = 100.0
+        self.max_health = 100.0
 
         self.original_image: Optional[pygame.Surface] = None
         self.image: Optional[pygame.Surface] = None
@@ -773,6 +1019,9 @@ class Player:
             self.image = self.original_image
         except (pygame.error, OSError) as exc:
             print(f"Не вдалося завантажити characters/atom.png: {exc}")
+
+    def take_damage(self, amount: float) -> None:
+        self.health = max(0.0, self.health - max(0.0, amount))
 
     def update(self, keys, col_mask, car_obj=None, npc_cars=None, frame_scale=1.0):
         move = pygame.Vector2(0, 0)
@@ -830,6 +1079,8 @@ class Player:
             # 2. Check for traffic collisions.
             if can_move and npc_cars:
                     for npc in npc_cars:
+                        if not getattr(npc, "is_alive", True):
+                            continue
                         dist = new_pos.distance_to(npc.pos)
                         if dist < 45:  # Traffic collision radius; stop Atom when he gets closer.
                             can_move = False
@@ -992,6 +1243,7 @@ class Car:
         self.angle = 0
         self.speed: float = 0.0
         self.vehicle_class = "sport"
+        self.is_police = False
         self.handling = 0.82
         self.max_speed = 16.25
         self.accel = 0.09
@@ -1156,6 +1408,8 @@ class Car:
         def check_at_pos(test_pos):
             if npc_cars:
                 for npc in npc_cars:
+                    if not getattr(npc, "is_alive", True):
+                        continue
                     # Check nearby traffic around the player’s car.
                     if test_pos.distance_to(npc.pos) < 95:  # Detection distance.
                         if _sprites_overlap(
@@ -1379,6 +1633,60 @@ def draw_atom_character(ctx, x, y, atom_tex, angle):
     ctx.blit(rotated_atom, rect)
 
 
+def draw_handgun(screen, player_position, target_position, offset_x, offset_y):
+    start = pygame.Vector2(player_position) + pygame.Vector2(offset_x, offset_y)
+    direction = pygame.Vector2(target_position) - pygame.Vector2(player_position)
+    if direction.length_squared() == 0:
+        return
+    direction = direction.normalize()
+    side = pygame.Vector2(-direction.y, direction.x)
+    grip = start + direction * 7
+    barrel = start + direction * 21
+    points = (
+        grip + side * 3,
+        grip - side * 3,
+        barrel - side * 2,
+        barrel + side * 2,
+    )
+    pygame.draw.polygon(screen, (40, 40, 45), points)
+    pygame.draw.line(
+        screen,
+        (20, 20, 24),
+        (round(barrel.x), round(barrel.y)),
+        (round((barrel + direction * 5).x), round((barrel + direction * 5).y)),
+        2,
+    )
+
+
+def draw_player_status(screen, player, ammo, reserve_ammo, wanted_level, labels):
+    """Draw on-foot health, ammunition, and wanted status."""
+    width = 230
+    pygame.draw.rect(screen, (12, 12, 16), (18, 18, width, 116), border_radius=8)
+    pygame.draw.rect(screen, (55, 55, 55), (30, 32, 190, 14), border_radius=4)
+    health_ratio = max(0.0, min(1.0, player.health / player.max_health))
+    health_color = (int(220 * (1 - health_ratio)), int(210 * health_ratio), 20)
+    pygame.draw.rect(
+        screen,
+        health_color,
+        (30, 32, round(190 * health_ratio), 14),
+        border_radius=4,
+    )
+    small_font = pygame.font.Font(None, 24)
+    health_text = labels.get("player_hp", "HP: {current}/{maximum}").format(
+        current=round(player.health),
+        maximum=round(player.max_health),
+    )
+    screen.blit(small_font.render(health_text, True, (255, 255, 255)), (30, 50))
+    ammo_text = labels.get("ammo", "Ammo: {current}/{reserve}").format(
+        current=ammo,
+        reserve=reserve_ammo,
+    )
+    screen.blit(small_font.render(ammo_text, True, (255, 255, 255)), (30, 72))
+    stars = "* " * wanted_level + "- " * (5 - wanted_level)
+    wanted_text = labels.get("wanted", "Wanted: {stars}").format(stars=stars)
+    screen.blit(small_font.render(wanted_text, True, (255, 190, 90)), (30, 91))
+
+
 def _format_gps_distance(distance: float) -> str:
     if distance >= 999.5:
         return f"{distance / 1000:.1f} km"
@@ -1553,6 +1861,12 @@ def stats_dialog(screen, font, small_font, t, stats=None, controls=None):
             t.get("stats_no_crash", "Longest drive without a crash: {value} m").format(
                 value=round(stats.get("distance_without_crash_m", 0))
             ),
+            t.get("stats_honor", "Honor: {value}").format(
+                value=round(stats.get("honor", 0))
+            ),
+            t.get("stats_respect", "Respect: {value}").format(
+                value=round(stats.get("respect", 0))
+            ),
         ]
         line_step = min(48, max(32, (height - 300) // len(lines)))
         for index, line in enumerate(lines):
@@ -1604,9 +1918,6 @@ def stats_dialog(screen, font, small_font, t, stats=None, controls=None):
 
 def selection_menu(screen, title, options, font, small_font, back_label, settings):
     """Show a keyboard- and mouse-navigable list; return an option index or status."""
-    if not options:
-        raise ValueError("A selection menu requires at least one option")
-
     pygame.mouse.set_visible(True)
     clock = pygame.time.Clock()
     selected_index = 0

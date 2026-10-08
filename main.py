@@ -5,7 +5,7 @@ import pygame
 
 from settings_manager import load_settings, load_statistics, save_settings
 
-VERSION = "0.7.0-alpha.2"
+VERSION = "0.7.0-beta.1"
 RELEASE_NAME = "Driver Inferno"
 APP_SETTINGS = load_settings()
 
@@ -78,7 +78,6 @@ except (pygame.error, OSError):
 translations = {
     "English": {
         "play": "Play",
-        "continue_story": "Continue Story",
         "choose_chapter": "Choose Chapter",
         "chapter_selection": "Choose Chapter",
         "settings": "Settings",
@@ -96,6 +95,10 @@ translations = {
         "stats_earned": "Total earned: {amount} UAH",
         "stats_spent": "Total spent: {amount} UAH",
         "stats_hint": "Press Esc or Enter to return",
+        "load_save": "Load Save",
+        "no_save": "No saved game was found",
+        "stats_honor": "Honor: {value}",
+        "stats_respect": "Respect: {value}",
         "menu": "To Menu",
         "music_vol": "Music Volume",
         "npc_vol": "NPC Volume",
@@ -113,7 +116,6 @@ translations = {
     },
     "Українська": {
         "play": "Грати",
-        "continue_story": "Продовжити сюжет",
         "choose_chapter": "Вибрати главу",
         "chapter_selection": "Вибір глави",
         "settings": "Налаштування",
@@ -131,6 +133,10 @@ translations = {
         "stats_earned": "Всього зароблено: {amount} UAH",
         "stats_spent": "Всього витрачено: {amount} UAH",
         "stats_hint": "Натисніть Esc або Enter, щоб повернутися",
+        "load_save": "Завантажити збереження",
+        "no_save": "Збереження не знайдено",
+        "stats_honor": "Честь: {value}",
+        "stats_respect": "Повага: {value}",
         "menu": "В меню",
         "music_vol": "Гучність музики",
         "npc_vol": "Гучність НПС",
@@ -148,7 +154,6 @@ translations = {
     },
     "Русский": {
         "play": "Играть",
-        "continue_story": "Продолжить сюжет",
         "choose_chapter": "Выбрать главу",
         "chapter_selection": "Выбор главы",
         "settings": "Настройки",
@@ -166,6 +171,10 @@ translations = {
         "stats_earned": "Всего заработано: {amount} UAH",
         "stats_spent": "Всего потрачено: {amount} UAH",
         "stats_hint": "Нажмите Esc или Enter, чтобы вернуться",
+        "load_save": "Загрузить сохранение",
+        "no_save": "Сохранение не найдено",
+        "stats_honor": "Честь: {value}",
+        "stats_respect": "Уважение: {value}",
         "menu": "В меню",
         "music_vol": "Громкость музыки",
         "npc_vol": "Громкость НПС",
@@ -183,7 +192,6 @@ translations = {
     },
     "Español": {
         "play": "Jugar",
-        "continue_story": "Continuar historia",
         "choose_chapter": "Elegir capítulo",
         "chapter_selection": "Elegir capítulo",
         "settings": "Ajustes",
@@ -201,6 +209,10 @@ translations = {
         "stats_earned": "Total ganado: {amount} UAH",
         "stats_spent": "Total gastado: {amount} UAH",
         "stats_hint": "Pulsa Esc o Enter para volver",
+        "load_save": "Cargar partida",
+        "no_save": "No se encontró ninguna partida guardada",
+        "stats_honor": "Honor: {value}",
+        "stats_respect": "Respeto: {value}",
         "menu": "Volver al menú",
         "music_vol": "Volumen de la música",
         "npc_vol": "Volumen de los NPC",
@@ -218,7 +230,6 @@ translations = {
     },
     "Deutsch": {
         "play": "Spielen",
-        "continue_story": "Geschichte fortsetzen",
         "choose_chapter": "Kapitel auswählen",
         "chapter_selection": "Kapitel auswählen",
         "settings": "Einstellungen",
@@ -236,6 +247,10 @@ translations = {
         "stats_earned": "Insgesamt verdient: {amount} UAH",
         "stats_spent": "Insgesamt ausgegeben: {amount} UAH",
         "stats_hint": "Esc oder Enter drücken, um zurückzukehren",
+        "load_save": "Spielstand laden",
+        "no_save": "Kein Spielstand gefunden",
+        "stats_honor": "Ehre: {value}",
+        "stats_respect": "Ansehen: {value}",
         "menu": "Zum Hauptmenü",
         "music_vol": "Musiklautstärke",
         "npc_vol": "NPC-Lautstärke",
@@ -253,7 +268,6 @@ translations = {
     },
     "Français": {
         "play": "Jouer",
-        "continue_story": "Continuer l’histoire",
         "choose_chapter": "Choisir un chapitre",
         "chapter_selection": "Choisir un chapitre",
         "settings": "Paramètres",
@@ -271,6 +285,10 @@ translations = {
         "stats_earned": "Total gagné : {amount} UAH",
         "stats_spent": "Total dépensé : {amount} UAH",
         "stats_hint": "Appuyez sur Échap ou Entrée pour revenir",
+        "load_save": "Charger la sauvegarde",
+        "no_save": "Aucune sauvegarde trouvée",
+        "stats_honor": "Honneur : {value}",
+        "stats_respect": "Respect : {value}",
         "menu": "Menu principal",
         "music_vol": "Volume de la musique",
         "npc_vol": "Volume des PNJ",
@@ -428,7 +446,7 @@ def start_play_flow():
     while True:
         choice = show_selection_menu(
             text["play"],
-            [text["continue_story"], text["choose_chapter"]],
+            [text["load_save"], text["choose_chapter"]],
             text["back"],
         )
         if choice == "EXIT":
@@ -437,16 +455,23 @@ def start_play_flow():
             return True
         if choice == 0:
             game_save = engine.load_game_save()
-            saved_chapter_id = game_save.get("chapter_id") if game_save else None
+            if game_save is None:
+                if show_selection_menu(text["no_save"], [], text["back"]) == "EXIT":
+                    return False
+                continue
             chapter = next(
                 (
                     available
                     for available in chapters
-                    if available.chapter_id == saved_chapter_id
+                    if available.chapter_id == game_save["chapter_id"]
                 ),
-                chapters[0],
+                None,
             )
-            return launch_chapter(chapter, continue_story=game_save is not None)
+            if chapter is None:
+                if show_selection_menu(text["no_save"], [], text["back"]) == "EXIT":
+                    return False
+                continue
+            return launch_chapter(chapter, continue_story=True)
 
         chapter_labels = [
             f"{chapter.number}. {chapter.title}"
