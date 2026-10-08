@@ -1,6 +1,12 @@
 # ATOF
 Game About Mister Atom
 
+## Version 0.7.0 Alpha 1 — “Driver Inferno”
+
+- Adds engine-owned frame timing, camera transforms, scene lifecycle, and ordered render layers for reusable chapter runtime.
+- Centralizes shared image caching, chapter resource preparation, navigation, and house-player behavior behind the engine API.
+- Keeps chapter-one world content and existing save-state identifiers intact while preparing the runtime for future story chapters.
+
 ## Version 0.6.2 Release — “Driver Inferno”
 
 - Removes automatic night headlights; headlights now turn on only when manually toggled with **H** while driving.

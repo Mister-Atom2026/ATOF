@@ -2,17 +2,6 @@ import os
 import time
 import pygame
 import engine
-from engine import Car, KeyboardState, Player
-from house import HousePlayer
-from navigator import GPS
-from settings_manager import (
-    load_game_save,
-    load_statistics,
-    save_game_save,
-    save_settings,
-    save_statistics,
-)
-import traffic  # Import the traffic module.
 from constants import *
 
 os.environ['SDL_VIDEO_CENTERED'] = '1'
@@ -21,12 +10,16 @@ def run(screen, settings):
     traffic_timer = 0
     traffic_state = "RED"  # RED pauses route N; GREEN pauses route A1.
     frame_count = 0
-    keyboard = KeyboardState()
+    keyboard = engine.KeyboardState()
     # Spawn the configured traffic and police at game start.
-    npc_cars = traffic.init_traffic(11)
+    npc_cars = engine.traffic.init_traffic(11)
     map_scale = 4.0
     current_world_width = int(WORLD_WIDTH * map_scale)
     current_world_height = int(WORLD_HEIGHT * map_scale)
+    camera = engine.Camera2D(
+        screen.get_size(),
+        (current_world_width, current_world_height),
+    )
     resources = engine.load_chapter_resources(
         screen.get_size(),
         (current_world_width, current_world_height),
@@ -37,7 +30,7 @@ def run(screen, settings):
     game_audio = resources.audio
     phone_click_sfx = game_audio.phone_click
     current_app = 0  # 0 is the phone menu; 1–9 are apps.
-    game_save = load_game_save()
+    game_save = engine.load_game_save()
     money = game_save["money"] if game_save else 100
     total_earned = game_save["earned"] if game_save else 0
     total_spent = game_save["spent"] if game_save else 0
@@ -55,7 +48,7 @@ def run(screen, settings):
 
     def apply_audio_settings():
         engine.configure_game_audio(settings, game_audio)
-        traffic.configure_audio(settings)
+        engine.traffic.configure_audio(settings)
 
     apply_audio_settings()
 
@@ -64,7 +57,9 @@ def run(screen, settings):
     foot_chan = game_audio.footstep_channel
     horn_chan = game_audio.horn_channel
     clock = pygame.time.Clock()
-    languages = ["English", "Українська", "Русский", "Español", "Deutsch", "Français"]
+    frame_clock = engine.FrameClock()
+    frame_renderer = engine.LayeredRenderer()
+    languages = engine.SUPPORTED_LANGUAGES
 
     assets = resources.assets
     atom_img = assets.atom
@@ -78,11 +73,14 @@ def run(screen, settings):
 
     show_debug = False
     game_state = game_save["game_state"] if game_save else "HOUSE"
+    scene_manager = engine.SceneManager(game_state)
+    scene_manager.register("CITY")
+    scene_manager.register("HOUSE")
     in_car = False
 
     # GAME OBJECTS
-    atom = Player(7738, 2330)
-    car = Car(7985, 2383)
+    atom = engine.Player(7738, 2330)
+    car = engine.Car(7985, 2383)
     car.angle = 270
     if game_save:
         atom.pos.update(game_save["player"]["x"], game_save["player"]["y"])
@@ -93,7 +91,7 @@ def run(screen, settings):
         car.motion_velocity = pygame.Vector2(car.speed, 0).rotate(-car.angle + 180)
         car.health = min(game_save["car"]["health"], car.max_health)
         car.is_broken = game_save["car"]["is_broken"]
-    atom_h = HousePlayer(162, 161)
+    atom_h = engine.HousePlayer(162, 161)
     atom_h.pos.update(engine.HOUSE_SLEEP_SPOT)
     if game_save and game_save["game_state"] == "HOUSE":
         atom_h.pos.update(
@@ -101,10 +99,10 @@ def run(screen, settings):
             game_save["house_player"]["y"],
         )
         atom_h.angle = game_save["house_player"]["angle"]
-    gps = GPS()
+    gps = engine.GPS()
     if game_save:
         collected_treasures.update(game_save["collected_treasures"])
-    personal_records = load_statistics()
+    personal_records = engine.load_statistics()
     distance_since_crash = game_save["distance_streak"] if game_save else 0.0
     current_drift_distance = game_save["drift_streak"] if game_save else 0.0
     sleep_requested = False
@@ -300,7 +298,7 @@ def run(screen, settings):
         translations[language].update(labels)
 
     def save_last_session_stats():
-        save_statistics({
+        engine.save_statistics({
             "money": money,
             "earned": total_earned,
             "spent": total_spent,
@@ -312,7 +310,7 @@ def run(screen, settings):
         })
 
     def save_sleep_game():
-        save_game_save({
+        engine.save_game_save({
             "game_state": game_state,
             "player": {
                 "x": atom.pos.x,
@@ -343,13 +341,9 @@ def run(screen, settings):
         save_last_session_stats()
 
     running = True
-    last_frame_time = time.perf_counter()
+    frame_clock.reset()
     while running:
-        clock.tick(FPS)
-        now = time.perf_counter()
-        frame_scale = (now - last_frame_time) * 60
-        last_frame_time = now
-        frame_scale = max(0.05, min(frame_scale, 3.0))
+        frame_scale = frame_clock.tick(clock, FPS)
         target = car if in_car else atom
         off_x = off_y = 0
         traffic_timer += frame_scale / 60
@@ -368,7 +362,7 @@ def run(screen, settings):
 
         frame_count += frame_scale
         if frame_count >= 60:
-            traffic.analyze_traffic_jams(npc_cars)
+            engine.traffic.analyze_traffic_jams(npc_cars)
             frame_count %= 60
 
         # 1. Process events.
@@ -376,10 +370,11 @@ def run(screen, settings):
             keyboard.process_event(event)
             if event.type == pygame.VIDEORESIZE:
                 screen = engine.apply_window_resize(event.size, settings)
+                camera.resize(screen.get_size())
                 full_map_img = pygame.transform.scale(original_nav_map, (WIDTH, HEIGHT))
                 night_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
                 wake_overlay = pygame.Surface(screen.get_size())
-                save_settings(settings)
+                engine.save_settings(settings)
             if event.type == pygame.QUIT:
                 save_last_session_stats()
                 return "EXIT"
@@ -446,15 +441,16 @@ def run(screen, settings):
                                 "distance_without_crash_m"
                             ],
                         },
-                        on_change=save_settings,
+                        on_change=engine.save_settings,
                     )
                     apply_audio_settings()
                     if res == "VIDEO_CHANGED":
                         screen = engine.apply_video_settings(settings)
+                        camera.resize(screen.get_size())
                         full_map_img = pygame.transform.scale(original_nav_map, (WIDTH, HEIGHT))
                         night_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
                     clock.tick(0)
-                    last_frame_time = time.perf_counter()
+                    frame_clock.reset()
                     if res in ["MENU", "EXIT"]:
                         radio.stop()
                         save_last_session_stats()
@@ -477,7 +473,7 @@ def run(screen, settings):
                         manual_headlights = not manual_headlights
                     if keyboard.matches(event, pygame.K_e):
                         engine.play_car_horn(car_sfx, horn_chan)
-                        traffic.respond_to_horn(npc_cars, car.pos)
+                        engine.traffic.respond_to_horn(npc_cars, car.pos)
                     if keyboard.matches(event, pygame.K_v):
                         radio.toggle()
                     if keyboard.matches(event, pygame.K_COMMA):
@@ -496,11 +492,13 @@ def run(screen, settings):
                         elif keyboard.matches(event, pygame.K_e) and engine.check_house_exit(
                             atom_h, house_info
                         ):
-                            game_state = "CITY"
+                            scene_manager.transition("CITY")
+                            game_state = scene_manager.current
                             atom.pos = pygame.Vector2(7731, 2326)
                     elif keyboard.matches(event, pygame.K_e) and not in_car:
                         if atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
-                            game_state = "HOUSE"
+                            scene_manager.transition("HOUSE")
+                            game_state = scene_manager.current
                             atom_h.pos = pygame.Vector2(engine.HOUSE_SLEEP_SPOT)
 
         radio.update()
@@ -588,14 +586,7 @@ def run(screen, settings):
 
             engine.handle_surface_footsteps(keys, in_car, game_state, atom.pos, col_mask, step_sounds, foot_chan)
             engine.handle_car_audio(car, in_car, car_sfx, engine_chan, crash_chan)
-            off_x = max(
-                -(current_world_width - WIDTH),
-                min(0, WIDTH // 2 - target.pos.x),
-            )
-            off_y = max(
-                -(current_world_height - HEIGHT),
-                min(0, HEIGHT // 2 - target.pos.y),
-            )
+            off_x, off_y = camera.follow(target.pos)
         else:
             atom_h.update(keys, house_collision, frame_scale)
             if "nightstand" not in collected_treasures:
@@ -613,81 +604,108 @@ def run(screen, settings):
                     collected_treasures.add("sofa")
             engine.handle_surface_footsteps(keys, in_car, game_state, atom_h.pos, None, step_sounds, foot_chan)
 
-        # 3. Draw the scene.
+        # 3. Build and render explicit engine-owned scene layers.
+        frame_renderer.begin_frame()
         if game_state == "CITY":
-            screen.fill((30, 30, 30))
-            screen.blit(world_bg, (off_x, off_y))
-
-            # 1. Draw the player’s car and its smoke.
             headlights_on = in_car and manual_headlights
-            car.draw(
-                screen,
-                off_x,
-                off_y,
-            )
-            engine.draw_car_smoke(screen, car, off_x, off_y)
 
-            # 2. Draw traffic and police.
-            for npc in npc_cars:
-                npc.draw(screen, off_x, off_y)
+            def draw_city_background():
+                screen.fill((30, 30, 30))
+                screen.blit(world_bg, (off_x, off_y))
 
-            # 3. Draw the player on top when on foot.
-            if not in_car:
-                engine.draw_atom_character(screen, atom.pos.x + off_x, atom.pos.y + off_y, atom_img, atom.angle)
+            def draw_city_world():
+                car.draw(screen, off_x, off_y)
+                engine.draw_car_smoke(screen, car, off_x, off_y)
+                for npc in npc_cars:
+                    npc.draw(screen, off_x, off_y)
+                if in_car:
+                    return
+
+                screen_position = camera.world_to_screen(atom.pos)
+                engine.draw_atom_character(
+                    screen, screen_position.x, screen_position.y, atom_img, atom.angle
+                )
                 engine.draw_city_hints(screen, small_font, atom, car, t)
-
-                # Repair prompt.
                 if car.is_broken and atom.pos.distance_to(car.pos) < 100:
-                    r_text = t["repair"]
-                    txt_surf = small_font.render(r_text, True, (255, 255, 255))
-                    screen.blit(txt_surf, (WIDTH // 2 - txt_surf.get_width() // 2, HEIGHT // 2 + 100))
-
+                    rendered = small_font.render(t["repair"], True, (255, 255, 255))
+                    screen.blit(
+                        rendered,
+                        (WIDTH // 2 - rendered.get_width() // 2, HEIGHT // 2 + 100),
+                    )
                     if car.repair_progress > 0:
-                        pygame.draw.rect(screen, (0, 0, 0), (WIDTH // 2 - 100, HEIGHT // 2 + 140, 200, 15))
-                        w = int(200 * (car.repair_progress / 180))
-                        pygame.draw.rect(screen, (0, 120, 255), (WIDTH // 2 - 100, HEIGHT // 2 + 140, w, 15))
-                        pygame.draw.rect(screen, (255, 255, 255), (WIDTH // 2 - 100, HEIGHT // 2 + 140, 200, 15), 2)
+                        pygame.draw.rect(
+                            screen, (0, 0, 0),
+                            (WIDTH // 2 - 100, HEIGHT // 2 + 140, 200, 15),
+                        )
+                        progress_width = int(200 * (car.repair_progress / 180))
+                        pygame.draw.rect(
+                            screen, (0, 120, 255),
+                            (WIDTH // 2 - 100, HEIGHT // 2 + 140, progress_width, 15),
+                        )
+                        pygame.draw.rect(
+                            screen, (255, 255, 255),
+                            (WIDTH // 2 - 100, HEIGHT // 2 + 140, 200, 15), 2,
+                        )
 
-            ambient = engine.get_ambient_color(game_time)
-            if ambient[3] > 0:
-                night_overlay.fill(ambient)
-                screen.blit(night_overlay, (0, 0))
-            if headlights_on:
-                car.draw_headlights(screen, off_x, off_y, col_mask)
+            def draw_city_lighting():
+                ambient = engine.get_ambient_color(game_time)
+                if ambient[3] > 0:
+                    night_overlay.fill(ambient)
+                    screen.blit(night_overlay, (0, 0))
+                if headlights_on:
+                    car.draw_headlights(screen, off_x, off_y, col_mask)
 
-            if in_car:
-                car.draw_speedometer(screen)
-            engine.draw_gta_minimap(
-                screen, original_nav_map, target,
-                current_world_width, current_world_height,
-                gps=gps, labels=t,
-            )
-            if in_car:
-                if not radio.is_on:
-                    radio_label = t["radio_off"]
-                elif radio.is_playing:
-                    radio_label = t["radio_on"]
-                else:
-                    radio_label = t["radio_paused"]
-                screen.blit(
-                    small_font.render(
-                        radio_label.format(
-                            station=radio.station_name,
-                            track=radio.track_name,
+            def draw_city_ui():
+                if in_car:
+                    car.draw_speedometer(screen)
+                engine.draw_gta_minimap(
+                    screen,
+                    original_nav_map,
+                    target,
+                    current_world_width,
+                    current_world_height,
+                    gps=gps,
+                    labels=t,
+                )
+                if in_car:
+                    radio_label = (
+                        t["radio_off"]
+                        if not radio.is_on
+                        else t["radio_on"] if radio.is_playing else t["radio_paused"]
+                    )
+                    screen.blit(
+                        small_font.render(
+                            radio_label.format(
+                                station=radio.station_name,
+                                track=radio.track_name,
+                            ),
+                            True,
+                            (255, 255, 255),
                         ),
-                        True,
-                        (255, 255, 255),
-                    ),
-                    (20, 50),
-                )
+                        (20, 50),
+                    )
+
+            frame_renderer.submit(engine.RenderLayer.BACKGROUND, draw_city_background)
+            frame_renderer.submit(engine.RenderLayer.WORLD, draw_city_world)
+            frame_renderer.submit(engine.RenderLayer.LIGHTING, draw_city_lighting)
+            frame_renderer.submit(engine.RenderLayer.UI, draw_city_ui)
         else:
-            engine.draw_house_scene(screen, house_visual, house_info, atom_h, small_font, t)
-            if engine.is_at_sleep_spot(game_state, atom_h.pos):
-                sleep_text = small_font.render(t["sleep_save"], True, (255, 255, 255))
-                screen.blit(
-                    sleep_text,
-                    sleep_text.get_rect(center=(WIDTH // 2, HEIGHT - 80)),
+            def draw_house_background():
+                engine.draw_house_scene(
+                    screen, house_visual, house_info, atom_h, small_font, t
                 )
+
+            def draw_house_ui():
+                if engine.is_at_sleep_spot(game_state, atom_h.pos):
+                    sleep_text = small_font.render(t["sleep_save"], True, (255, 255, 255))
+                    screen.blit(
+                        sleep_text,
+                        sleep_text.get_rect(center=(WIDTH // 2, HEIGHT - 80)),
+                    )
+
+            frame_renderer.submit(engine.RenderLayer.BACKGROUND, draw_house_background)
+            frame_renderer.submit(engine.RenderLayer.UI, draw_house_ui)
+        frame_renderer.render()
 
         # In-game clock.
         h, m = int(game_time / 60), int(game_time % 60)

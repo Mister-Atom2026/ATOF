@@ -1,19 +1,36 @@
 import json
 import math
 import random
+import time
 from dataclasses import dataclass
+from enum import IntEnum
 from pathlib import Path
 import sys
-from typing import Mapping, Optional
+from typing import Callable, Mapping, Optional
 
 import pygame
 
 import constants as _constants
-from navigator import GPS
+from settings_manager import (
+    load_game_save,
+    load_statistics,
+    save_game_save,
+    save_settings,
+    save_statistics,
+)
+import traffic
 
 WIDTH = _constants.WIDTH
 HEIGHT = _constants.HEIGHT
 FPS = _constants.FPS
+SUPPORTED_LANGUAGES = (
+    "English",
+    "Українська",
+    "Русский",
+    "Español",
+    "Deutsch",
+    "Français",
+)
 
 _menu_sounds: dict[str, Optional[pygame.mixer.Sound]] = {}
 _house_icon: Optional[pygame.Surface] = None
@@ -30,6 +47,115 @@ _MENU_SOUND_LEVELS = {"hover": 0.22, "click": 0.38}
 _ASSET_ROOT = Path(__file__).resolve().parent
 HOUSE_SLEEP_SPOT = (147, 156)
 _HOUSE_SLEEP_RADIUS = 24
+_image_cache: dict[tuple[Path, bool], pygame.Surface] = {}
+
+
+def load_image(relative_path: str, *, alpha: bool = False) -> pygame.Surface:
+    path = (_ASSET_ROOT / relative_path).resolve()
+    key = (path, alpha)
+    if key not in _image_cache:
+        image = pygame.image.load(str(path))
+        _image_cache[key] = image.convert_alpha() if alpha else image.convert()
+    return _image_cache[key]
+
+
+class FrameClock:
+    """Provide a bounded, frame-rate-independent simulation step."""
+
+    def __init__(self):
+        self._last_frame_time = time.perf_counter()
+
+    def tick(self, clock: pygame.time.Clock, fps: int) -> float:
+        clock.tick(fps)
+        now = time.perf_counter()
+        frame_scale = (now - self._last_frame_time) * 60
+        self._last_frame_time = now
+        return max(0.05, min(frame_scale, 3.0))
+
+    def reset(self) -> None:
+        self._last_frame_time = time.perf_counter()
+
+
+class Camera2D:
+    """Clamp a world-follow camera and convert between world and screen points."""
+
+    def __init__(self, viewport_size: tuple[int, int], world_size: tuple[int, int]):
+        self.viewport_size = pygame.Vector2(viewport_size)
+        self.world_size = pygame.Vector2(world_size)
+        self.offset = pygame.Vector2()
+
+    def resize(self, viewport_size: tuple[int, int]) -> None:
+        self.viewport_size.update(viewport_size)
+
+    def follow(self, world_position) -> tuple[float, float]:
+        position = pygame.Vector2(world_position)
+        self.offset.update(
+            max(-(self.world_size.x - self.viewport_size.x),
+                min(0, self.viewport_size.x / 2 - position.x)),
+            max(-(self.world_size.y - self.viewport_size.y),
+                min(0, self.viewport_size.y / 2 - position.y)),
+        )
+        return self.offset.x, self.offset.y
+
+    def world_to_screen(self, world_position) -> pygame.Vector2:
+        return pygame.Vector2(world_position) + self.offset
+
+    def screen_to_world(self, screen_position) -> pygame.Vector2:
+        return pygame.Vector2(screen_position) - self.offset
+
+
+class SceneManager:
+    """Own the active scene identifier and its registered lifecycle hooks."""
+
+    def __init__(self, initial_scene: str):
+        self.current = initial_scene
+        self.previous: Optional[str] = None
+        self._hooks: dict[str, tuple[Optional[Callable], Optional[Callable]]] = {}
+
+    def register(self, scene: str, *, on_enter=None, on_exit=None) -> None:
+        self._hooks[scene] = (on_enter, on_exit)
+
+    def transition(self, scene: str, context=None) -> bool:
+        if scene == self.current:
+            return False
+        if scene not in self._hooks:
+            raise KeyError(f"Unregistered scene: {scene}")
+        previous = self.current
+        _enter, on_exit = self._hooks.get(previous, (None, None))
+        on_enter, _exit = self._hooks[scene]
+        if on_exit is not None:
+            on_exit(scene, context)
+        self.previous, self.current = previous, scene
+        if on_enter is not None:
+            on_enter(previous, context)
+        return True
+
+
+class RenderLayer(IntEnum):
+    BACKGROUND = 0
+    WORLD = 10
+    LIGHTING = 20
+    UI = 30
+
+
+class LayeredRenderer:
+    """Execute frame draw callbacks in a stable, explicit layer order."""
+
+    def __init__(self):
+        self._commands: list[tuple[RenderLayer, int, Callable[[], None]]] = []
+        self._sequence = 0
+
+    def begin_frame(self) -> None:
+        self._commands.clear()
+        self._sequence = 0
+
+    def submit(self, layer: RenderLayer, draw: Callable[[], None]) -> None:
+        self._commands.append((layer, self._sequence, draw))
+        self._sequence += 1
+
+    def render(self) -> None:
+        for _layer, _sequence, draw in sorted(self._commands):
+            draw()
 
 
 PHYSICAL_SCANCODES = {
@@ -88,6 +214,88 @@ class KeyboardState:
         return scancode is not None and getattr(event, "scancode", None) == scancode
 
 
+class GPS:
+    def __init__(self) -> None:
+        self.destination: tuple[float, float] | None = None
+
+    @staticmethod
+    def get_dist(
+        first: tuple[float, float],
+        second: tuple[float, float],
+    ) -> float:
+        return math.hypot(first[0] - second[0], first[1] - second[1])
+
+    def set_destination(self, target_pos: tuple[float, float]) -> None:
+        self.destination = (float(target_pos[0]), float(target_pos[1]))
+
+    def clear_destination(self) -> None:
+        self.destination = None
+
+    def distance_to(self, position: tuple[float, float]) -> float | None:
+        if self.destination is None:
+            return None
+        return self.get_dist(position, self.destination)
+
+
+class HousePlayer:
+    def __init__(self, x, y):
+        self.pos = pygame.Vector2(x, y)
+        self.speed = 4
+        self.angle = 0
+        self.image = None
+        try:
+            raw = load_image("characters/atom.png", alpha=True)
+            self.image = pygame.transform.scale(raw, (48, 48))
+        except (pygame.error, OSError) as exc:
+            print(f"Помилка завантаження characters/atom.png для хати: {exc}")
+
+    def update(self, keys, col_mask, frame_scale=1.0):
+        move = pygame.Vector2(0, 0)
+        if keys[pygame.K_w] or keys[pygame.K_UP]:
+            move.y = -1
+        if keys[pygame.K_s] or keys[pygame.K_DOWN]:
+            move.y = 1
+        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+            move.x = -1
+        if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+            move.x = 1
+        if move.length() == 0:
+            return
+
+        move = move.normalize() * self.speed * frame_scale
+        new_pos = self.pos + move
+        x, y = int(new_pos.x), int(new_pos.y)
+        if 0 <= x < col_mask.get_width() and 0 <= y < col_mask.get_height():
+            if col_mask.get_at((x, y))[:3] != (0, 0, 0):
+                self.pos = new_pos
+
+        if move.x > 0 and move.y == 0:
+            self.angle = -90
+        elif move.x < 0 and move.y == 0:
+            self.angle = 90
+        elif move.y > 0 and move.x == 0:
+            self.angle = 0
+        elif move.y < 0 and move.x == 0:
+            self.angle = 180
+        elif move.x > 0 and move.y > 0:
+            self.angle = -45
+        elif move.x < 0 < move.y:
+            self.angle = 45
+        elif move.x > 0 > move.y:
+            self.angle = -135
+        elif move.x < 0 and move.y < 0:
+            self.angle = 135
+
+    def draw(self, screen, offset_x, offset_y):
+        if not self.image:
+            return
+        rotated = pygame.transform.rotate(self.image, -self.angle)
+        rect = rotated.get_rect(
+            center=(int(self.pos.x + offset_x), int(self.pos.y + offset_y))
+        )
+        screen.blit(rotated, rect)
+
+
 @dataclass(frozen=True)
 class GameAssets:
     atom: pygame.Surface
@@ -125,10 +333,6 @@ def load_game_assets(
     house_scale: int = 3,
 ) -> GameAssets:
     """Load and prepare the shared city, house, and character assets."""
-    def load_image(relative_path: str, *, alpha: bool = False) -> pygame.Surface:
-        image = pygame.image.load(str(_ASSET_ROOT / relative_path))
-        return image.convert_alpha() if alpha else image.convert()
-
     atom = load_image("characters/atom.png", alpha=True)
     original_nav_map = load_image("world/Карта Вишневого.png")
     original_background = load_image("world/НОРМ Карта Вишневого.png")
@@ -516,9 +720,8 @@ def _get_house_icon() -> Optional[pygame.Surface]:
         return _house_icon
 
     _house_icon_load_attempted = True
-    icon_path = Path(__file__).resolve().parent / "ch_home" / "haus.png"
     try:
-        _house_icon = pygame.image.load(str(icon_path)).convert_alpha()
+        _house_icon = load_image("ch_home/haus.png", alpha=True)
     except (pygame.error, OSError):
         _house_icon = None
     return _house_icon
@@ -534,8 +737,7 @@ class Player:
         self.original_image: Optional[pygame.Surface] = None
         self.image: Optional[pygame.Surface] = None
         try:
-            path = Path(__file__).resolve().parent / "characters" / "atom.png"
-            raw = pygame.image.load(str(path)).convert_alpha()
+            raw = load_image("characters/atom.png", alpha=True)
             self.original_image = pygame.transform.scale(raw, (48, 48))
             self.image = self.original_image
         except (pygame.error, OSError) as exc:
@@ -789,8 +991,7 @@ class Car:
             self.ui_font = pygame.font.SysFont("Arial", 14)
 
         try:
-            image_path = Path(__file__).resolve().parent / "cars" / "tornado" / "tornado_special.png"
-            self.image = pygame.image.load(str(image_path)).convert_alpha()
+            self.image = load_image("cars/tornado/tornado_special.png", alpha=True)
             self.image = pygame.transform.scale(self.image, (96, 48))
         except (pygame.error, OSError):
             self.image = pygame.Surface((96, 48))

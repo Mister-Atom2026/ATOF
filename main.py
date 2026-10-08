@@ -5,9 +5,8 @@ import pygame
 
 from settings_manager import load_settings, load_statistics, save_settings
 
-VERSION = "0.6.2"
+VERSION = "0.7.0-alpha.1"
 RELEASE_NAME = "Driver Inferno"
-LANGUAGES = ["English", "Українська", "Русский", "Español", "Deutsch", "Français"]
 APP_SETTINGS = load_settings()
 
 import constants
@@ -36,6 +35,7 @@ except pygame.error:
 pygame.display.set_caption(f"ATOF v{VERSION} — {RELEASE_NAME}")
 
 import engine
+LANGUAGES = list(engine.SUPPORTED_LANGUAGES)
 
 # Load the chapter after applying the saved display size, because it imports
 # WIDTH, HEIGHT, and FPS from constants.py.
