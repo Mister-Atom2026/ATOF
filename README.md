@@ -1,10 +1,11 @@
 # ATOF
 Game About Mister Atom
 
-## Version 0.6.1 RC 1 — “Driver Inferno”
+## Version 0.6.1 Release — “Driver Inferno”
 
 - Replaces normal-based, mass-weighted collision response with a simple speed-scaled bounce.
 - Makes collision damage increase with impact speed and prevents rebound from pushing the car into the obstacle.
+- Renders two distinct headlight beams after the night tint and clips each beam at collision-mask obstacles.
 
 ## Version 0.6.0 RC 1 — “Driver Inferno”
 

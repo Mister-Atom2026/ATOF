@@ -625,8 +625,6 @@ def run(screen, settings):
                 screen,
                 off_x,
                 off_y,
-                lights_on=headlights_on,
-                col_mask=col_mask,
             )
             engine.draw_car_smoke(screen, car, off_x, off_y)
 
@@ -650,6 +648,13 @@ def run(screen, settings):
                         w = int(200 * (car.repair_progress / 180))
                         pygame.draw.rect(screen, (0, 120, 255), (WIDTH // 2 - 100, HEIGHT // 2 + 140, w, 15))
                         pygame.draw.rect(screen, (255, 255, 255), (WIDTH // 2 - 100, HEIGHT // 2 + 140, 200, 15), 2)
+
+            ambient = engine.get_ambient_color(game_time)
+            if ambient[3] > 0:
+                night_overlay.fill(ambient)
+                screen.blit(night_overlay, (0, 0))
+            if headlights_on:
+                car.draw_headlights(screen, off_x, off_y, col_mask)
 
             if in_car:
                 car.draw_speedometer(screen)
@@ -685,11 +690,6 @@ def run(screen, settings):
                     sleep_text.get_rect(center=(WIDTH // 2, HEIGHT - 80)),
                 )
 
-        if game_state == "CITY":
-                ambient = engine.get_ambient_color(game_time)
-                if ambient[3] > 0:
-                    night_overlay.fill(ambient)
-                    screen.blit(night_overlay, (0, 0))
         # In-game clock.
         h, m = int(game_time / 60), int(game_time % 60)
         time_text = small_font.render(f"{h:02d}:{m:02d}", True, (255, 255, 255))

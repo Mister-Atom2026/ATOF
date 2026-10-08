@@ -686,12 +686,12 @@ _HEADLIGHT_BEAM_BASE = pygame.Surface((340, 220), pygame.SRCALPHA)
 pygame.draw.polygon(
     _HEADLIGHT_BEAM_BASE,
     (255, 245, 190, 80),
-    ((0, 82), (340, 0), (340, 220), (0, 138)),
+    ((0, 110), (340, 0), (340, 220)),
 )
 pygame.draw.polygon(
     _HEADLIGHT_BEAM_BASE,
     (255, 250, 215, 70),
-    ((0, 96), (290, 55), (290, 165), (0, 124)),
+    ((0, 110), (290, 55), (290, 165)),
 )
 
 
@@ -721,9 +721,9 @@ def _headlight_obstacle(col_mask, x, y):
     return red_neighbors >= 5
 
 
-def _clip_headlight_beam(beam, beam_rect, car_pos, center, forward, col_mask):
-    origin = pygame.Vector2(car_pos) + forward * 43
-    screen_origin = pygame.Vector2(center) + forward * 43
+def _clip_headlight_beam(beam, beam_rect, world_origin, screen_origin, forward, col_mask):
+    origin = pygame.Vector2(world_origin)
+    screen_origin = pygame.Vector2(screen_origin)
     forward_angle = math.degrees(math.atan2(forward.y, forward.x))
     endpoints = []
 
@@ -1020,6 +1020,48 @@ class Car:
             # Remove particles when they fade out or expire.
             if p[3] <= 0 or p[5] <= 0:
                 self.smoke_particles.remove(p)
+
+    def draw_headlights(self, screen, offset_x, offset_y, col_mask=None):
+        self.draw_headlight_beams(screen, offset_x, offset_y, col_mask)
+        self.draw_headlight_lamps(screen, offset_x, offset_y)
+
+    def draw_headlight_beams(self, screen, offset_x, offset_y, col_mask=None):
+        center = pygame.Vector2(self.pos.x + offset_x, self.pos.y + offset_y)
+        forward = pygame.Vector2(1, 0).rotate(-self.angle + 180)
+        side = pygame.Vector2(-forward.y, forward.x)
+        beam = _get_headlight_beam(self.angle)
+
+        for lamp_offset in (side * 13, side * -13):
+            world_origin = self.pos + forward * 43 + lamp_offset
+            screen_origin = center + forward * 43 + lamp_offset
+            beam_rect = beam.get_rect(center=screen_origin + forward * 170)
+            clipped_beam = (
+                _clip_headlight_beam(
+                    beam,
+                    beam_rect,
+                    world_origin,
+                    screen_origin,
+                    forward,
+                    col_mask,
+                )
+                if col_mask is not None
+                else beam
+            )
+            screen.blit(clipped_beam, beam_rect)
+
+    def draw_headlight_lamps(self, screen, offset_x, offset_y):
+        center = pygame.Vector2(self.pos.x + offset_x, self.pos.y + offset_y)
+        forward = pygame.Vector2(1, 0).rotate(-self.angle + 180)
+        side = pygame.Vector2(-forward.y, forward.x)
+        front_center = center + forward * 43
+        for lamp_center in (front_center + side * 13, front_center - side * 13):
+            pygame.draw.circle(
+                screen,
+                (255, 250, 190),
+                (round(lamp_center.x), round(lamp_center.y)),
+                4,
+            )
+
     def draw(self, screen, offset_x, offset_y, lights_on=False, col_mask=None):
         center = pygame.Vector2(
             self.pos.x + offset_x,
@@ -1029,18 +1071,7 @@ class Car:
         side = pygame.Vector2(-forward.y, forward.x)
 
         if lights_on:
-            beam = _get_headlight_beam(self.angle)
-            beam_rect = beam.get_rect(center=center + forward * 215)
-            if col_mask is not None:
-                beam = _clip_headlight_beam(
-                    beam,
-                    beam_rect,
-                    self.pos,
-                    center,
-                    forward,
-                    col_mask,
-                )
-            screen.blit(beam, beam_rect)
+            self.draw_headlight_beams(screen, offset_x, offset_y, col_mask)
 
         for p1l, p2l, p1r, p2r in self.skid_marks:
             pygame.draw.line(screen, (45, 45, 45), (p1l.x + offset_x, p1l.y + offset_y),
@@ -1052,15 +1083,8 @@ class Car:
         rect = rotated.get_rect(center=center)
 
         screen.blit(rotated, rect)
-        front_center = center + forward * 43
         if lights_on:
-            for lamp_center in (front_center + side * 13, front_center - side * 13):
-                pygame.draw.circle(
-                    screen,
-                    (255, 250, 190),
-                    (round(lamp_center.x), round(lamp_center.y)),
-                    4,
-                )
+            self.draw_headlight_lamps(screen, offset_x, offset_y)
         rear_light_color = (255, 0, 0) if self.is_braking else (125, 18, 12)
         rear_light_radius = 7 if self.is_braking else 3
         rear_center = center - forward * 39
