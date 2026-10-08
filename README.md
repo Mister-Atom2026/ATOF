@@ -1,6 +1,11 @@
 # ATOF
 Game About Mister Atom
 
+## Version 0.6.0 Beta 2 — “Driver Inferno”
+
+- Shows control keys in their English/US-layout form in every supported language.
+- Fixes PyCharm type warnings in vehicle collision and rebound calculations.
+
 ## Version 0.6.0 Beta 1 — “Driver Inferno”
 
 - Cycles the in-car radio through Midnight FM, Freeway Radio, and radio off using **,** (previous) and **.** (next).

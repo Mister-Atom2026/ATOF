@@ -4,7 +4,7 @@ import random
 from dataclasses import dataclass
 from pathlib import Path
 import sys
-from typing import Mapping, Optional
+from typing import Mapping, Optional, Protocol
 
 import pygame
 
@@ -96,6 +96,11 @@ class GameAssets:
     house_visual: pygame.Surface
     house_collision: pygame.Surface
     house_info: pygame.Surface
+
+
+class _CollisionVehicle(Protocol):
+    pos: pygame.Vector2
+    angle: float
 
 
 @dataclass(frozen=True)
@@ -672,7 +677,7 @@ class Car:
     def __init__(self, x, y):
         self.pos = pygame.Vector2(x, y)
         self.angle = 0
-        self.speed = 0
+        self.speed: float = 0.0
         self.vehicle_class = "sport"
         self.impact_mass = 0.9
         self.handling = 0.82
@@ -837,8 +842,8 @@ class Car:
             if random.random() < min(1.0, frame_scale / spawn_chance):
                 self.create_smoke_particle()  # <-- This method is defined below.
 
-        collision_vehicle = None
-        collision_normal = None
+        collision_vehicle: Optional[_CollisionVehicle] = None
+        collision_normal: Optional[pygame.Vector2] = None
 
         def check_at_pos(test_pos):
             nonlocal collision_vehicle, collision_normal
@@ -898,8 +903,8 @@ class Car:
             return False
 
         if check_at_pos(next_pos):
-            impact_normal = collision_normal
-            obstacle_mass = 1.0
+            impact_normal: Optional[pygame.Vector2] = collision_normal
+            obstacle_mass: float = 1.0
             if collision_vehicle is not None:
                 impact_normal = pygame.Vector2(next_pos) - collision_vehicle.pos
                 if impact_normal.length_squared() == 0:
@@ -907,17 +912,17 @@ class Car:
                 if impact_normal.length_squared() > 0:
                     impact_normal = impact_normal.normalize()
                 obstacle_mass = getattr(collision_vehicle, "impact_mass", 1.0)
-                obstacle_speed = getattr(
+                obstacle_speed: float = getattr(
                     collision_vehicle,
                     "current_speed",
                     getattr(collision_vehicle, "speed", 0.0),
                 )
-                obstacle_angle = collision_vehicle.angle
+                obstacle_angle: float = collision_vehicle.angle
                 obstacle_velocity = pygame.Vector2(obstacle_speed, 0).rotate(
                     obstacle_angle + 180
                 )
                 relative_velocity = velocity - obstacle_velocity
-                closing_speed = (
+                closing_speed: float = (
                     max(0.0, -relative_velocity.dot(impact_normal))
                     if impact_normal is not None
                     else relative_velocity.length()
@@ -927,22 +932,23 @@ class Car:
                         0.35,
                         0.2 + 0.08 * obstacle_mass / self.impact_mass,
                     )
-                    rebound_velocity = velocity + (
-                        (1 + restitution) * closing_speed * impact_normal
+                    rebound_velocity = velocity + impact_normal * (
+                        (1 + restitution) * closing_speed
                     )
                 else:
                     rebound_velocity = -velocity * 0.35
             else:
-                closing_speed = (
+                closing_speed: float = (
                     max(0.0, -velocity.dot(impact_normal))
                     if impact_normal is not None
                     else velocity.length()
                 )
-                rebound_velocity = (
-                    velocity + 1.25 * closing_speed * impact_normal
-                    if impact_normal is not None
-                    else -velocity * 0.35
-                )
+                if impact_normal is not None:
+                    rebound_velocity = velocity + impact_normal * (
+                        1.25 * closing_speed
+                    )
+                else:
+                    rebound_velocity = -velocity * 0.35
 
             impact_speed = closing_speed
             if impact_speed > 1.5:
