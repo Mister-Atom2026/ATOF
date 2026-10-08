@@ -1,6 +1,16 @@
 # ATOF
 Game About Mister Atom
 
+## Version 0.7.0 — "Story Foundations"
+
+- Fixed potential KeyError issues when loading game saves by using .get() with defaults.
+- Refactored combat system: moved update_combat logic to engine.update_combat_system().
+- Refactored save functions: moved save_session_statistics and save_chapter_game_state to engine.
+- Reduced ch1.py from 1087 to 916 lines by moving logic to engine.
+- Fixed Ukrainian print statement in main.py (removed hardcoded Ukrainian text).
+- Added grass sound support in handle_surface_footsteps.
+- Updated version to 0.7.0 final release.
+
 ## Version 0.7.0 RC 1 — "Story Foundations"
 
 - Fixed type hints in traffic.py (get_traffic_car_image and get_police_car_image now return Optional[pygame.Surface]).

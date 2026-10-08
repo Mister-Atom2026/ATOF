@@ -5,7 +5,7 @@ import pygame
 
 from settings_manager import load_settings, load_statistics, save_settings
 
-VERSION = "0.7.0-rc.1"
+VERSION = "0.7.0"
 RELEASE_NAME = "Driver Inferno"
 APP_SETTINGS = load_settings()
 
@@ -75,7 +75,7 @@ def load_and_play_menu_music():
         pygame.mixer.music.play(-1)
         engine.configure_audio(APP_SETTINGS)
     except (pygame.error, OSError):
-        print("Файл музики не знайдено!")
+        pass
 
 
 load_and_play_menu_music()

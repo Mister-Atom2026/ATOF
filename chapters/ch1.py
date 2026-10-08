@@ -35,25 +35,25 @@ def run(screen, settings, *, continue_game=True):
     phone_click_sfx = game_audio.phone_click
     current_app = 0  # 0 is the phone menu; 1–9 are apps.
     game_save = engine.load_game_save() if continue_game else None
-    money = game_save["money"] if game_save else 100
-    total_earned = game_save["earned"] if game_save else 0
-    total_spent = game_save["spent"] if game_save else 0
+    money = game_save.get("money", 100) if game_save else 100
+    total_earned = game_save.get("earned", 0) if game_save else 0
+    total_spent = game_save.get("spent", 0) if game_save else 0
     money_history = [("+100", "start")] if not game_save else []
     # Keep track of collected treasures so they cannot be collected repeatedly.
     collected_treasures = set()
     phone_active = False  # Phone state.
     phone_settings = engine.get_phone_settings()
     weapons = engine.WeaponWheel(
-        game_save["ammo"] if game_save else 12,
-        game_save["reserve_ammo"] if game_save else 48,
-        game_save["weapon"] if game_save else "pistol",
+        game_save.get("ammo", 12) if game_save else 12,
+        game_save.get("reserve_ammo", 48) if game_save else 48,
+        game_save.get("weapon", "pistol") if game_save else "pistol",
     )
     wanted = engine.WantedLevel(
-        game_save["wanted_level"] if game_save else 0,
-        game_save["wanted_escape_timer"] if game_save else 0,
+        game_save.get("wanted_level", 0) if game_save else 0,
+        game_save.get("wanted_escape_timer", 0) if game_save else 0,
     )
     # --- Time and lighting ---
-    game_time = game_save["game_time"] if game_save else 480.0
+    game_time = game_save.get("game_time", 480.0) if game_save else 480.0
     night_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
     wake_overlay = pygame.Surface(screen.get_size())
     car_sfx = game_audio.car_sounds
@@ -85,7 +85,7 @@ def run(screen, settings, *, continue_game=True):
     house_info = assets.house_info
 
     show_debug = False
-    game_state = game_save["game_state"] if game_save else "HOUSE"
+    game_state = game_save.get("game_state", "HOUSE") if game_save else "HOUSE"
     scene_manager = engine.SceneManager(game_state)
     scene_manager.register("CITY")
     scene_manager.register("HOUSE")
@@ -96,33 +96,36 @@ def run(screen, settings, *, continue_game=True):
     car = engine.Car(7985, 2383)
     car.angle = 270
     if game_save:
-        atom.pos.update(game_save["player"]["x"], game_save["player"]["y"])
-        atom.angle = game_save["player"]["angle"]
-        atom.health = game_save["hero_health"]
-        car.pos.update(game_save["car"]["x"], game_save["car"]["y"])
-        car.angle = game_save["car"]["angle"]
-        car.speed = game_save["car"]["speed"]
+        player_data = game_save.get("player", {})
+        atom.pos.update(player_data.get("x", 7738), player_data.get("y", 2330))
+        atom.angle = player_data.get("angle", 0)
+        atom.health = game_save.get("hero_health", atom.max_health)
+        car_data = game_save.get("car", {})
+        car.pos.update(car_data.get("x", 7985), car_data.get("y", 2383))
+        car.angle = car_data.get("angle", 270)
+        car.speed = car_data.get("speed", 0)
         car.motion_velocity = pygame.Vector2(car.speed, 0).rotate(-car.angle + 180)
-        car.health = min(game_save["car"]["health"], car.max_health)
-        car.is_broken = game_save["car"]["is_broken"]
+        car.health = min(car_data.get("health", car.max_health), car.max_health)
+        car.is_broken = car_data.get("is_broken", False)
     atom_h = engine.HousePlayer(162, 161)
     atom_h.pos.update(HOUSE_SLEEP_SPOT)
-    if game_save and game_save["game_state"] == "HOUSE":
+    if game_save and game_save.get("game_state") == "HOUSE":
+        house_data = game_save.get("house_player", {})
         atom_h.pos.update(
-            game_save["house_player"]["x"],
-            game_save["house_player"]["y"],
+            house_data.get("x", 147),
+            house_data.get("y", 156),
         )
-        atom_h.angle = game_save["house_player"]["angle"]
+        atom_h.angle = house_data.get("angle", 0)
     gps = engine.GPS()
     if game_save:
-        collected_treasures.update(game_save["collected_treasures"])
+        collected_treasures.update(game_save.get("collected_treasures", []))
     personal_records = engine.load_statistics()
     honor_and_respect = engine.HonorAndRespect(
-        game_save["honor"] if game_save else personal_records.get("honor", 0),
-        game_save["respect"] if game_save else personal_records.get("respect", 0),
+        game_save.get("honor", personal_records.get("honor", 0)) if game_save else personal_records.get("honor", 0),
+        game_save.get("respect", personal_records.get("respect", 0)) if game_save else personal_records.get("respect", 0),
     )
-    distance_since_crash = game_save["distance_streak"] if game_save else 0.0
-    current_drift_distance = game_save["drift_streak"] if game_save else 0.0
+    distance_since_crash = game_save.get("distance_streak", 0.0) if game_save else 0.0
+    current_drift_distance = game_save.get("drift_streak", 0.0) if game_save else 0.0
     sleep_requested = False
     wake_fade_started = None
     manual_headlights = False
@@ -408,188 +411,15 @@ def run(screen, settings, *, continue_game=True):
         weapons.reload()
 
     def update_combat(frame_scale):
-        for driver in fleeing_drivers:
-            driver.update(col_mask, frame_scale)
-        fleeing_drivers[:] = [driver for driver in fleeing_drivers if driver.is_alive]
-
-        for officer in hostile_officers:
-            officer.update(frame_scale)
-        for npc in npc_cars:
-            if getattr(npc, "is_police", False):
-                npc.fire_cooldown = max(0.0, npc.fire_cooldown - frame_scale)
-
-        police_nearby = any(
-            getattr(npc, "is_police", False)
-            and getattr(npc, "is_alive", True)
-            and npc.pos.distance_to(atom.pos) < 900
-            for npc in npc_cars
-        ) or any(officer.pos.distance_to(atom.pos) < 900 for officer in hostile_officers)
-        wanted.update(frame_scale, nearby_police=police_nearby)
-
-        if wanted.level:
-            target_position = car.pos if in_car else atom.pos
-            for police in npc_cars:
-                if (
-                    not getattr(police, "is_police", False)
-                    or not getattr(police, "is_alive", True)
-                    or police.pos.distance_to(target_position) > 650
-                    or police.fire_cooldown > 0
-                ):
-                    continue
-                projectile = engine.create_projectile(
-                    police.pos,
-                    target_position,
-                    "police",
-                    speed=15.0,
-                    damage=12.0,
-                )
-                if projectile is not None:
-                    projectiles.append(projectile)
-                    police.fire_cooldown = 75.0
-
-            for officer in hostile_officers:
-                if (
-                    officer.pos.distance_to(target_position) > 650
-                    or officer.fire_cooldown > 0
-                ):
-                    continue
-                projectile = engine.create_projectile(
-                    officer.pos,
-                    target_position,
-                    "police",
-                    speed=17.0,
-                    damage=16.0,
-                )
-                if projectile is not None:
-                    projectiles.append(projectile)
-                    officer.fire_cooldown = 60.0
-
-        remaining_projectiles = []
-        for projectile in projectiles:
-            old_position = pygame.Vector2(projectile.position)
-            if not projectile.update(frame_scale):
-                continue
-            if engine.projectile_hits_wall(old_position, projectile.position, col_mask):
-                continue
-
-            if projectile.owner == "player":
-                hit_car = next(
-                    (
-                        npc for npc in npc_cars
-                        if getattr(npc, "is_alive", True)
-                        and npc.pos.distance_squared_to(projectile.position) < 38**2
-                    ),
-                    None,
-                )
-                if hit_car is not None:
-                    hit_position = pygame.Vector2(hit_car.pos)
-                    hit_police = getattr(hit_car, "is_police", False)
-                    hit_car.is_alive = False
-                    if hit_police:
-                        hostile_officers.append(
-                            engine.HostileOfficer(hit_position + pygame.Vector2(35, 0))
-                        )
-                        wanted.raise_level(2)
-                        honor_and_respect.change(honor=-12, respect=-7)
-                    else:
-                        fleeing_drivers.append(engine.FleeingDriver(hit_position, atom.pos))
-                        wanted.raise_level(1)
-                        honor_and_respect.change(honor=-10, respect=-6)
-                    continue
-
-                hit_officer = next(
-                    (
-                        officer for officer in hostile_officers
-                        if officer.is_alive
-                        and officer.pos.distance_squared_to(projectile.position) < 22**2
-                    ),
-                    None,
-                )
-                if hit_officer is not None:
-                    hit_officer.is_alive = False
-                    wanted.raise_level(1)
-                    continue
-
-                hit_driver = next(
-                    (
-                        driver for driver in fleeing_drivers
-                        if driver.is_alive
-                        and driver.pos.distance_squared_to(projectile.position) < 18**2
-                    ),
-                    None,
-                )
-                if hit_driver is not None:
-                    hit_driver.is_alive = False
-                    honor_and_respect.change(honor=-25, respect=-20)
-                    wanted.raise_level(2)
-                    continue
-            elif in_car:
-                if car.pos.distance_squared_to(projectile.position) < 42**2:
-                    car.health = max(0, car.health - projectile.damage)
-                    if car.health == 0:
-                        car.is_broken = True
-                    continue
-            elif atom.pos.distance_squared_to(projectile.position) < 20**2:
-                atom.take_damage(projectile.damage)
-                continue
-
-            remaining_projectiles.append(projectile)
-        projectiles[:] = remaining_projectiles
-        hostile_officers[:] = [officer for officer in hostile_officers if officer.is_alive]
-
-    def save_last_session_stats():
-        engine.save_statistics({
-            "money": money,
-            "earned": total_earned,
-            "spent": total_spent,
-            "time": f"{int(game_time / 60):02d}:{int(game_time % 60):02d}",
-            "treasures": len(collected_treasures),
-            "max_speed_kmh": personal_records["max_speed_kmh"],
-            "longest_drift_m": personal_records["longest_drift_m"],
-            "distance_without_crash_m": personal_records["distance_without_crash_m"],
-            "honor": honor_and_respect.honor,
-            "respect": honor_and_respect.respect,
-        })
+        engine.update_combat_system(frame_scale, fleeing_drivers, hostile_officers, npc_cars,
+                                    projectiles, atom, car, in_car, col_mask, wanted, honor_and_respect)
 
     def save_sleep_game():
-        engine.save_game_save({
-            "chapter_id": "ch1",
-            "game_state": game_state,
-            "player": {
-                "x": atom.pos.x,
-                "y": atom.pos.y,
-                "angle": atom.angle,
-            },
-            "hero_health": atom.health,
-            "ammo": weapons.ammo,
-            "reserve_ammo": weapons.reserve_ammo,
-            "weapon": weapons.selected,
-            "honor": honor_and_respect.honor,
-            "respect": honor_and_respect.respect,
-            "wanted_level": wanted.level,
-            "wanted_escape_timer": wanted.escape_timer,
-            "house_player": {
-                "x": atom_h.pos.x,
-                "y": atom_h.pos.y,
-                "angle": atom_h.angle,
-            },
-            "car": {
-                "x": car.pos.x,
-                "y": car.pos.y,
-                "angle": car.angle,
-                "speed": car.speed,
-                "health": car.health,
-                "is_broken": car.is_broken,
-            },
-            "money": money,
-            "earned": total_earned,
-            "spent": total_spent,
-            "game_time": game_time,
-            "collected_treasures": sorted(collected_treasures),
-            "distance_streak": distance_since_crash,
-            "drift_streak": current_drift_distance,
-        })
-        save_last_session_stats()
+        engine.save_chapter_game_state("ch1", game_state, atom, atom_h, car, weapons, wanted,
+                                        honor_and_respect, money, total_earned, total_spent, game_time,
+                                        collected_treasures, distance_since_crash, current_drift_distance)
+        engine.save_session_statistics(money, total_earned, total_spent, game_time, collected_treasures,
+                                        personal_records, honor_and_respect)
 
     running = True
     frame_clock.reset()

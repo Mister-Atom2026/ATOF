@@ -2797,6 +2797,201 @@ def handle_surface_footsteps(keys, in_car, game_state, pos, col_mask, sounds, ch
     # Play the selected sound if the channel is idle.
     if target_sound and not channel.get_busy():
         channel.play(target_sound)
+
+
+def update_combat_system(frame_scale, fleeing_drivers, hostile_officers, npc_cars, projectiles,
+                          atom, car, in_car, col_mask, wanted, honor_and_respect):
+    """Update all combat-related entities and handle projectile collisions."""
+    for driver in fleeing_drivers:
+        driver.update(col_mask, frame_scale)
+    fleeing_drivers[:] = [driver for driver in fleeing_drivers if driver.is_alive]
+
+    for officer in hostile_officers:
+        officer.update(frame_scale)
+    for npc in npc_cars:
+        if getattr(npc, "is_police", False):
+            npc.fire_cooldown = max(0.0, npc.fire_cooldown - frame_scale)
+
+    police_nearby = any(
+        getattr(npc, "is_police", False)
+        and getattr(npc, "is_alive", True)
+        and npc.pos.distance_to(atom.pos) < 900
+        for npc in npc_cars
+    ) or any(officer.pos.distance_to(atom.pos) < 900 for officer in hostile_officers)
+    wanted.update(frame_scale, nearby_police=police_nearby)
+
+    if wanted.level:
+        target_position = car.pos if in_car else atom.pos
+        for police in npc_cars:
+            if (
+                not getattr(police, "is_police", False)
+                or not getattr(police, "is_alive", True)
+                or police.pos.distance_to(target_position) > 650
+                or police.fire_cooldown > 0
+            ):
+                continue
+            projectile = create_projectile(
+                police.pos,
+                target_position,
+                "police",
+                speed=15.0,
+                damage=12.0,
+            )
+            if projectile is not None:
+                projectiles.append(projectile)
+                police.fire_cooldown = 75.0
+
+        for officer in hostile_officers:
+            if (
+                officer.pos.distance_to(target_position) > 650
+                or officer.fire_cooldown > 0
+            ):
+                continue
+            projectile = create_projectile(
+                officer.pos,
+                target_position,
+                "police",
+                speed=17.0,
+                damage=16.0,
+            )
+            if projectile is not None:
+                projectiles.append(projectile)
+                officer.fire_cooldown = 60.0
+
+    remaining_projectiles = []
+    for projectile in projectiles:
+        old_position = pygame.Vector2(projectile.position)
+        if not projectile.update(frame_scale):
+            continue
+        if projectile_hits_wall(old_position, projectile.position, col_mask):
+            continue
+
+        if projectile.owner == "player":
+            hit_car = next(
+                (
+                    npc for npc in npc_cars
+                    if getattr(npc, "is_alive", True)
+                    and npc.pos.distance_squared_to(projectile.position) < 38**2
+                ),
+                None,
+            )
+            if hit_car is not None:
+                hit_position = pygame.Vector2(hit_car.pos)
+                hit_police = getattr(hit_car, "is_police", False)
+                hit_car.is_alive = False
+                if hit_police:
+                    hostile_officers.append(
+                        HostileOfficer(hit_position + pygame.Vector2(35, 0))
+                    )
+                    wanted.raise_level(2)
+                    honor_and_respect.change(honor=-12, respect=-7)
+                else:
+                    fleeing_drivers.append(FleeingDriver(hit_position, atom.pos))
+                    wanted.raise_level(1)
+                    honor_and_respect.change(honor=-10, respect=-6)
+                continue
+
+            hit_officer = next(
+                (
+                    officer for officer in hostile_officers
+                    if officer.is_alive
+                    and officer.pos.distance_squared_to(projectile.position) < 22**2
+                ),
+                None,
+            )
+            if hit_officer is not None:
+                hit_officer.is_alive = False
+                wanted.raise_level(1)
+                continue
+
+            hit_driver = next(
+                (
+                    driver for driver in fleeing_drivers
+                    if driver.is_alive
+                    and driver.pos.distance_squared_to(projectile.position) < 18**2
+                ),
+                None,
+            )
+            if hit_driver is not None:
+                hit_driver.is_alive = False
+                honor_and_respect.change(honor=-25, respect=-20)
+                wanted.raise_level(2)
+                continue
+        elif in_car:
+            if car.pos.distance_squared_to(projectile.position) < 42**2:
+                car.health = max(0, car.health - projectile.damage)
+                if car.health == 0:
+                    car.is_broken = True
+                continue
+        elif atom.pos.distance_squared_to(projectile.position) < 20**2:
+            atom.take_damage(projectile.damage)
+            continue
+
+        remaining_projectiles.append(projectile)
+    projectiles[:] = remaining_projectiles
+    hostile_officers[:] = [officer for officer in hostile_officers if officer.is_alive]
+
+
+def save_session_statistics(money, total_earned, total_spent, game_time, collected_treasures,
+                            personal_records, honor_and_respect):
+    """Save the last session statistics."""
+    save_statistics({
+        "money": money,
+        "earned": total_earned,
+        "spent": total_spent,
+        "time": f"{int(game_time / 60):02d}:{int(game_time % 60):02d}",
+        "treasures": len(collected_treasures),
+        "max_speed_kmh": personal_records["max_speed_kmh"],
+        "longest_drift_m": personal_records["longest_drift_m"],
+        "distance_without_crash_m": personal_records["distance_without_crash_m"],
+        "honor": honor_and_respect.honor,
+        "respect": honor_and_respect.respect,
+    })
+
+
+def save_chapter_game_state(chapter_id, game_state, atom, atom_h, car, weapons, wanted,
+                            honor_and_respect, money, total_earned, total_spent, game_time,
+                            collected_treasures, distance_since_crash, current_drift_distance):
+    """Save the chapter game state."""
+    save_game_save({
+        "chapter_id": chapter_id,
+        "game_state": game_state,
+        "player": {
+            "x": atom.pos.x,
+            "y": atom.pos.y,
+            "angle": atom.angle,
+        },
+        "hero_health": atom.health,
+        "ammo": weapons.ammo,
+        "reserve_ammo": weapons.reserve_ammo,
+        "weapon": weapons.selected,
+        "honor": honor_and_respect.honor,
+        "respect": honor_and_respect.respect,
+        "wanted_level": wanted.level,
+        "wanted_escape_timer": wanted.escape_timer,
+        "house_player": {
+            "x": atom_h.pos.x,
+            "y": atom_h.pos.y,
+            "angle": atom_h.angle,
+        },
+        "car": {
+            "x": car.pos.x,
+            "y": car.pos.y,
+            "angle": car.angle,
+            "speed": car.speed,
+            "health": car.health,
+            "is_broken": car.is_broken,
+        },
+        "money": money,
+        "earned": total_earned,
+        "spent": total_spent,
+        "game_time": game_time,
+        "collected_treasures": sorted(collected_treasures),
+        "distance_streak": distance_since_crash,
+        "drift_streak": current_drift_distance,
+    })
+
+
 def handle_car_audio(car, in_car, sounds, e_chan, c_chan):
     if getattr(car, 'just_hit', False):
         crash_sound = sounds.get('crash')
