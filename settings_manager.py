@@ -107,6 +107,9 @@ def load_game_save():
         treasures = []
 
     return {
+        "chapter_id": values.get("chapter_id")
+        if isinstance(values.get("chapter_id"), str) and values.get("chapter_id")
+        else "ch1",
         "game_state": values.get("game_state")
         if values.get("game_state") in ("CITY", "HOUSE")
         else "CITY",

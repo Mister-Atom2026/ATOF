@@ -6,7 +6,7 @@ from constants import *
 
 os.environ['SDL_VIDEO_CENTERED'] = '1'
 
-def run(screen, settings):
+def run(screen, settings, *, continue_game=True):
     traffic_timer = 0
     traffic_state = "RED"  # RED pauses route N; GREEN pauses route A1.
     frame_count = 0
@@ -30,7 +30,7 @@ def run(screen, settings):
     game_audio = resources.audio
     phone_click_sfx = game_audio.phone_click
     current_app = 0  # 0 is the phone menu; 1–9 are apps.
-    game_save = engine.load_game_save()
+    game_save = engine.load_game_save() if continue_game else None
     money = game_save["money"] if game_save else 100
     total_earned = game_save["earned"] if game_save else 0
     total_spent = game_save["spent"] if game_save else 0
@@ -311,6 +311,7 @@ def run(screen, settings):
 
     def save_sleep_game():
         engine.save_game_save({
+            "chapter_id": "ch1",
             "game_state": game_state,
             "player": {
                 "x": atom.pos.x,

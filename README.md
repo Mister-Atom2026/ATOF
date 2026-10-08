@@ -1,6 +1,12 @@
 # ATOF
 Game About Mister Atom
 
+## Version 0.7.0 Alpha 2 — “Driver Inferno”
+
+- Splits **Play** into **Continue Story** and **Choose Chapter**.
+- Adds an engine-owned chapter registry and a chapter picker that shows only each available chapter's number and title.
+- Starting a selected chapter begins a fresh run; continuing loads the saved chapter, with older saves defaulting to Chapter 1.
+
 ## Version 0.7.0 Alpha 1 — “Driver Inferno”
 
 - Adds engine-owned frame timing, camera transforms, scene lifecycle, and ordered render layers for reusable chapter runtime.

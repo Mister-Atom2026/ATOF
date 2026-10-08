@@ -1,3 +1,4 @@
+import importlib
 import json
 import math
 import random
@@ -314,6 +315,36 @@ class ChapterResources:
     audio: "GameAudio"
     game_font: pygame.font.Font
     small_font: pygame.font.Font
+
+
+@dataclass(frozen=True)
+class ChapterDefinition:
+    number: int
+    chapter_id: str
+    title: str
+    module: str
+
+
+AVAILABLE_CHAPTERS = (
+    ChapterDefinition(1, "ch1", "Driver Inferno", "chapters.ch1"),
+)
+
+
+def get_available_chapters() -> tuple[ChapterDefinition, ...]:
+    return AVAILABLE_CHAPTERS
+
+
+def get_chapter(chapter_id: str) -> ChapterDefinition:
+    for chapter in AVAILABLE_CHAPTERS:
+        if chapter.chapter_id == chapter_id:
+            return chapter
+    raise KeyError(f"Unknown chapter: {chapter_id}")
+
+
+def load_chapter(chapter_id: str):
+    """Import the selected chapter module from the engine registry."""
+    chapter = get_chapter(chapter_id)
+    return importlib.import_module(chapter.module)
 
 
 @dataclass(frozen=True)
@@ -1568,6 +1599,91 @@ def stats_dialog(screen, font, small_font, t, stats=None, controls=None):
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and back_rect.collidepoint(event.pos):
                 play_menu_sound("click")
                 return "BACK"
+        clock.tick(FPS)
+
+
+def selection_menu(screen, title, options, font, small_font, back_label, settings):
+    """Show a keyboard- and mouse-navigable list; return an option index or status."""
+    if not options:
+        raise ValueError("A selection menu requires at least one option")
+
+    pygame.mouse.set_visible(True)
+    clock = pygame.time.Clock()
+    selected_index = 0
+    last_hovered = None
+    menu_options = [*options, back_label]
+
+    while True:
+        width, height = screen.get_size()
+        screen.fill((14, 14, 20))
+        title_surface = font.render(title, True, (255, 255, 255))
+        screen.blit(title_surface, title_surface.get_rect(center=(width // 2, height // 4)))
+
+        row_height = min(70, max(54, (height - 180) // len(menu_options)))
+        first_y = max(height // 2 - row_height * len(menu_options) // 2, height // 3)
+        button_width = min(700, width - 80)
+        rects = [
+            pygame.Rect(
+                (width - button_width) // 2,
+                first_y + index * row_height,
+                button_width,
+                row_height - 8,
+            )
+            for index in range(len(menu_options))
+        ]
+
+        mouse_position = pygame.mouse.get_pos()
+        hovered_index = next(
+            (index for index, rect in enumerate(rects) if rect.collidepoint(mouse_position)),
+            None,
+        )
+        if hovered_index != last_hovered:
+            if hovered_index is not None:
+                play_menu_sound("hover")
+            last_hovered = hovered_index
+
+        for index, (label, rect) in enumerate(zip(menu_options, rects)):
+            if hovered_index == index:
+                selected_index = index
+            pygame.draw.rect(
+                screen,
+                (212, 91, 18) if selected_index == index else (55, 55, 65),
+                rect,
+                border_radius=8,
+            )
+            label_surface = small_font.render(label, True, (255, 255, 255))
+            screen.blit(label_surface, label_surface.get_rect(center=rect.center))
+
+        pygame.display.flip()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return "EXIT", screen
+            if event.type == pygame.VIDEORESIZE:
+                screen = apply_window_resize(event.size, settings)
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    play_menu_sound("click")
+                    return "BACK", screen
+                if event.key in (pygame.K_UP, pygame.K_w):
+                    selected_index = (selected_index - 1) % len(menu_options)
+                    play_menu_sound("hover")
+                elif event.key in (pygame.K_DOWN, pygame.K_s):
+                    selected_index = (selected_index + 1) % len(menu_options)
+                    play_menu_sound("hover")
+                elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                    play_menu_sound("click")
+                    if selected_index == len(options):
+                        return "BACK", screen
+                    return selected_index, screen
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                for index, rect in enumerate(rects):
+                    if rect.collidepoint(event.pos):
+                        play_menu_sound("click")
+                        if index == len(options):
+                            return "BACK", screen
+                        return index, screen
+
         clock.tick(FPS)
 
 

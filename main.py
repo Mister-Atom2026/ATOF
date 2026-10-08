@@ -5,7 +5,7 @@ import pygame
 
 from settings_manager import load_settings, load_statistics, save_settings
 
-VERSION = "0.7.0-alpha.1"
+VERSION = "0.7.0-alpha.2"
 RELEASE_NAME = "Driver Inferno"
 APP_SETTINGS = load_settings()
 
@@ -36,13 +36,6 @@ pygame.display.set_caption(f"ATOF v{VERSION} — {RELEASE_NAME}")
 
 import engine
 LANGUAGES = list(engine.SUPPORTED_LANGUAGES)
-
-# Load the chapter after applying the saved display size, because it imports
-# WIDTH, HEIGHT, and FPS from constants.py.
-try:
-    import chapters.ch1 as ch1
-except ImportError:
-    ch1 = None
 
 COLOR_BG = (0, 0, 0)
 COLOR_WHITE = (255, 255, 255)
@@ -85,6 +78,9 @@ except (pygame.error, OSError):
 translations = {
     "English": {
         "play": "Play",
+        "continue_story": "Continue Story",
+        "choose_chapter": "Choose Chapter",
+        "chapter_selection": "Choose Chapter",
         "settings": "Settings",
         "additional_content": "Additional Content",
         "exit": "Exit",
@@ -117,6 +113,9 @@ translations = {
     },
     "Українська": {
         "play": "Грати",
+        "continue_story": "Продовжити сюжет",
+        "choose_chapter": "Вибрати главу",
+        "chapter_selection": "Вибір глави",
         "settings": "Налаштування",
         "additional_content": "Додатковий контент",
         "exit": "Вихід",
@@ -149,6 +148,9 @@ translations = {
     },
     "Русский": {
         "play": "Играть",
+        "continue_story": "Продолжить сюжет",
+        "choose_chapter": "Выбрать главу",
+        "chapter_selection": "Выбор главы",
         "settings": "Настройки",
         "additional_content": "Дополнительный контент",
         "exit": "Выход",
@@ -181,6 +183,9 @@ translations = {
     },
     "Español": {
         "play": "Jugar",
+        "continue_story": "Continuar historia",
+        "choose_chapter": "Elegir capítulo",
+        "chapter_selection": "Elegir capítulo",
         "settings": "Ajustes",
         "additional_content": "Contenido adicional",
         "exit": "Salir",
@@ -213,6 +218,9 @@ translations = {
     },
     "Deutsch": {
         "play": "Spielen",
+        "continue_story": "Geschichte fortsetzen",
+        "choose_chapter": "Kapitel auswählen",
+        "chapter_selection": "Kapitel auswählen",
         "settings": "Einstellungen",
         "additional_content": "Zusatzinhalte",
         "exit": "Beenden",
@@ -245,6 +253,9 @@ translations = {
     },
     "Français": {
         "play": "Jouer",
+        "continue_story": "Continuer l’histoire",
+        "choose_chapter": "Choisir un chapitre",
+        "chapter_selection": "Choisir un chapitre",
         "settings": "Paramètres",
         "additional_content": "Contenu supplémentaire",
         "exit": "Quitter",
@@ -371,25 +382,92 @@ def apply_video_settings():
     save_settings(APP_SETTINGS)
 
 
+def show_selection_menu(title, options, back_label):
+    global screen, WIDTH, HEIGHT
+    result, screen = engine.selection_menu(
+        screen,
+        title,
+        options,
+        menu_font,
+        settings_font,
+        back_label,
+        APP_SETTINGS,
+    )
+    WIDTH, HEIGHT = screen.get_size()
+    rebuild_fonts()
+    return result
+
+
+def launch_chapter(chapter, continue_story):
+    global screen, WIDTH, HEIGHT
+    chapter_module = engine.load_chapter(chapter.chapter_id)
+    pygame.mixer.music.stop()
+    result = chapter_module.run(
+        screen,
+        APP_SETTINGS,
+        continue_game=continue_story,
+    )
+    screen = pygame.display.get_surface()
+    WIDTH, HEIGHT = screen.get_size()
+    rebuild_fonts()
+    APP_STATS.clear()
+    APP_STATS.update(load_statistics())
+    engine.configure_audio(APP_SETTINGS)
+    if result == "EXIT":
+        return False
+    pygame.mixer.music.load("6729032246362112.wav")
+    pygame.mixer.music.play(-1)
+    engine.configure_audio(APP_SETTINGS)
+    return True
+
+
+def start_play_flow():
+    language = LANGUAGES[APP_SETTINGS["lang_idx"]]
+    text = translations[language]
+    chapters = engine.get_available_chapters()
+    while True:
+        choice = show_selection_menu(
+            text["play"],
+            [text["continue_story"], text["choose_chapter"]],
+            text["back"],
+        )
+        if choice == "EXIT":
+            return False
+        if choice == "BACK":
+            return True
+        if choice == 0:
+            game_save = engine.load_game_save()
+            saved_chapter_id = game_save.get("chapter_id") if game_save else None
+            chapter = next(
+                (
+                    available
+                    for available in chapters
+                    if available.chapter_id == saved_chapter_id
+                ),
+                chapters[0],
+            )
+            return launch_chapter(chapter, continue_story=game_save is not None)
+
+        chapter_labels = [
+            f"{chapter.number}. {chapter.title}"
+            for chapter in chapters
+        ]
+        chapter_choice = show_selection_menu(
+            text["chapter_selection"],
+            chapter_labels,
+            text["back"],
+        )
+        if chapter_choice == "EXIT":
+            return False
+        if chapter_choice == "BACK":
+            continue
+        return launch_chapter(chapters[chapter_choice], continue_story=False)
+
+
 def activate_menu_option(index):
     global screen, WIDTH, HEIGHT
     if index == 0:
-        if ch1 is None:
-            return True
-        pygame.mixer.music.stop()
-        result = ch1.run(screen, APP_SETTINGS)
-        screen = pygame.display.get_surface()
-        WIDTH, HEIGHT = screen.get_size()
-        rebuild_fonts()
-        APP_STATS.clear()
-        APP_STATS.update(load_statistics())
-        engine.configure_audio(APP_SETTINGS)
-        if result == "EXIT":
-            return False
-        pygame.mixer.music.load("6729032246362112.wav")
-        pygame.mixer.music.play(-1)
-        engine.configure_audio(APP_SETTINGS)
-        return True
+        return start_play_flow()
 
     if index == 1:
         result = engine.settings_sub_menu(

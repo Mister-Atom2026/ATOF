@@ -1,5 +1,7 @@
 import os
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
@@ -11,6 +13,7 @@ pygame.init()
 pygame.display.set_mode((1, 1))
 
 import engine
+import settings_manager
 
 
 class EngineRuntimeTests(unittest.TestCase):
@@ -71,6 +74,59 @@ class EngineRuntimeTests(unittest.TestCase):
 
         self.assertIs(HousePlayer, engine.HousePlayer)
         self.assertIs(GPS, engine.GPS)
+
+    def test_chapter_registry_exposes_number_and_title(self):
+        chapters = engine.get_available_chapters()
+
+        self.assertEqual(
+            [(chapter.number, chapter.title) for chapter in chapters],
+            [(1, "Driver Inferno")],
+        )
+
+    def test_engine_loads_registered_chapter_module(self):
+        chapter = engine.load_chapter("ch1")
+
+        self.assertTrue(callable(chapter.run))
+
+    def test_engine_rejects_unknown_chapter_ids(self):
+        with self.assertRaises(KeyError):
+            engine.load_chapter("missing")
+
+    def test_selection_menu_returns_selected_option(self):
+        screen = pygame.display.set_mode((800, 600))
+        event = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN)
+
+        with patch("pygame.event.get", return_value=[event]):
+            result, returned_screen = engine.selection_menu(
+                screen,
+                "Play",
+                ["Continue Story", "Choose Chapter"],
+                pygame.font.SysFont(None, 32),
+                pygame.font.SysFont(None, 24),
+                "Back",
+                {},
+            )
+
+        self.assertEqual(result, 0)
+        self.assertIs(returned_screen, screen)
+
+    def test_game_save_keeps_chapter_identifier_and_supports_old_saves(self):
+        with tempfile.TemporaryDirectory() as directory:
+            save_path = Path(directory) / "savegame.json"
+            with patch.object(settings_manager, "GAME_SAVE_PATH", save_path):
+                settings_manager.save_game_save({
+                    "chapter_id": "chapter-2",
+                    "game_state": "CITY",
+                    "player": {"x": 1, "y": 2},
+                    "car": {"x": 3, "y": 4},
+                })
+                self.assertEqual(settings_manager.load_game_save()["chapter_id"], "chapter-2")
+
+                save_path.write_text(
+                    '{"game_state":"CITY","player":{"x":1,"y":2},"car":{"x":3,"y":4}}',
+                    encoding="utf-8",
+                )
+                self.assertEqual(settings_manager.load_game_save()["chapter_id"], "ch1")
 
 
 if __name__ == "__main__":
