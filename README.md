@@ -1,6 +1,13 @@
 # ATOF
 Game About Mister Atom
 
+## Version 0.7.0 Beta 2 — "Story Foundations"
+
+- Increased traffic count from 11 to 18 vehicles.
+- Moved HOUSE_SLEEP_SPOT and HOUSE_SLEEP_RADIUS from engine.py to constants.py.
+- Refactored menu music loading into load_and_play_menu_music() function.
+- Updated version to 0.7.0-beta.2.
+
 ## Version 0.7.0 Alpha 2 — “Story Foundations”
 
 - Splits **Play** into **Continue Story** and **Choose Chapter**.
