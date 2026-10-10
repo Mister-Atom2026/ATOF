@@ -5,7 +5,7 @@ import pygame
 
 from settings_manager import load_settings, load_statistics, save_settings
 
-VERSION = "0.7.0"
+VERSION = "0.7.1"
 RELEASE_NAME = "Driver Inferno"
 APP_SETTINGS = load_settings()
 
@@ -32,7 +32,7 @@ except pygame.error:
     WIDTH, HEIGHT = constants.WIDTH, constants.HEIGHT
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
-pygame.display.set_caption(f"ATOF v{VERSION} — {RELEASE_NAME}")
+pygame.display.set_caption("ATOF")
 
 import engine
 LANGUAGES = list(engine.SUPPORTED_LANGUAGES)
@@ -400,7 +400,7 @@ def apply_video_settings():
     global screen, WIDTH, HEIGHT, logo_font, menu_font, settings_font
     screen = engine.apply_video_settings(APP_SETTINGS)
     WIDTH, HEIGHT = screen.get_size()
-    pygame.display.set_caption(f"ATOF v{VERSION} — {RELEASE_NAME}")
+    pygame.display.set_caption("ATOF")
     rebuild_fonts()
     save_settings(APP_SETTINGS)
 

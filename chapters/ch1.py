@@ -421,6 +421,10 @@ def run(screen, settings, *, continue_game=True):
         engine.save_session_statistics(money, total_earned, total_spent, game_time, collected_treasures,
                                         personal_records, honor_and_respect)
 
+    def save_last_session_stats():
+        engine.save_session_statistics(money, total_earned, total_spent, game_time, collected_treasures,
+                                        personal_records, honor_and_respect)
+
     running = True
     frame_clock.reset()
     while running:
