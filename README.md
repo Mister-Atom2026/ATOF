@@ -1,6 +1,15 @@
 # ATOF
 Game About Mister Atom
 
+## Version 0.8.0 Beta 2 — "Open World Combat & HUD"
+
+- Holding the left mouse button keeps firing at the selected weapon's rate; releasing it or losing window focus stops fire.
+- Tracks each firearm's magazine and reserve separately, saves those counts, and updates the ammo HUD as soon as the selected weapon changes.
+- Adds a shared gunshot effect for player and police fire; the sound source and CC BY 3.0 license are recorded in `sounds/CREDITS.md`.
+- Refines vehicle collision masks to follow the visible rotated car sprites and ignore transparent edges and narrow road dashes.
+- Adds a localized house fridge with limited food portions that restore hunger.
+- Refines the warm black, orange, and brown HUD layout, keeps the speedometer beside the lower-right radar, and smooths house/city scene transitions.
+
 ## Version 0.8.0 Alpha 2 — "Open World Survival & Radio"
 
 - Moved the full open-world session loop from the old chapter module into `engine.run_open_world` and removed the chapter registry and `chapters/ch1.py` runtime.

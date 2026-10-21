@@ -119,7 +119,13 @@ class SurvivalAndRadioTests(unittest.TestCase):
             pos=pygame.Vector2(30, 40), angle=90, speed=2,
             health=150, is_broken=False,
         )
-        weapons = SimpleNamespace(ammo=4, reserve_ammo=9, selected="pistol")
+        weapons = SimpleNamespace(
+            ammo=4,
+            reserve_ammo=9,
+            selected="pistol",
+            ammo_by_weapon={"pistol": 4},
+            reserve_ammo_by_weapon={"pistol": 9},
+        )
         wanted = SimpleNamespace(level=1, escape_timer=2)
         reputation = SimpleNamespace(honor=5, respect=6)
         survival = engine.SurvivalNeeds(hunger=45, minutes_into_hour=12.5)
@@ -162,7 +168,7 @@ class SurvivalAndRadioTests(unittest.TestCase):
 
         self.assertEqual(radio.track_name, "rooms for music.")
 
-    def test_minimap_draws_glass_hunger_and_health_hud(self):
+    def test_minimap_keeps_full_radar_inside_separate_status_arcs(self):
         screen = pygame.Surface((800, 600))
         background = pygame.Surface((80, 80))
         background.fill((80, 110, 80))
@@ -184,6 +190,12 @@ class SurvivalAndRadioTests(unittest.TestCase):
             )
 
         self.assertEqual(screen.get_size(), (800, 600))
+        # The radar occupies the lower-right corner.
+        self.assertEqual(screen.get_at((670, 520))[:3], (80, 110, 80))
+        self.assertEqual(screen.get_at((130, 520))[:3], (0, 0, 0))
+        # The outer ring keeps distinct green-health and orange-hunger arcs.
+        self.assertEqual(screen.get_at((779, 470))[:3], (67, 224, 142))
+        self.assertEqual(screen.get_at((561, 470))[:3], (247, 157, 37))
 
 
 if __name__ == "__main__":

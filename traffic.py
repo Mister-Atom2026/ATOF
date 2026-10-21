@@ -11,6 +11,7 @@ import pygame
 ROOT = os.path.dirname(os.path.abspath(__file__))
 image_cache: dict[tuple[object, ...], pygame.Surface] = {}
 mask_cache: dict[tuple[object, ...], pygame.Mask] = {}
+world_collision_cache: dict[int, tuple[pygame.Surface, pygame.Mask]] = {}
 base_traffic_img: Optional[pygame.Surface] = None
 base_police_img: Optional[pygame.Surface] = None
 beep_sound: Optional[pygame.mixer.Sound] = None
@@ -106,7 +107,7 @@ def configure_audio(settings):
 
 
 def _car_image(car):
-    if getattr(car, "is_police", False):
+    if hasattr(car, "target_node") and getattr(car, "is_police", False):
         return get_rotated_police_resources(car.angle), ("police", int(car.angle % 360))
     elif hasattr(car, "target_node"):
         return get_rotated_resources(car.angle), ("traffic", int(car.angle % 360))
@@ -116,7 +117,12 @@ def _car_image(car):
             image = pygame.Surface((96, 48), pygame.SRCALPHA)
         angle = int(getattr(car, "angle", 0) % 360)
         vehicle_class = getattr(car, "vehicle_class", "sport")
-        return pygame.transform.rotate(image, -angle), ("player", vehicle_class, angle)
+        key = ("player", id(image), vehicle_class, angle)
+        if key not in image_cache:
+            # The player car's draw method rotates by +angle; use that exact
+            # transform so the collision mask follows the visible texture.
+            image_cache[key] = pygame.transform.rotate(image, angle)
+        return image_cache[key], key
 
 
 def _rotated_car_rect(car, center):
@@ -133,6 +139,39 @@ def _vehicle_mask(car):
     return mask
 
 
+def _build_obstacle_mask(col_mask):
+    # The collision map uses red for walls and near-black for solid blocks.
+    dark_blocks = pygame.mask.from_threshold(
+        col_mask, (0, 0, 0), (49, 49, 49, 255)
+    )
+    red_walls = pygame.mask.from_threshold(
+        col_mask, (228, 24, 24), (27, 25, 25, 255)
+    )
+    dark_blocks.draw(red_walls, (0, 0))
+    return dark_blocks
+
+
+def _world_obstacle_mask(col_mask):
+    """Build a reusable obstacle mask from the map's red walls and dark blocks."""
+    cache_key = id(col_mask)
+    cached = world_collision_cache.get(cache_key)
+    if cached is not None and cached[0] is col_mask:
+        return cached[1]
+    obstacle_mask = _build_obstacle_mask(col_mask)
+    world_collision_cache[cache_key] = (col_mask, obstacle_mask)
+    return obstacle_mask
+
+
+def prepare_collision_mask(col_mask, source_mask=None):
+    """Warm the world silhouette mask during asset loading."""
+    cache_key = id(col_mask)
+    source = source_mask if source_mask is not None else col_mask
+    obstacle_mask = _build_obstacle_mask(source)
+    if obstacle_mask.get_size() != col_mask.get_size():
+        obstacle_mask = obstacle_mask.scale(col_mask.get_size())
+    world_collision_cache[cache_key] = (col_mask, obstacle_mask)
+
+
 def _base_vehicle_size(car):
     if getattr(car, "is_police", False) or hasattr(car, "target_node"):
         return 96, 39
@@ -147,36 +186,51 @@ def _safe_stopping_distance(first_car, second_car):
 
 
 def can_move_to(car, position, other_cars, col_mask=None):
-    """Prevent visible sprite overlap with vehicles and stop at map obstacles."""
-    candidate_rect = _rotated_car_rect(car, position)
+    """Move only when the visible vehicle silhouette clears cars and map walls."""
+    start = pygame.Vector2(car.pos)
+    destination = pygame.Vector2(position)
+    movement = destination - start
+    steps = max(1, math.ceil(movement.length() / 6.0))
     candidate_mask = _vehicle_mask(car)
-    for other in other_cars:
-        if other is car or not getattr(other, "is_alive", True):
-            continue
-        other_rect = _rotated_car_rect(other, other.pos)
-        if candidate_rect.colliderect(other_rect):
-            offset = (other_rect.left - candidate_rect.left, other_rect.top - candidate_rect.top)
+    collision_area_limit = max(12, round(candidate_mask.count() * 0.10))
+    obstacle_mask = _world_obstacle_mask(col_mask) if col_mask is not None else None
+    other_cars = other_cars or ()
+
+    for step in range(1, steps + 1):
+        candidate_position = start + movement * (step / steps)
+        candidate_rect = _rotated_car_rect(car, candidate_position)
+
+        for other in other_cars:
+            if other is car or not getattr(other, "is_alive", True):
+                continue
+            safe_distance = _safe_stopping_distance(car, other)
+            if candidate_position.distance_squared_to(other.pos) > safe_distance**2:
+                continue
+            other_rect = _rotated_car_rect(other, other.pos)
+            if not candidate_rect.colliderect(other_rect):
+                continue
+            offset = (
+                other_rect.left - candidate_rect.left,
+                other_rect.top - candidate_rect.top,
+            )
             if candidate_mask.overlap(_vehicle_mask(other), offset) is not None:
                 return False
 
-    if col_mask is not None:
-        mask_w, mask_h = col_mask.get_size()
-        # Check the center and the rotated corners of the actual car footprint.
-        half_width, half_height = (size / 2 - 2 for size in _base_vehicle_size(car))
-        angle = -getattr(car, "angle", 0)
-        local_corners = (
-            (-half_width, -half_height), (half_width, -half_height),
-            (-half_width, half_height), (half_width, half_height),
-        )
-        points = [candidate_rect.center]
-        for corner in local_corners:
-            rotated = pygame.Vector2(corner).rotate(angle)
-            points.append((round(position.x + rotated.x), round(position.y + rotated.y)))
-        for x, y in points:
-            if not (0 <= x < mask_w and 0 <= y < mask_h):
+        if obstacle_mask is not None:
+            mask_w, mask_h = obstacle_mask.get_size()
+            if (
+                candidate_rect.left < 0
+                or candidate_rect.top < 0
+                or candidate_rect.right > mask_w
+                or candidate_rect.bottom > mask_h
+            ):
                 return False
-            color = col_mask.get_at((x, y))
-            if color[0] < 50 and color[1] < 50 and color[2] < 50:
+            # Ignore narrow painted lane dashes, but block when a meaningful
+            # portion of the actual textured car body overlaps a wall.
+            overlap = candidate_mask.overlap_area(
+                obstacle_mask, (-candidate_rect.left, -candidate_rect.top)
+            )
+            if overlap >= collision_area_limit:
                 return False
     return True
 

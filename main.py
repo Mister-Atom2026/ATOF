@@ -5,8 +5,8 @@ import pygame
 
 from settings_manager import load_settings, load_statistics, save_settings
 
-VERSION = "0.8.0-alpha.2"
-RELEASE_NAME = "Open World Survival & Radio"
+VERSION = "0.8.0-beta.2"
+RELEASE_NAME = "Open World Combat & HUD"
 APP_SETTINGS = load_settings()
 
 import constants

@@ -4,6 +4,7 @@ import random
 import time
 from dataclasses import dataclass
 from enum import IntEnum
+from functools import lru_cache
 from pathlib import Path
 import sys
 from typing import Callable, Mapping, Optional
@@ -34,6 +35,111 @@ SUPPORTED_LANGUAGES = (
     "Deutsch",
     "Français",
 )
+
+MINIMAP_SIZE = 200
+MINIMAP_MARGIN = 30
+MINIMAP_RIM_OUTSET = 10
+SPEEDOMETER_RADAR_GAP = 12
+
+
+@lru_cache(maxsize=64)
+def _cached_ui_font(name: str | None, size: int, bold: bool = False):
+    """Reuse UI fonts instead of constructing system fonts during each frame."""
+    if name is None:
+        font = pygame.font.Font(None, size)
+        if bold:
+            font.set_bold(True)
+        return font
+    return pygame.font.SysFont(name, size, bold=bold)
+
+
+_MINIMAP_BACKGROUND_CACHE: dict[
+    tuple[int, tuple[int, int]], tuple[pygame.Surface, pygame.Surface]
+] = {}
+
+HOUSE_FRIDGE_POS = pygame.Vector2(675, 248)
+HOUSE_FRIDGE_RADIUS = 46
+FRIDGE_FOODS = (
+    ("fridge_apple", 15),
+    ("fridge_sandwich", 30),
+    ("fridge_meal", 50),
+)
+FRIDGE_STARTING_STOCK = (3, 2, 1)
+
+_INTERACTION_TEXTS = {
+    "English": {
+        "enter_car": "Sit in car", "steal_car": "Steal vehicle",
+        "exit_car": "Leave vehicle", "enter_house": "Enter house",
+        "exit_house": "Leave house", "repair_car": "Repair vehicle",
+        "sleep": "Sleep and save", "fridge": "Open fridge",
+        "fridge_title": "Fridge", "fridge_satiety": "Satiety: {value}%",
+        "fridge_apple": "Apple", "fridge_sandwich": "Sandwich",
+        "fridge_meal": "Hot meal", "fridge_item_detail": "+{value}%  ·  {stock} left",
+        "fridge_full": "Already full", "fridge_close": "Esc  Close",
+    },
+    "Українська": {
+        "enter_car": "Сісти в машину", "steal_car": "Викрасти машину",
+        "exit_car": "Вийти з машини", "enter_house": "Увійти в дім",
+        "exit_house": "Вийти з дому", "repair_car": "Відремонтувати",
+        "sleep": "Заснути й зберегтися", "fridge": "Відкрити холодильник",
+        "fridge_title": "Холодильник", "fridge_satiety": "Ситість: {value}%",
+        "fridge_apple": "Яблуко", "fridge_sandwich": "Бутерброд",
+        "fridge_meal": "Гаряча страва", "fridge_item_detail": "+{value}%  ·  лишилося {stock}",
+        "fridge_full": "Ти вже ситий", "fridge_close": "Esc  Закрити",
+    },
+    "Русский": {
+        "enter_car": "Сесть в машину", "steal_car": "Угнать машину",
+        "exit_car": "Выйти из машины", "enter_house": "Войти в дом",
+        "exit_house": "Выйти из дома", "repair_car": "Починить машину",
+        "sleep": "Спать и сохранить игру", "fridge": "Открыть холодильник",
+        "fridge_title": "Холодильник", "fridge_satiety": "Сытость: {value}%",
+        "fridge_apple": "Яблоко", "fridge_sandwich": "Бутерброд",
+        "fridge_meal": "Горячее блюдо", "fridge_item_detail": "+{value}%  ·  осталось {stock}",
+        "fridge_full": "Ты уже сыт", "fridge_close": "Esc  Закрыть",
+    },
+    "Español": {
+        "enter_car": "Subir al coche", "steal_car": "Robar vehículo",
+        "exit_car": "Salir del coche", "enter_house": "Entrar en casa",
+        "exit_house": "Salir de casa", "repair_car": "Reparar vehículo",
+        "sleep": "Dormir y guardar", "fridge": "Abrir nevera",
+        "fridge_title": "Nevera", "fridge_satiety": "Saciedad: {value}%",
+        "fridge_apple": "Manzana", "fridge_sandwich": "Bocadillo",
+        "fridge_meal": "Plato caliente", "fridge_item_detail": "+{value}%  ·  quedan {stock}",
+        "fridge_full": "Ya estás lleno", "fridge_close": "Esc  Cerrar",
+    },
+    "Deutsch": {
+        "enter_car": "Ins Auto steigen", "steal_car": "Auto stehlen",
+        "exit_car": "Auto verlassen", "enter_house": "Haus betreten",
+        "exit_house": "Haus verlassen", "repair_car": "Auto reparieren",
+        "sleep": "Schlafen und speichern", "fridge": "Kühlschrank öffnen",
+        "fridge_title": "Kühlschrank", "fridge_satiety": "Sättigung: {value}%",
+        "fridge_apple": "Apfel", "fridge_sandwich": "Sandwich",
+        "fridge_meal": "Warme Mahlzeit", "fridge_item_detail": "+{value}%  ·  {stock} übrig",
+        "fridge_full": "Schon satt", "fridge_close": "Esc  Schließen",
+    },
+    "Français": {
+        "enter_car": "Monter en voiture", "steal_car": "Voler le véhicule",
+        "exit_car": "Sortir de voiture", "enter_house": "Entrer dans la maison",
+        "exit_house": "Sortir de la maison", "repair_car": "Réparer le véhicule",
+        "sleep": "Dormir et sauvegarder", "fridge": "Ouvrir le réfrigérateur",
+        "fridge_title": "Réfrigérateur", "fridge_satiety": "Satiété : {value}%",
+        "fridge_apple": "Pomme", "fridge_sandwich": "Sandwich",
+        "fridge_meal": "Plat chaud", "fridge_item_detail": "+{value}%  ·  reste {stock}",
+        "fridge_full": "Vous êtes déjà rassasié", "fridge_close": "Esc  Fermer",
+    },
+}
+
+
+def _get_minimap_background(bg_img, scaled_size):
+    """Scale the minimap image once and reuse it for every subsequent frame."""
+    key = (id(bg_img), scaled_size)
+    cached = _MINIMAP_BACKGROUND_CACHE.get(key)
+    if cached is not None and cached[0] is bg_img:
+        return cached[1]
+    scaled = pygame.transform.scale(bg_img, scaled_size)
+    _MINIMAP_BACKGROUND_CACHE.clear()
+    _MINIMAP_BACKGROUND_CACHE[key] = (bg_img, scaled)
+    return scaled
 
 _menu_sounds: dict[str, Optional[pygame.mixer.Sound]] = {}
 _house_icon: Optional[pygame.Surface] = None
@@ -129,6 +235,75 @@ class SceneManager:
         self.previous, self.current = previous, scene
         if on_enter is not None:
             on_enter(previous, context)
+        return True
+
+
+class SceneTransition:
+    """Fade the current view to black, switch scenes, then fade back in."""
+
+    def __init__(self, duration: float = 0.8):
+        if duration <= 0:
+            raise ValueError("Scene transition duration must be positive")
+        self.duration = float(duration)
+        self.started_at: Optional[float] = None
+        self.destination: Optional[str] = None
+        self.switched = False
+        self.fade_in_started_at: Optional[float] = None
+
+    @property
+    def active(self) -> bool:
+        return self.started_at is not None
+
+    def begin(self, destination: str, now: float) -> bool:
+        if self.active:
+            return False
+        self.destination = destination
+        self.started_at = now
+        self.switched = False
+        self.fade_in_started_at = None
+        return True
+
+    def advance(self, now: float) -> Optional[str]:
+        """Return the destination once, at the fully black midpoint."""
+        if not self.active:
+            return None
+        if not self.switched:
+            if now - self.started_at < self.duration / 2:
+                return None
+            self.switched = True
+            return self.destination
+        if self.fade_in_started_at is None:
+            self.fade_in_started_at = now
+        return None
+
+    def overlay_alpha(self, now: float) -> int:
+        if not self.active:
+            return 0
+        if not self.switched:
+            progress = min(1.0, max(0.0, (now - self.started_at) / (self.duration / 2)))
+            fade = progress * progress * (3 - 2 * progress)
+        elif self.fade_in_started_at is None:
+            # Keep the frame that switches scenes completely black.
+            return 255
+        else:
+            progress = min(
+                1.0,
+                max(0.0, (now - self.fade_in_started_at) / (self.duration / 2)),
+            )
+            fade = 1 - progress * progress * (3 - 2 * progress)
+        return round(255 * fade)
+
+    def finish_if_complete(self, now: float) -> bool:
+        if (
+            not self.active
+            or self.fade_in_started_at is None
+            or now - self.fade_in_started_at < self.duration / 2
+        ):
+            return False
+        self.started_at = None
+        self.destination = None
+        self.switched = False
+        self.fade_in_started_at = None
         return True
 
 
@@ -340,10 +515,9 @@ def load_game_assets(
     original_background = load_image("world/НОРМ Карта Вишневого.png")
     world_background = pygame.transform.scale(original_background, world_size)
     full_map = pygame.transform.scale(original_nav_map, screen_size)
-    collision_mask = pygame.transform.scale(
-        load_image("world/Нізя їздити.png"),
-        world_size,
-    )
+    collision_source = load_image("world/Нізя їздити.png")
+    collision_mask = pygame.transform.scale(collision_source, world_size)
+    traffic.prepare_collision_mask(collision_mask, collision_source)
 
     house_visual = load_image("ch_home/hm.png")
     house_size = (
@@ -420,8 +594,14 @@ def load_game_audio() -> GameAudio:
         weapon_sounds["smg_reload"] = load_sound("smg_reload.wav")
     except (pygame.error, OSError):
         pass
+    try:
+        weapon_sounds["shot"] = load_sound("gunshot.wav")
+    except (pygame.error, OSError):
+        pass
 
     phone_click.set_volume(0.4)
+    if "shot" in weapon_sounds:
+        weapon_sounds["shot"].set_volume(0.65)
     car_sounds["engine"].set_volume(0.3)
     car_sounds["crash"].set_volume(0.5)
     car_sounds["beep"].set_volume(0.4)
@@ -837,6 +1017,14 @@ def projectile_hits_wall(start, end, collision_mask) -> bool:
     return False
 
 
+def _play_shot_sound(sound):
+    if sound is not None:
+        try:
+            sound.play()
+        except (pygame.error, AttributeError):
+            pass
+
+
 class WeaponWheel:
     WEAPONS = ("none", "pistol", "shotgun", "rifle", "smg")
 
@@ -888,14 +1076,58 @@ class WeaponWheel:
         },
     }
 
-    def __init__(self, ammo: int = 7, reserve_ammo: int = 49, selected: str = "pistol"):
+    def __init__(
+        self,
+        ammo: int = 7,
+        reserve_ammo: int = 49,
+        selected: str = "pistol",
+        ammo_by_weapon: Mapping[str, int] | None = None,
+        reserve_ammo_by_weapon: Mapping[str, int] | None = None,
+    ):
         if selected not in self.WEAPONS:
             raise ValueError(f"Unknown weapon: {selected}")
         self.selected = selected
-        stats = self.WEAPON_STATS.get(selected, self.WEAPON_STATS["pistol"])
-        self.ammo = max(0, min(stats["mag_size"], int(ammo)))
-        self.reserve_ammo = max(0, min(stats["reserve_max"], int(reserve_ammo)))
+        saved_ammo = ammo_by_weapon if isinstance(ammo_by_weapon, Mapping) else {}
+        saved_reserve = (
+            reserve_ammo_by_weapon
+            if isinstance(reserve_ammo_by_weapon, Mapping)
+            else {}
+        )
+
+        def bounded_count(value, default, maximum):
+            try:
+                count = int(value)
+            except (TypeError, ValueError):
+                count = default
+            return max(0, min(maximum, count))
+
+        self.ammo_by_weapon = {}
+        self.reserve_ammo_by_weapon = {}
+        for weapon, stats in self.WEAPON_STATS.items():
+            self.ammo_by_weapon[weapon] = bounded_count(
+                saved_ammo.get(weapon, stats["mag_size"]),
+                stats["mag_size"],
+                stats["mag_size"],
+            )
+            self.reserve_ammo_by_weapon[weapon] = bounded_count(
+                saved_reserve.get(weapon, stats["reserve_max"]),
+                stats["reserve_max"],
+                stats["reserve_max"],
+            )
+        # Old save files only have one pair of counts; apply it to their saved weapon.
+        if selected != "none":
+            self.ammo = ammo
+            self.reserve_ammo = reserve_ammo
+        else:
+            # Legacy unarmed saves still carry the pistol's last ammunition.
+            self.ammo_by_weapon["pistol"] = bounded_count(
+                ammo, 7, self.WEAPON_STATS["pistol"]["mag_size"]
+            )
+            self.reserve_ammo_by_weapon["pistol"] = bounded_count(
+                reserve_ammo, 49, self.WEAPON_STATS["pistol"]["reserve_max"]
+            )
         self.wheel_open = False
+        self.fire_button_held = False
         self.last_fire_time = 0.0
         self.is_reloading = False
         self.reload_start_time = 0.0
@@ -909,7 +1141,48 @@ class WeaponWheel:
             "smg": None,      # WR Mini .45 texture
         }
 
+    @property
+    def ammo(self) -> int:
+        return self.ammo_by_weapon.get(self.selected, 0)
+
+    @ammo.setter
+    def ammo(self, value: int) -> None:
+        stats = self.WEAPON_STATS.get(self.selected)
+        if stats is None:
+            return
+        try:
+            count = int(value)
+        except (TypeError, ValueError):
+            count = 0
+        self.ammo_by_weapon[self.selected] = max(
+            0, min(stats["mag_size"], count)
+        )
+
+    @property
+    def reserve_ammo(self) -> int:
+        return self.reserve_ammo_by_weapon.get(self.selected, 0)
+
+    @reserve_ammo.setter
+    def reserve_ammo(self, value: int) -> None:
+        stats = self.WEAPON_STATS.get(self.selected)
+        if stats is None:
+            return
+        try:
+            count = int(value)
+        except (TypeError, ValueError):
+            count = 0
+        self.reserve_ammo_by_weapon[self.selected] = max(
+            0, min(stats["reserve_max"], count)
+        )
+
     def process_event(self, event, screen_size) -> None:
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            self.fire_button_held = True
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            self.fire_button_held = False
+        elif event.type == pygame.WINDOWFOCUSLOST:
+            self.fire_button_held = False
+
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 2:
             self.wheel_open = True
             self._select_from_pointer(event.pos, screen_size)
@@ -982,7 +1255,7 @@ class WeaponWheel:
         stats = self.WEAPON_STATS[self.selected]
         return min(1.0, elapsed / stats["reload_time"])
 
-    def fire(self, origin, target) -> list[Projectile]:
+    def fire(self, origin, target, audio=None) -> list[Projectile]:
         if self.selected == "none" or self.is_reloading:
             return []
         if self.ammo <= 0:
@@ -1011,7 +1284,14 @@ class WeaponWheel:
                 projectile.velocity.rotate_ip(angle)
                 projectile.remaining_range = stats["range"]
                 projectiles.append(projectile)
+        if projectiles and audio is not None and hasattr(audio, "weapon_sounds"):
+            _play_shot_sound(audio.weapon_sounds.get("shot"))
         return projectiles
+
+    def fire_if_held(self, origin, target, audio=None) -> list[Projectile]:
+        if not self.fire_button_held:
+            return []
+        return self.fire(origin, target, audio)
 
     def melee_target(self, origin, target, candidates, max_distance=70.0):
         # Melee removed for now - all weapons are firearms
@@ -1029,7 +1309,7 @@ class WeaponWheel:
             center + pygame.Vector2(0, 88),
             center + pygame.Vector2(-88, 0),
         )
-        font = pygame.font.Font(None, 27)
+        font = _cached_ui_font(None, 27)
         for weapon, position in zip(self.WEAPONS, positions):
             selected = weapon == self.selected
             pygame.draw.circle(
@@ -1295,28 +1575,6 @@ def _get_surface_grip(col_mask, surface_map, position, angle):
     return grip
 
 
-def _sprites_overlap(
-    first_image: pygame.Surface,
-    first_center: tuple[float, float] | pygame.Vector2,
-    second_image: pygame.Surface,
-    second_center: tuple[float, float] | pygame.Vector2,
-    angle: float = 0,
-) -> bool:
-    rotated_first = pygame.transform.rotate(first_image, angle)
-    first_rect = rotated_first.get_rect(
-        center=(round(first_center[0]), round(first_center[1]))
-    )
-    second_rect = second_image.get_rect(
-        center=(round(second_center[0]), round(second_center[1]))
-    )
-    if not first_rect.colliderect(second_rect):
-        return False
-    offset = (second_rect.left - first_rect.left, second_rect.top - first_rect.top)
-    first_mask = pygame.mask.from_surface(rotated_first)
-    second_mask = pygame.mask.from_surface(second_image)
-    return first_mask.overlap(second_mask, offset) is not None
-
-
 _HEADLIGHT_BEAM_BASE = pygame.Surface((340, 220), pygame.SRCALPHA)
 pygame.draw.polygon(
     _HEADLIGHT_BEAM_BASE,
@@ -1557,44 +1815,9 @@ class Car:
                 self.create_smoke_particle()  # <-- This method is defined below.
 
         def check_at_pos(test_pos):
-            if npc_cars:
-                for npc in npc_cars:
-                    if not getattr(npc, "is_alive", True):
-                        continue
-                    # Check nearby traffic around the player’s car.
-                    if test_pos.distance_to(npc.pos) < 95:  # Detection distance.
-                        if _sprites_overlap(
-                            self.image,
-                            test_pos,
-                            npc.image,
-                            npc.pos,
-                            self.angle,
-                        ):
-                            return True  # Treat the other car as an obstacle.
-            w, h = 40, 18
-            points = [
-                test_pos + pygame.Vector2(dx, dy).rotate(-self.angle + 180)
-                for dx in (-w, -w / 2, 0, w / 2, w)
-                for dy in (-h, -h / 2, 0, h / 2, h)
-            ]
-            red_hits = 0
-            for point in points:
-                mask_x, mask_y = int(point.x), int(point.y)
-                if (
-                    col_mask is None
-                    or not col_mask.get_rect().collidepoint(mask_x, mask_y)
-                ):
-                    return True
-                pixel = col_mask.get_at((mask_x, mask_y))
-                is_black_wall = pixel.r < 50 and pixel.g < 50 and pixel.b < 50
-                is_red_marking = pixel.r > 200 and pixel.g < 50 and pixel.b < 50
-                if is_black_wall:
-                    return True
-                if is_red_marking:
-                    red_hits += 1
-            # Red is also used for dashed road markings; only broad red blocks
-            # in the collision mask represent solid obstacles.
-            return red_hits >= 8
+            return not traffic.can_move_to(
+                self, test_pos, npc_cars, col_mask
+            )
 
         if check_at_pos(next_pos):
             impact_speed = velocity.length()
@@ -1716,7 +1939,9 @@ class Car:
             pygame.draw.line(screen, (45, 45, 45), (p1r.x + offset_x, p1r.y + offset_y),
                              (p2r.x + offset_x, p2r.y + offset_y), 5)
 
-        rotated = pygame.transform.rotate(self.image, self.angle)
+        # Use the same cached rotated sprite that the collision mask is built
+        # from, so the visible car and its collision silhouette stay identical.
+        rotated, _collision_image_key = traffic._car_image(self)
         rect = rotated.get_rect(center=center)
 
         screen.blit(rotated, rect)
@@ -1734,8 +1959,15 @@ class Car:
             )
 
     def draw_speedometer(self, screen):
-        center = (screen.get_width() - 330, screen.get_height() - 120)
         r = self.ui_radius
+        # Keep the speedometer beside the bottom-right radar, using the
+        # minimap's dimensions and margin so both widgets stay aligned.
+        radar_center_x = screen.get_width() - MINIMAP_MARGIN - MINIMAP_SIZE // 2
+        radar_outer_radius = MINIMAP_SIZE // 2 + MINIMAP_RIM_OUTSET
+        center = (
+            radar_center_x - radar_outer_radius - SPEEDOMETER_RADAR_GAP - (r + 5),
+            screen.get_height() - MINIMAP_MARGIN - MINIMAP_SIZE // 2,
+        )
 
         # Draw the health bar above the speedometer.
         bar_width = 100
@@ -1807,27 +2039,27 @@ def draw_handgun(
     direction = direction.normalize()
     side = pygame.Vector2(-direction.y, direction.x)
     grip = start + direction * 7
-    barrel = start + direction * weapon_length - side * 10
+    barrel_base = start + direction * (weapon_length - 5)
+    muzzle = barrel_base + direction * 5
     points = (
         grip + side * 3,
         grip - side * 3,
-        barrel - side * 2,
-        barrel + side * 2,
+        barrel_base - side * 2,
+        barrel_base + side * 2,
     )
     pygame.draw.polygon(screen, (40, 40, 45), points)
     pygame.draw.line(
         screen,
         (20, 20, 24),
-        (round(barrel.x), round(barrel.y)),
-        (round((barrel + direction * 5).x), round((barrel + direction * 5).y)),
+        (round(barrel_base.x), round(barrel_base.y)),
+        (round(muzzle.x), round(muzzle.y)),
         2,
     )
 
 
 def draw_player_status(screen, player, ammo, reserve_ammo, wanted_level, labels):
-    """Draw ammunition and wanted status in the lower-left corner."""
-    screen_height = screen.get_height()
-    small_font = pygame.font.Font(None, 24)
+    """Draw ammunition and wanted status on the upper-left side."""
+    small_font = _cached_ui_font(None, 24)
 
     # The minimap now owns the health display, so keep these clear of it.
     ammo_text = labels.get("ammo", "Ammo: {current}/{reserve}").format(
@@ -1835,12 +2067,12 @@ def draw_player_status(screen, player, ammo, reserve_ammo, wanted_level, labels)
         reserve=reserve_ammo,
     )
     ammo_surface = small_font.render(ammo_text, True, (255, 255, 255))
-    screen.blit(ammo_surface, (20, screen_height - 52))
+    screen.blit(ammo_surface, (20, 252))
 
     stars = "* " * wanted_level + "- " * (5 - wanted_level)
     wanted_text = labels.get("wanted", "Wanted: {stars}").format(stars=stars)
     wanted_surface = small_font.render(wanted_text, True, (255, 190, 90))
-    screen.blit(wanted_surface, (20, screen_height - 27))
+    screen.blit(wanted_surface, (20, 279))
 
 
 def _format_gps_distance(distance: float) -> str:
@@ -1856,14 +2088,19 @@ def _draw_gps_marker(surface, center, radius):
     pygame.draw.circle(surface, (255, 255, 255), center, max(2, radius // 3))
 
 
-def _sector_polygon_points(center, radius, start_angle, end_angle, steps=72):
-    """Return the center and arc points for a screen-coordinate pie sector."""
-    cx, cy = center
-    points = [(round(cx), round(cy))]
+def _draw_hud_arc(surface, center, radius, start_angle, end_angle, color, width):
+    """Draw a smooth progress arc using screen-coordinate angles."""
+    span = end_angle - start_angle
+    steps = max(2, round(abs(span) / 3))
+    points = []
     for step in range(steps + 1):
-        angle = math.radians(start_angle + (end_angle - start_angle) * step / steps)
-        points.append((round(cx + math.cos(angle) * radius), round(cy + math.sin(angle) * radius)))
-    return points
+        angle = math.radians(start_angle + span * step / steps)
+        points.append((
+            round(center[0] + math.cos(angle) * radius),
+            round(center[1] + math.sin(angle) * radius),
+        ))
+    if len(points) >= 2:
+        pygame.draw.lines(surface, color, False, points, width)
 
 
 def _minimap_gps_position(player_position, destination, ratio_x, ratio_y, offset, center, radius):
@@ -1905,20 +2142,34 @@ def draw_gta_minimap(
     *,
     hunger=100.0,
     health=100.0,
+    preserve_aspect=False,
+    zoom=0.1,
 ):
-    """Draw a glass HUD with a two-thirds radar, hunger wedge, and health ring."""
+    """Draw a circular radar with separate hunger and health progress arcs."""
 
-    size, margin = 200, 30
+    size, margin = MINIMAP_SIZE, MINIMAP_MARGIN
     screen_width, screen_height = screen.get_size()
     x, y = screen_width - size - margin, screen_height - size - margin
 
     # Create a transparent surface for the minimap.
     mini_surf = pygame.Surface((size, size), pygame.SRCALPHA)
 
-    zoom = 0.1
-    # Calculate the map scale once.
-    map_scale_x = bg_img.get_width() * (size / (bg_img.get_width() * zoom))
-    map_scale_y = bg_img.get_height() * (size / (bg_img.get_height() * zoom))
+    # Calculate the map scale once. House interiors are wide, so fit them
+    # inside the circular radar without distorting the floor plan.
+    square_map_size = size / zoom
+    if preserve_aspect:
+        map_scale = min(
+            square_map_size / bg_img.get_width(),
+            square_map_size / bg_img.get_height(),
+        )
+        map_scale_x = bg_img.get_width() * map_scale
+        map_scale_y = bg_img.get_height() * map_scale
+        map_origin_x = (square_map_size - map_scale_x) / 2
+        map_origin_y = (square_map_size - map_scale_y) / 2
+    else:
+        map_scale_x = square_map_size
+        map_scale_y = square_map_size
+        map_origin_x = map_origin_y = 0
 
     # Coordinate conversion ratios.
     ratio_x = map_scale_x / world_w
@@ -1930,27 +2181,36 @@ def draw_gta_minimap(
 
     # Clamp the minimap camera center to avoid showing empty areas.
     # Keep the camera at least half_size pixels from the map edge.
-    cam_x = max(half_size, min(target.pos.x * ratio_x, map_scale_x - half_size))
-    cam_y = max(half_size, min(target.pos.y * ratio_y, map_scale_y - half_size))
+    def radar_axis_offset(position, ratio, origin, extent):
+        if extent <= size:
+            return half_size - extent / 2
+        camera = max(
+            half_size,
+            min(origin + position * ratio, origin + extent - half_size),
+        )
+        return half_size - camera + origin
 
-    # Offset the background relative to the fixed camera.
-    ox = -cam_x + half_size
-    oy = -cam_y + half_size
+    # Keep small maps fully visible; pan larger maps to follow the player.
+    ox = radar_axis_offset(target.pos.x, ratio_x, map_origin_x, map_scale_x)
+    oy = radar_axis_offset(target.pos.y, ratio_y, map_origin_y, map_scale_y)
 
     # Draw the map background.
-    temp = pygame.transform.scale(bg_img, (int(map_scale_x), int(map_scale_y)))
+    temp = _get_minimap_background(
+        bg_img, (int(map_scale_x), int(map_scale_y))
+    )
     mini_surf.blit(temp, (ox, oy))
 
-    # House marker.
-    hx = (house_pos[0] * ratio_x) + ox
-    hy = (house_pos[1] * ratio_y) + oy
+    # City radars mark the house; the interior radar does not need that icon.
+    if house_pos is not None:
+        hx = (house_pos[0] * ratio_x) + ox
+        hy = (house_pos[1] * ratio_y) + oy
 
-    house_icon = _get_house_icon()
-    if house_icon is not None:
-        icon_mini = pygame.transform.scale(house_icon, (20, 20))
-        mini_surf.blit(icon_mini, (int(hx) - 10, int(hy) - 10))
-    else:
-        pygame.draw.circle(mini_surf, (0, 0, 255), (int(hx), int(hy)), 5)
+        house_icon = _get_house_icon()
+        if house_icon is not None:
+            icon_mini = pygame.transform.scale(house_icon, (20, 20))
+            mini_surf.blit(icon_mini, (int(hx) - 10, int(hy) - 10))
+        else:
+            pygame.draw.circle(mini_surf, (0, 0, 255), (int(hx), int(hy)), 5)
 
     # Player marker; it moves away from the center near map boundaries.
     px = (target.pos.x * ratio_x) + ox
@@ -1978,101 +2238,71 @@ def draw_gta_minimap(
         )
         _draw_gps_marker(mini_surf, marker_pos, 9)
 
-    # The lower 120 degrees are reserved for the glass hunger panel; the
-    # remaining 240 degrees show the world radar.
+    # Clip the complete map and its markers to a circular radar window.
     radar_mask = pygame.Surface((size, size), pygame.SRCALPHA)
-    pygame.draw.polygon(
-        radar_mask,
-        (255, 255, 255, 255),
-        _sector_polygon_points((half_size, half_size), half_size, 150, 390),
-    )
+    pygame.draw.circle(radar_mask, (255, 255, 255, 255), (half_size, half_size), half_size)
     mini_surf.blit(radar_mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
-
-    glass = pygame.Surface((size, size), pygame.SRCALPHA)
-    hunger_sector = _sector_polygon_points(
-        (half_size, half_size), half_size - 1, 30, 150
-    )
-    pygame.draw.polygon(glass, (12, 42, 58, 224), hunger_sector)
-    pygame.draw.lines(
-        glass,
-        (118, 225, 239, 190),
-        False,
-        hunger_sector[1:],
-        2,
-    )
-    pygame.draw.line(glass, (160, 235, 245, 110), (half_size, half_size + 6),
-                     (half_size, size - 8), 1)
-    screen.blit(glass, (x, y))
-
-    # Localized satiety readout and fill bar sit inside the lower glass segment.
     text_labels = labels or {}
     hunger_value = max(0, min(100, round(float(hunger))))
     hunger_text = text_labels.get("hunger_meter", "HUNGER {value}%").format(
         value=hunger_value
     )
-    hunger_font = pygame.font.Font(None, 15)
-    hunger_surface = hunger_font.render(hunger_text, True, (238, 250, 255))
-    hunger_surface.set_alpha(245)
-    screen.blit(
-        hunger_surface,
-        hunger_surface.get_rect(center=(x + half_size, y + half_size + 17)),
-    )
-    hunger_bar = pygame.Rect(x + 48, y + size - 17, 104, 7)
-    pygame.draw.rect(screen, (7, 20, 28), hunger_bar, border_radius=4)
-    fill_width = round(hunger_bar.width * hunger_value / 100)
-    if fill_width:
-        hunger_color = (82, 218, 158) if hunger_value > 20 else (238, 151, 70)
-        pygame.draw.rect(
-            screen,
-            hunger_color,
-            (hunger_bar.x, hunger_bar.y, fill_width, hunger_bar.height),
-            border_radius=4,
-        )
-
-    # A full ring is the health bar: its colored arc shrinks with current HP.
     center_on_screen = (x + half_size, y + half_size)
     health_ratio = max(0.0, min(1.0, float(health) / 100.0))
-    ring_rect = pygame.Rect(
-        center_on_screen[0] - half_size - 8,
-        center_on_screen[1] - half_size - 8,
-        size + 16,
-        size + 16,
-    )
-    pygame.draw.circle(screen, (15, 25, 32), center_on_screen, half_size + 8, 5)
+
+    # Layered glass rim keeps the radar legible while the outer ring carries
+    # two independent meters: 240 degrees for health, 120 for hunger.
+    pygame.draw.circle(screen, (15, 10, 7), center_on_screen, half_size + 10, 9)
+    pygame.draw.circle(screen, (126, 79, 43), center_on_screen, half_size + 4, 2)
+    pygame.draw.circle(screen, (225, 166, 111), center_on_screen, half_size, 2)
+
+    health_start, health_end = -87, 147
+    hunger_start, hunger_end = 153, 267
+    ring_radius, ring_width = half_size + 9, 6
+    track_color = (55, 37, 26)
+    _draw_hud_arc(screen, center_on_screen, ring_radius, health_start, health_end,
+                  track_color, ring_width)
+    _draw_hud_arc(screen, center_on_screen, ring_radius, hunger_start, hunger_end,
+                  track_color, ring_width)
+
     health_color = (67, 224, 142) if health_ratio > 0.5 else (
         (247, 181, 75) if health_ratio > 0.2 else (239, 75, 67)
     )
     if health_ratio > 0:
-        pygame.draw.arc(
-            screen,
-            health_color,
-            ring_rect,
-            math.radians(270),
-            math.radians(270 + 360 * health_ratio),
-            5,
-        )
+        _draw_hud_arc(screen, center_on_screen, ring_radius, health_start,
+                      health_start + (health_end - health_start) * health_ratio,
+                      health_color, ring_width)
+    hunger_ratio = hunger_value / 100
+    if hunger_ratio > 0:
+        hunger_color = (247, 157, 37) if hunger_value > 20 else (239, 75, 67)
+        _draw_hud_arc(screen, center_on_screen, ring_radius, hunger_start,
+                      hunger_start + (hunger_end - hunger_start) * hunger_ratio,
+                      hunger_color, ring_width)
 
-    # Draw the minimap on the main screen.
-    # Map.
+    # Put the full circular radar above its backing rim and progress arcs.
     screen.blit(mini_surf, (x, y))
-    pygame.draw.circle(screen, (209, 237, 244), center_on_screen, half_size, 2)
-    pygame.draw.arc(screen, (91, 171, 190), ring_rect, math.radians(30),
-                    math.radians(150), 3)
+    pygame.draw.circle(screen, (232, 190, 145), center_on_screen, half_size, 2)
 
     health_text = text_labels.get("health_meter", "HP {value}%").format(
         value=round(health_ratio * 100)
     )
-    health_font = pygame.font.Font(None, 15)
-    health_surface = health_font.render(health_text, True, (245, 255, 255))
-    health_back = health_surface.get_rect(center=(x + half_size, y + 15))
-    health_back.inflate_ip(8, 4)
-    pygame.draw.rect(screen, (8, 20, 28, 185), health_back, border_radius=5)
-    screen.blit(health_surface, health_surface.get_rect(center=health_back.center))
+    status_font = _cached_ui_font(None, 15)
+    health_surface = status_font.render(health_text, True, (255, 244, 228))
+    hunger_surface = status_font.render(hunger_text, True, (255, 239, 214))
+    for text_surface, center in (
+        (health_surface, (x + half_size, y + 15)),
+        (hunger_surface, (x + half_size, y + size - 15)),
+    ):
+        text_back = text_surface.get_rect(center=center)
+        text_back.inflate_ip(8, 4)
+        pygame.draw.rect(screen, (18, 12, 8, 220), text_back, border_radius=5)
+        pygame.draw.rect(screen, (151, 91, 46), text_back, 1, border_radius=5)
+        screen.blit(text_surface, text_surface.get_rect(center=text_back.center))
     if distance is not None:
         text = text_labels.get("gps_distance", "Distance: {distance}").format(
             distance=_format_gps_distance(distance)
         )
-        distance_font = pygame.font.Font(None, 22)
+        distance_font = _cached_ui_font(None, 22)
         rendered_distance = distance_font.render(text, True, (255, 215, 0))
         screen.blit(rendered_distance, (x, y - rendered_distance.get_height() - 8))
 
@@ -2146,8 +2376,6 @@ def stats_dialog(screen, font, small_font, t, stats=None, controls=None):
         pygame.draw.rect(screen, color, back_rect, border_radius=8)
         back_text = small_font.render(t.get("back", "Back"), True, (255, 255, 255))
         screen.blit(back_text, back_text.get_rect(center=back_rect.center))
-        hint = small_font.render(t.get("stats_hint", "Press Esc or Enter to return"), True, (150, 150, 150))
-        screen.blit(hint, hint.get_rect(center=(width // 2, height - 55)))
         pygame.display.flip()
 
         for event in pygame.event.get():
@@ -2412,7 +2640,6 @@ def _audio_settings_menu(screen, font, settings, trans_dict, languages, controls
     last_hovered = None
     mouse_control_active = False
     clock = pygame.time.Clock()
-    hint_font = pygame.font.Font(None, 22)
 
     def adjust_volume(index, direction):
         key = volume_keys[index]
@@ -2434,11 +2661,11 @@ def _audio_settings_menu(screen, font, settings, trans_dict, languages, controls
             for index in range(len(volume_keys))
         ]
         decrease_rects = [
-            pygame.Rect(screen_width - 300, rect.y + (row_height - 54) // 2, 60, 54)
+            pygame.Rect(rect.x + 10, rect.y + (row_height - 54) // 2, 60, 54)
             for rect in row_rects
         ]
         increase_rects = [
-            pygame.Rect(screen_width - 110, rect.y + (row_height - 54) // 2, 60, 54)
+            pygame.Rect(rect.x + 80, rect.y + (row_height - 54) // 2, 60, 54)
             for rect in row_rects
         ]
         back_rect = pygame.Rect(screen_width // 2 - 110, screen_height - 105, 220, 50)
@@ -2504,11 +2731,11 @@ def _audio_settings_menu(screen, font, settings, trans_dict, languages, controls
             rendered_label = font.render(label, True, (255, 255, 255))
             screen.blit(
                 rendered_label,
-                (rect.x + 20, rect.y + (row_height - rendered_label.get_height()) // 2),
+                (rect.x + 300, rect.y + (row_height - rendered_label.get_height()) // 2),
             )
 
             value = font.render(f"{settings[volume_keys[index]]}%", True, (255, 255, 255))
-            screen.blit(value, value.get_rect(center=(screen_width - 190, rect.centery)))
+            screen.blit(value, value.get_rect(center=(rect.x + 220, rect.centery)))
 
             for button_rect, symbol in (
                 (decrease_rects[index], "−"),
@@ -2525,16 +2752,6 @@ def _audio_settings_menu(screen, font, settings, trans_dict, languages, controls
         pygame.draw.rect(screen, (70, 70, 70), back_rect, border_radius=8)
         rendered_back = font.render(text.get("back", "Back"), True, (255, 255, 255))
         screen.blit(rendered_back, rendered_back.get_rect(center=back_rect.center))
-        hint = text.get(
-            "audio_hint",
-            "Up/Down selects a sound; Left/Right adjusts it; Esc returns",
-        )
-        rendered_hint = hint_font.render(hint, True, (170, 170, 170))
-        screen.blit(
-            rendered_hint,
-            rendered_hint.get_rect(center=(screen_width // 2, screen_height - 28)),
-        )
-
         pygame.display.flip()
         clock.tick(FPS)
 
@@ -2548,7 +2765,6 @@ def _video_settings_menu(screen, font, settings, trans_dict, languages, controls
     mouse_control_active = False
     last_hovered = None
     clock = pygame.time.Clock()
-    hint_font = pygame.font.Font(None, 20)
 
     def adjust(direction):
         nonlocal changed
@@ -2653,15 +2869,14 @@ def _video_settings_menu(screen, font, settings, trans_dict, languages, controls
             screen.blit(label, (rect.x + 18, rect.centery - label.get_height() // 2))
             if index < 3:
                 value = font.render(values[index], True, (255, 255, 255))
-                screen.blit(value, value.get_rect(midright=(rect.right - 18, rect.centery)))
+                value_x = rect.x + min(430, rect.width // 2)
+                screen.blit(value, value.get_rect(midleft=(value_x, rect.centery)))
         if not any(rect.collidepoint(mouse_pos) for rect in row_rects):
             last_hovered = None
 
         pygame.draw.rect(screen, (70, 70, 70), back_rect, border_radius=8)
         rendered_back = font.render(text.get("back", "Back"), True, (255, 255, 255))
         screen.blit(rendered_back, rendered_back.get_rect(center=back_rect.center))
-        hint = hint_font.render(text.get("video_hint", "FPS is a frame limit, not monitor Hz."), True, (170, 170, 170))
-        screen.blit(hint, hint.get_rect(center=(screen_width // 2, screen_height - 20)))
         pygame.display.flip()
         clock.tick(FPS)
 
@@ -2882,9 +3097,9 @@ def draw_debug_coords(screen, target, mode_label, fps=None):
     if not isinstance(position, pygame.Vector2):
         return
     try:
-        debug_f = pygame.font.SysFont("Consolas", 20, bold=True)
+        debug_f = _cached_ui_font("Consolas", 20, bold=True)
     except pygame.error:
-        debug_f = pygame.font.SysFont("Arial", 20)
+        debug_f = _cached_ui_font("Arial", 20)
 
     curr_x, curr_y = map(int, position)
 
@@ -3018,53 +3233,134 @@ def full_screen_map(
             distance_text = text_labels.get("gps_distance", "Distance: {distance}").format(
                 distance=_format_gps_distance(distance)
             )
-            distance_font = pygame.font.Font(None, 30)
+            distance_font = _cached_ui_font(None, 30)
             rendered_distance = distance_font.render(distance_text, True, (255, 215, 0))
             screen.blit(rendered_distance, (20, 20))
-
-        hint_font = pygame.font.Font(None, 24)
-        text_labels = labels or {}
-        set_hint = text_labels.get("gps_set", "Left-click: set destination")
-        clear_hint = text_labels.get("gps_clear", "Right-click/Backspace: clear destination")
-        for index, hint_text in enumerate((set_hint, clear_hint)):
-            rendered_hint = hint_font.render(hint_text, True, (240, 240, 240))
-            screen.blit(
-                rendered_hint,
-                (20, screen_height - rendered_hint.get_height() * (2 - index) - 16),
-            )
 
         pygame.display.flip()
         clock.tick(FPS)
 
-def draw_city_hints(screen, small_font, atom, car, t):
-    """Draw interaction hints near the car and house in the city."""
-    dist_car = atom.pos.distance_to(car.pos)
-    dist_house = atom.pos.distance_to(pygame.Vector2(7738, 2330))
+def _interaction_text(language, key):
+    labels = _INTERACTION_TEXTS.get(language, _INTERACTION_TEXTS["English"])
+    return labels[key]
 
-    if dist_car < 100:
-        msg = t["hint"].replace("[E]", "[F]")
-        txt = small_font.render(msg, True, (255, 255, 255))
-        screen.blit(txt, (WIDTH // 2 - txt.get_width() // 2, HEIGHT - 120))
 
-    if dist_house < 80:
-        txt = small_font.render(t["enter"], True, (255, 255, 0))
-        screen.blit(txt, (WIDTH // 2 - txt.get_width() // 2, HEIGHT - 160))
+def draw_interaction_prompt(screen, key, label, left_margin=20, bottom_margin=65):
+    """Show one warm-toned contextual action on the lower-left side."""
+    font = _cached_ui_font(None, 23)
+    key_font = _cached_ui_font(None, 22, bold=True)
+    label_surface = font.render(label, True, (250, 237, 220))
+    key_surface = key_font.render(key, True, (25, 15, 9))
+    key_size = 38
+    panel_height = 52
+    panel_width = label_surface.get_width() + key_size + 36
+    panel = pygame.Rect(
+        left_margin,
+        screen.get_height() - bottom_margin - panel_height,
+        panel_width,
+        panel_height,
+    )
+    pygame.draw.rect(screen, (22, 15, 10), panel, border_radius=12)
+    pygame.draw.rect(screen, (145, 84, 42), panel, 1, border_radius=12)
+    key_rect = pygame.Rect(panel.x + 10, panel.centery - key_size // 2, key_size, key_size)
+    pygame.draw.rect(screen, (228, 119, 31), key_rect, border_radius=8)
+    pygame.draw.rect(screen, (255, 174, 75), key_rect, 1, border_radius=8)
+    screen.blit(key_surface, key_surface.get_rect(center=key_rect.center))
+    label_rect = label_surface.get_rect(midleft=(key_rect.right + 12, panel.centery))
+    screen.blit(label_surface, label_rect)
+    return panel, key_rect, label_rect
+
+
+def fridge_menu_layout(screen_size):
+    """Return the fridge panel and its three clickable food rows."""
+    screen_width, screen_height = screen_size
+    panel_width = min(360, screen_width - 24)
+    panel_height = min(290, screen_height - 24)
+    # Keep the fridge to the left of screen center with a 50 px visual gap.
+    preferred_left = screen_width // 2 - 50 - panel_width
+    left = min(max(12, preferred_left), screen_width - panel_width - 12)
+    top = min(max(12, screen_height // 2 + 20), screen_height - panel_height - 12)
+    panel = pygame.Rect(left, top, panel_width, panel_height)
+    row_height = 46
+    row_rects = tuple(
+        pygame.Rect(panel.x + 16, panel.y + 91 + index * 52, panel.width - 32, row_height)
+        for index in range(len(FRIDGE_FOODS))
+    )
+    close_rect = pygame.Rect(panel.x + 12, panel.y + 12, 28, 28)
+    return panel, row_rects, close_rect
+
+
+def draw_fridge_menu(screen, language, hunger, stock, selected=0):
+    labels = _INTERACTION_TEXTS.get(language, _INTERACTION_TEXTS["English"])
+    panel, rows, close_rect = fridge_menu_layout(screen.get_size())
+    pygame.draw.rect(screen, (8, 5, 3), panel.inflate(8, 8), border_radius=20)
+    pygame.draw.rect(screen, (28, 20, 14), panel, border_radius=18)
+    pygame.draw.rect(screen, (205, 106, 39), panel, 2, border_radius=18)
+
+    title_font = _cached_ui_font(None, 30, bold=True)
+    body_font = _cached_ui_font(None, 21)
+    detail_font = _cached_ui_font(None, 17)
+    key_font = _cached_ui_font(None, 20, bold=True)
+    title = title_font.render(labels["fridge_title"], True, (255, 233, 204))
+    screen.blit(title, (panel.x + 52, panel.y + 15))
+    pygame.draw.rect(screen, (69, 39, 22), close_rect, border_radius=7)
+    pygame.draw.rect(screen, (174, 94, 38), close_rect, 1, border_radius=7)
+    close_surface = title_font.render("×", True, (255, 166, 74))
+    screen.blit(close_surface, close_surface.get_rect(center=close_rect.center))
+    satiety = body_font.render(
+        labels["fridge_satiety"].format(value=round(hunger)),
+        True,
+        (234, 174, 111),
+    )
+    screen.blit(satiety, (panel.x + 20, panel.y + 52))
+
+    for index, ((food_key, restore), row) in enumerate(zip(FRIDGE_FOODS, rows)):
+        available = stock[index] > 0 and hunger < 100
+        selected_row = index == selected
+        row_color = (93, 51, 25) if selected_row else (39, 29, 22)
+        text_color = (255, 240, 220) if available else (145, 127, 109)
+        pygame.draw.rect(screen, row_color, row, border_radius=9)
+        pygame.draw.rect(
+            screen,
+            (243, 140, 53) if selected_row else (104, 71, 47),
+            row,
+            1,
+            border_radius=9,
+        )
+        key_rect = pygame.Rect(row.x + 8, row.y + 7, 32, 32)
+        pygame.draw.rect(screen, (23, 16, 11), key_rect, border_radius=6)
+        pygame.draw.rect(screen, (133, 78, 39), key_rect, 1, border_radius=6)
+        key_surface = key_font.render(str(index + 1), True, (248, 158, 72))
+        screen.blit(key_surface, key_surface.get_rect(center=key_rect.center))
+        name = body_font.render(labels[food_key], True, text_color)
+        detail = detail_font.render(
+            labels["fridge_item_detail"].format(value=restore, stock=stock[index]),
+            True,
+            (205, 169, 137) if available else (123, 106, 91),
+        )
+        screen.blit(name, (row.x + 49, row.y + 3))
+        screen.blit(detail, (row.x + 49, row.y + 25))
+
+def consume_fridge_food(survival, stock, index):
+    """Consume one available serving and return the actual satiety restored."""
+    if not 0 <= index < len(FRIDGE_FOODS) or stock[index] <= 0:
+        return 0
+    if survival.hunger >= 100:
+        return 0
+    _food_key, restoration = FRIDGE_FOODS[index]
+    restored = min(restoration, 100 - survival.hunger)
+    survival.hunger += restored
+    stock[index] -= 1
+    return restored
 
 def draw_house_scene(screen, house_visual, house_info, atom_h, small_font, t):
-    """Draw the interior scene and check the exit area."""
+    """Draw the house interior."""
     screen.fill((10, 10, 10))
     h_rect = house_visual.get_rect(center=(WIDTH // 2, HEIGHT // 2))
     screen.blit(house_visual, h_rect)
 
     # Draw the character relative to the house center.
     atom_h.draw(screen, h_rect.x, h_rect.y)
-
-    px, py = int(atom_h.pos.x), int(atom_h.pos.y)
-    if house_info.get_rect().collidepoint(px, py):
-        color_at_feet = house_info.get_at((px, py))[:3]
-        if color_at_feet == (153, 229, 80):
-            txt = small_font.render(t["exit"], True, (255, 255, 0))
-            screen.blit(txt, (WIDTH // 2 - txt.get_width() // 2, HEIGHT - 100))
 
 def handle_car_logic(atom, car, in_car):
     """Handle entering and leaving the car with the F key."""
@@ -3125,7 +3421,8 @@ def handle_surface_footsteps(keys, in_car, game_state, pos, col_mask, sounds, ch
 
 
 def update_combat_system(frame_scale, fleeing_drivers, hostile_officers, npc_cars, projectiles,
-                          atom, car, in_car, col_mask, wanted, honor_and_respect):
+                          atom, car, in_car, col_mask, wanted, honor_and_respect,
+                          shot_sound=None):
     """Update all combat-related entities and handle projectile collisions."""
     for driver in fleeing_drivers:
         driver.update(col_mask, frame_scale)
@@ -3164,6 +3461,7 @@ def update_combat_system(frame_scale, fleeing_drivers, hostile_officers, npc_car
             )
             if projectile is not None:
                 projectiles.append(projectile)
+                _play_shot_sound(shot_sound)
                 police.fire_cooldown = 75.0
 
         for officer in hostile_officers:
@@ -3181,6 +3479,7 @@ def update_combat_system(frame_scale, fleeing_drivers, hostile_officers, npc_car
             )
             if projectile is not None:
                 projectiles.append(projectile)
+                _play_shot_sound(shot_sound)
                 officer.fire_cooldown = 60.0
 
     remaining_projectiles = []
@@ -3293,6 +3592,8 @@ def build_game_state_data(game_state, atom, atom_h, car, weapons, wanted,
         ),
         "ammo": weapons.ammo,
         "reserve_ammo": weapons.reserve_ammo,
+        "ammo_by_weapon": dict(weapons.ammo_by_weapon),
+        "reserve_ammo_by_weapon": dict(weapons.reserve_ammo_by_weapon),
         "weapon": weapons.selected,
         "honor": honor_and_respect.honor,
         "respect": honor_and_respect.respect,
@@ -3503,7 +3804,7 @@ def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_s
     p_w, p_h = 220, 400
 
     # Calculate the phone position; p_y changes during the slide animation.
-    p_x = width - p_w - 20
+    p_x = 20
     p_y = height - p_h - 20 + phone_y_offset
 
     # 1. Phone body and display.
@@ -3532,13 +3833,13 @@ def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_s
         icon_x, icon_y = display_rect.x + 20, display_rect.y + 50
         pygame.draw.rect(screen, (80, 80, 120), (icon_x, icon_y, 45, 45), border_radius=10)
         screen.blit(font_small.render("1", True, (255, 255, 255)), (icon_x + 15, icon_y + 10))
-        name_surf = pygame.font.SysFont("Arial", 12, bold=True).render("Triple1", True, (220, 220, 220))
+        name_surf = _cached_ui_font("Arial", 12, bold=True).render("Triple1", True, (220, 220, 220))
         screen.blit(name_surf, (icon_x, icon_y + 50))
 
         settings_x = display_rect.x + 95
         pygame.draw.rect(screen, (55, 105, 100), (settings_x, icon_y, 45, 45), border_radius=10)
         screen.blit(font_small.render("2", True, (255, 255, 255)), (settings_x + 15, icon_y + 10))
-        settings_name = pygame.font.SysFont("Arial", 11, bold=True).render(
+        settings_name = _cached_ui_font("Arial", 11, bold=True).render(
             labels["settings_app"], True, (220, 220, 220)
         )
         screen.blit(settings_name, (settings_x, icon_y + 50))
@@ -3554,22 +3855,22 @@ def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_s
         # Transaction history.
         # Important: calculate y_hist relative to display_rect.y.
         y_hist = display_rect.y + 130
-        history_title = pygame.font.SysFont("Arial", 12, bold=True).render(labels["history"], True, (150, 150, 150))
+        history_title = _cached_ui_font("Arial", 12, bold=True).render(labels["history"], True, (150, 150, 150))
         screen.blit(history_title, (display_rect.x + 15, y_hist))
 
         for item in money_history[-3:]:
             y_hist += 25
             label = labels.get(item[1], item[1])
-            txt = pygame.font.SysFont("Arial", 12).render(f"{item[0]} - {label}", True, (200, 200, 200))
+            txt = _cached_ui_font("Arial", 12).render(f"{item[0]} - {label}", True, (200, 200, 200))
             screen.blit(txt, (display_rect.x + 15, y_hist))
 
     elif current_app == 2:
-        title = pygame.font.SysFont("Arial", 16, bold=True).render(
+        title = _cached_ui_font("Arial", 16, bold=True).render(
             labels["phone_settings"], True, (255, 255, 255)
         )
         screen.blit(title, (display_rect.x + 15, display_rect.y + 45))
 
-        category = pygame.font.SysFont("Arial", 13, bold=True).render(
+        category = _cached_ui_font("Arial", 13, bold=True).render(
             labels["phone_color"], True, (190, 190, 190)
         )
         screen.blit(category, (display_rect.x + 15, display_rect.y + 90))
@@ -3582,20 +3883,13 @@ def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_s
             border_color = (255, 215, 0) if idx == selected_idx else (180, 180, 180)
             border_width = 3 if idx == selected_idx else 1
             pygame.draw.rect(screen, border_color, swatch, border_width, border_radius=6)
-            number = pygame.font.SysFont("Arial", 11, bold=True).render(str(idx + 1), True, (235, 235, 235))
+            number = _cached_ui_font("Arial", 11, bold=True).render(str(idx + 1), True, (235, 235, 235))
             screen.blit(number, (swatch.x + 10, swatch.bottom + 5))
 
-        selected_name = pygame.font.SysFont("Arial", 14, bold=True).render(
+        selected_name = _cached_ui_font("Arial", 14, bold=True).render(
             labels["colors"][selected_idx], True, (255, 255, 255)
         )
         screen.blit(selected_name, (display_rect.x + 15, display_rect.y + 175))
-
-        hint = pygame.font.SysFont("Arial", 11).render(
-            labels["choose_color"], True, (165, 165, 165)
-        )
-        screen.blit(hint, (display_rect.x + 15, display_rect.y + 220))
-
-
 
 def run_open_world(screen, settings, *, continue_game=True):
     """Run ATOF's continuous open-world game session."""
@@ -3636,11 +3930,16 @@ def run_open_world(screen, settings, *, continue_game=True):
     # Keep track of collected treasures so they cannot be collected repeatedly.
     collected_treasures = set()
     phone_active = False  # Phone state.
+    fridge_menu_open = False
+    fridge_selection = 0
+    fridge_stock = list(FRIDGE_STARTING_STOCK)
     phone_settings = get_phone_settings()
     weapons = WeaponWheel(
         game_save.get("ammo", 7) if game_save else 7,
         game_save.get("reserve_ammo", 49) if game_save else 49,
         game_save.get("weapon", "pistol") if game_save else "pistol",
+        game_save.get("ammo_by_weapon") if game_save else None,
+        game_save.get("reserve_ammo_by_weapon") if game_save else None,
     )
     wanted = WantedLevel(
         game_save.get("wanted_level", 0) if game_save else 0,
@@ -3726,6 +4025,7 @@ def run_open_world(screen, settings, *, continue_game=True):
     current_drift_distance = game_save.get("drift_streak", 0.0) if game_save else 0.0
     sleep_requested = False
     wake_fade_started = None
+    scene_transition = SceneTransition(duration=0.8)
     manual_headlights = False
     radio = GameRadio(settings)
 
@@ -4028,7 +4328,8 @@ def run_open_world(screen, settings, *, continue_game=True):
 
     def update_combat(frame_scale):
         update_combat_system(frame_scale, fleeing_drivers, hostile_officers, npc_cars,
-                                    projectiles, atom, car, in_car, col_mask, wanted, honor_and_respect)
+                                    projectiles, atom, car, in_car, col_mask, wanted,
+                                    honor_and_respect, game_audio.weapon_sounds.get("shot"))
 
     def save_sleep_game():
         save_game_state(game_state, atom, atom_h, car, weapons, wanted,
@@ -4104,7 +4405,59 @@ def run_open_world(screen, settings, *, continue_game=True):
             if event.type == pygame.QUIT:
                 save_last_session_stats()
                 return "EXIT"
+            if fridge_menu_open:
+                if event.type == pygame.KEYDOWN and not getattr(event, "repeat", False):
+                    if event.key in (pygame.K_ESCAPE, pygame.K_BACKSPACE):
+                        fridge_menu_open = False
+                    elif event.key in (pygame.K_UP, pygame.K_w):
+                        fridge_selection = (fridge_selection - 1) % len(FRIDGE_FOODS)
+                    elif event.key in (pygame.K_DOWN, pygame.K_s):
+                        fridge_selection = (fridge_selection + 1) % len(FRIDGE_FOODS)
+                    else:
+                        number_keys = {
+                            pygame.K_1: 0, pygame.K_KP1: 0,
+                            pygame.K_2: 1, pygame.K_KP2: 1,
+                            pygame.K_3: 2, pygame.K_KP3: 2,
+                        }
+                        selected_number = next(
+                            (
+                                index
+                                for key, index in number_keys.items()
+                                if event.key == key
+                                or keyboard.matches(event, key)
+                            ),
+                            None,
+                        )
+                        if selected_number is not None:
+                            fridge_selection = selected_number
+                            if consume_fridge_food(survival, fridge_stock, fridge_selection):
+                                fridge_menu_open = False
+                                phone_click_sfx.play()
+                        elif keyboard.matches(event, pygame.K_e) or event.key in (
+                            pygame.K_RETURN, pygame.K_KP_ENTER
+                        ):
+                            if consume_fridge_food(survival, fridge_stock, fridge_selection):
+                                fridge_menu_open = False
+                                phone_click_sfx.play()
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    panel, rows, close_rect = fridge_menu_layout(screen.get_size())
+                    clicked_row = next(
+                        (index for index, row in enumerate(rows) if row.collidepoint(event.pos)),
+                        None,
+                    )
+                    if close_rect.collidepoint(event.pos):
+                        fridge_menu_open = False
+                    elif clicked_row is None:
+                        if not panel.collidepoint(event.pos):
+                            fridge_menu_open = False
+                    else:
+                        fridge_selection = clicked_row
+                        if consume_fridge_food(survival, fridge_stock, fridge_selection):
+                            fridge_menu_open = False
+                            phone_click_sfx.play()
+                continue
             if event.type == pygame.KEYDOWN:
+                entered_house_this_event = False
                 # --- Phone controls ---
                 if keyboard.matches(event, pygame.K_m):
                     phone_active = not phone_active
@@ -4189,70 +4542,82 @@ def run_open_world(screen, settings, *, continue_game=True):
                 if (
                     keyboard.matches(event, pygame.K_f)
                     and game_state == "CITY"
+                    and not scene_transition.active
+                    and in_car
                     and not phone_active
                 ):
-                    old_in_car = in_car  # Save the previous state before toggling.
-                    nearby_car = nearby_traffic_car(atom.pos) if not in_car else None
-                    if nearby_car is not None:
-                        hijack_traffic_car(nearby_car)
-                    else:
-                        in_car = handle_car_logic(atom, car, in_car)
-
-                    # Play the sound only when the state changes.
-                    if in_car != old_in_car:
-                        if in_car:
-                            car_sfx['door_open'].play()
-                            radio.resume()
-                        else:
-                            car_sfx['door_close'].play()
-                            radio.pause()
+                    in_car = handle_car_logic(atom, car, in_car)
+                    car_sfx['door_close'].play()
+                    radio.pause()
                 if (
                     event.type == pygame.KEYDOWN
                     and game_state == "CITY"
+                    and not scene_transition.active
                     and not in_car
                     and not phone_active
                     and not (car.is_broken and atom.pos.distance_to(car.pos) < 100)
                     and keyboard.matches(event, pygame.K_r)
                 ):
                     reload_weapon()
-                if game_state == "CITY" and in_car and not getattr(event, "repeat", False):
-                    if keyboard.matches(event, pygame.K_h):
-                        manual_headlights = not manual_headlights
-                    if keyboard.matches(event, pygame.K_e):
-                        play_car_horn(car_sfx, horn_chan)
-                        traffic.respond_to_horn(npc_cars, car.pos)
-                    if keyboard.matches(event, pygame.K_v):
-                        radio.toggle()
-                    if keyboard.matches(event, pygame.K_COMMA):
-                        radio.cycle_station(-1)
-                    if keyboard.matches(event, pygame.K_PERIOD):
-                        radio.cycle_station(1)
-                sleep_key_pressed = (
-                    keyboard.matches(event, pygame.K_e)
-                    or event.key == pygame.K_t
-                    or getattr(event, "unicode", "").lower() in ("t", "т")
-                )
-                if sleep_key_pressed:
-                    if game_state == "HOUSE":
-                        if is_at_sleep_spot(game_state, atom_h.pos):
-                            sleep_requested = True
-                        elif keyboard.matches(event, pygame.K_e) and check_house_exit(
-                            atom_h, house_info
-                        ):
-                            scene_manager.transition("CITY")
-                            game_state = scene_manager.current
-                            atom.pos = pygame.Vector2(7731, 2326)
-                    elif keyboard.matches(event, pygame.K_e) and not in_car:
-                        if atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
-                            scene_manager.transition("HOUSE")
-                            game_state = scene_manager.current
-                            atom_h.pos = pygame.Vector2(HOUSE_SLEEP_SPOT)
+                if (
+                    game_state == "CITY"
+                    and not scene_transition.active
+                    and not getattr(event, "repeat", False)
+                ):
+                    if in_car:
+                        if keyboard.matches(event, pygame.K_h):
+                            manual_headlights = not manual_headlights
+                        if keyboard.matches(event, pygame.K_e):
+                            play_car_horn(car_sfx, horn_chan)
+                            traffic.respond_to_horn(npc_cars, car.pos)
+                        if keyboard.matches(event, pygame.K_v):
+                            radio.toggle()
+                        if keyboard.matches(event, pygame.K_COMMA):
+                            radio.cycle_station(-1)
+                        if keyboard.matches(event, pygame.K_PERIOD):
+                            radio.cycle_station(1)
+                    elif not phone_active and keyboard.matches(event, pygame.K_e):
+                        old_in_car = in_car
+                        nearby_car = nearby_traffic_car(atom.pos)
+                        if nearby_car is not None:
+                            hijack_traffic_car(nearby_car)
+                        elif atom.pos.distance_to(car.pos) < 100:
+                            if not car.is_broken:
+                                in_car = handle_car_logic(atom, car, in_car)
+                        elif atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
+                            scene_transition.begin("HOUSE", time.perf_counter())
+                            entered_house_this_event = True
+                        if in_car != old_in_car:
+                            car_sfx['door_open'].play()
+                            radio.resume()
+
+                if (
+                    game_state == "HOUSE"
+                    and not scene_transition.active
+                    and not phone_active
+                    and not entered_house_this_event
+                ):
+                    pressed_e = keyboard.matches(event, pygame.K_e)
+                    pressed_t = (
+                        event.key == pygame.K_t
+                        or getattr(event, "unicode", "").lower() in ("t", "т")
+                    )
+                    if pressed_e and atom_h.pos.distance_to(HOUSE_FRIDGE_POS) < HOUSE_FRIDGE_RADIUS:
+                        fridge_menu_open = True
+                    elif pressed_e and is_at_sleep_spot(game_state, atom_h.pos):
+                        sleep_requested = True
+                    elif pressed_t and is_at_sleep_spot(game_state, atom_h.pos):
+                        sleep_requested = True
+                    elif pressed_e and check_house_exit(atom_h, house_info):
+                        scene_transition.begin("CITY", time.perf_counter())
             if (
                 event.type == pygame.MOUSEBUTTONDOWN
                 and event.button == 1
                 and game_state == "CITY"
+                and not scene_transition.active
                 and not in_car
                 and not phone_active
+                and not weapons.wheel_open
             ):
                 target_position = camera.screen_to_world(event.pos)
                 if weapons.selected == "knife":
@@ -4266,16 +4631,50 @@ def run_open_world(screen, settings, *, continue_game=True):
                         wanted.raise_level(2 if getattr(hit, "is_police", False) else 1)
                         honor_and_respect.change(honor=-20, respect=-15)
                 else:
-                    projectiles.extend(weapons.fire(atom.pos, target_position))
+                    projectiles.extend(weapons.fire(atom.pos, target_position, game_audio))
                 direction = target_position - atom.pos
                 if direction.length_squared():
                     atom.angle = -math.degrees(math.atan2(direction.x, direction.y))
+
+        if (
+            weapons.fire_button_held
+            and weapons.selected != "knife"
+            and game_state == "CITY"
+            and not scene_transition.active
+            and not in_car
+            and not phone_active
+            and not fridge_menu_open
+            and not weapons.wheel_open
+        ):
+            target_position = camera.screen_to_world(pygame.mouse.get_pos())
+            projectiles.extend(
+                weapons.fire_if_held(atom.pos, target_position, game_audio)
+            )
+            direction = target_position - atom.pos
+            if direction.length_squared():
+                atom.angle = -math.degrees(math.atan2(direction.x, direction.y))
+
+        transition_destination = scene_transition.advance(time.perf_counter())
+        if transition_destination is not None:
+            scene_manager.transition(transition_destination)
+            game_state = scene_manager.current
+            if game_state == "HOUSE":
+                atom_h.pos.update(HOUSE_SLEEP_SPOT)
+            else:
+                atom.pos.update(7731, 2326)
+                in_car = False
+                target = atom
+                off_x, off_y = camera.follow(target.pos)
+
+        if scene_transition.active and game_state == "CITY":
+            target = car if in_car else atom
+            off_x, off_y = camera.follow(target.pos)
 
         radio.update()
 
         # 2. Update the game state.
 
-        if game_state == "CITY":
+        if game_state == "CITY" and not scene_transition.active:
             target = car if in_car else atom
 
             # Update all traffic and pass the collision mask.
@@ -4371,24 +4770,25 @@ def run_open_world(screen, settings, *, continue_game=True):
             handle_car_audio(car, in_car, car_sfx, engine_chan, crash_chan)
             update_combat(frame_scale)
             off_x, off_y = camera.follow(target.pos)
-        else:
-            atom_h.update(keys, house_collision, frame_scale)
-            if "nightstand" not in collected_treasures:
-                if atom_h.pos.distance_to(pygame.Vector2(206, 199)) < 40:
-                    money += 200
-                    total_earned += 200
-                    money_history.append(("+200", "nightstand"))
-                    collected_treasures.add("nightstand")
+        elif game_state == "HOUSE" and not scene_transition.active:
+            if not fridge_menu_open:
+                atom_h.update(keys, house_collision, frame_scale)
+                if "nightstand" not in collected_treasures:
+                    if atom_h.pos.distance_to(pygame.Vector2(206, 199)) < 40:
+                        money += 200
+                        total_earned += 200
+                        money_history.append(("+200", "nightstand"))
+                        collected_treasures.add("nightstand")
 
-            if "sofa" not in collected_treasures:
-                if atom_h.pos.distance_to(pygame.Vector2(723, 128)) < 40:
-                    money += 300
-                    total_earned += 300
-                    money_history.append(("+300", "sofa"))
-                    collected_treasures.add("sofa")
-            handle_surface_footsteps(keys, in_car, game_state, atom_h.pos, None, step_sounds, foot_chan)
+                if "sofa" not in collected_treasures:
+                    if atom_h.pos.distance_to(pygame.Vector2(723, 128)) < 40:
+                        money += 300
+                        total_earned += 300
+                        money_history.append(("+300", "sofa"))
+                        collected_treasures.add("sofa")
+                handle_surface_footsteps(keys, in_car, game_state, atom_h.pos, None, step_sounds, foot_chan)
 
-        if atom.health <= 0:
+        if atom.health <= 0 and not scene_transition.active:
             fade_screen(screen, True, duration=0.35)
             radio.pause()
             if game_state != "HOUSE":
@@ -4443,19 +4843,7 @@ def run_open_world(screen, settings, *, continue_game=True):
                         atom.angle,
                         weapons.selected,
                     )
-                draw_city_hints(screen, small_font, atom, car, t)
-                if nearby_traffic_car(atom.pos) is not None:
-                    steal_text = small_font.render(t["steal_hint"], True, (255, 210, 100))
-                    screen.blit(
-                        steal_text,
-                        (WIDTH // 2 - steal_text.get_width() // 2, HEIGHT - 155),
-                    )
                 if car.is_broken and atom.pos.distance_to(car.pos) < 100:
-                    rendered = small_font.render(t["repair"], True, (255, 255, 255))
-                    screen.blit(
-                        rendered,
-                        (WIDTH // 2 - rendered.get_width() // 2, HEIGHT // 2 + 100),
-                    )
                     if car.repair_progress > 0:
                         pygame.draw.rect(
                             screen, (0, 0, 0),
@@ -4502,23 +4890,39 @@ def run_open_world(screen, settings, *, continue_game=True):
                     hunger=survival.hunger,
                     health=atom.health,
                 )
+                if not phone_active and phone_y_offset >= 449.0 and not weapons.wheel_open:
+                    if in_car:
+                        interaction = ("F", "exit_car")
+                    else:
+                        nearby_car = nearby_traffic_car(atom.pos)
+                        if nearby_car is not None:
+                            interaction = ("E", "steal_car")
+                        elif car.is_broken and atom.pos.distance_to(car.pos) < 100:
+                            interaction = ("R", "repair_car") if money >= 50 else None
+                        elif atom.pos.distance_to(car.pos) < 100 and not car.is_broken:
+                            interaction = ("E", "enter_car")
+                        elif atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
+                            interaction = ("E", "enter_house")
+                        else:
+                            interaction = None
+                    if interaction is not None:
+                        draw_interaction_prompt(
+                            screen,
+                            interaction[0],
+                            _interaction_text(current_lang_name, interaction[1]),
+                            left_margin=250,
+                        )
                 if in_car:
                     radio_label = t["radio_on"] if radio.is_on else t["radio_off"]
+                    radio_status = radio_label.format(
+                        station=radio.station_name,
+                        genre=t[radio.station_genre_key],
+                        track=radio.track_name,
+                    ).split("|", 1)[0].strip()
                     screen.blit(
-                        small_font.render(
-                            radio_label.format(
-                                station=radio.station_name,
-                                genre=t[radio.station_genre_key],
-                                track=radio.track_name,
-                            ),
-                            True,
-                            (255, 255, 255),
-                        ),
+                        small_font.render(radio_status, True, (255, 255, 255)),
                         (20, 50),
                     )
-                else:
-                    hint = small_font.render(t["weapon_hint"], True, (255, 255, 255))
-                    screen.blit(hint, (20, HEIGHT - hint.get_height() - 20))
 
             frame_renderer.submit(RenderLayer.BACKGROUND, draw_city_background)
             frame_renderer.submit(RenderLayer.WORLD, draw_city_world)
@@ -4531,21 +4935,53 @@ def run_open_world(screen, settings, *, continue_game=True):
                 )
 
             def draw_house_ui():
-                if is_at_sleep_spot(game_state, atom_h.pos):
-                    sleep_text = small_font.render(t["sleep_save"], True, (255, 255, 255))
-                    screen.blit(
-                        sleep_text,
-                        sleep_text.get_rect(center=(WIDTH // 2, HEIGHT - 80)),
+                draw_gta_minimap(
+                    screen,
+                    house_visual,
+                    atom_h,
+                    house_visual.get_width(),
+                    house_visual.get_height(),
+                    house_pos=None,
+                    labels=t,
+                    hunger=survival.hunger,
+                    health=atom.health,
+                    preserve_aspect=True,
+                    zoom=1.0,
+                )
+                if phone_active or phone_y_offset < 449.0 or fridge_menu_open:
+                    return
+                if atom_h.pos.distance_to(HOUSE_FRIDGE_POS) < HOUSE_FRIDGE_RADIUS:
+                    prompt = ("E", "fridge")
+                elif is_at_sleep_spot(game_state, atom_h.pos):
+                    prompt = ("E", "sleep")
+                elif check_house_exit(atom_h, house_info):
+                    prompt = ("E", "exit_house")
+                else:
+                    prompt = None
+                if prompt is not None:
+                    draw_interaction_prompt(
+                        screen,
+                        prompt[0],
+                        _interaction_text(current_lang_name, prompt[1]),
                     )
 
             frame_renderer.submit(RenderLayer.BACKGROUND, draw_house_background)
             frame_renderer.submit(RenderLayer.UI, draw_house_ui)
         frame_renderer.render()
 
+        if fridge_menu_open:
+            draw_fridge_menu(
+                screen,
+                current_lang_name,
+                survival.hunger,
+                fridge_stock,
+                fridge_selection,
+            )
+
         # In-game clock.
         h, m = int(game_time / 60), int(game_time % 60)
         time_text = small_font.render(f"{h:02d}:{m:02d}", True, (255, 255, 255))
-        screen.blit(time_text, (WIDTH - 100, 20))
+        screen.blit(time_text, (20, 20))
 
         if show_debug:
             draw_debug_coords(
@@ -4568,11 +5004,19 @@ def run_open_world(screen, settings, *, continue_game=True):
                 wake_overlay.set_alpha(round(255 * (1 - fade_progress)))
                 screen.blit(wake_overlay, (0, 0))
 
+        transition_alpha = scene_transition.overlay_alpha(time.perf_counter())
+        if transition_alpha:
+            wake_overlay.fill((0, 0, 0))
+            wake_overlay.set_alpha(transition_alpha)
+            screen.blit(wake_overlay, (0, 0))
+        scene_transition.finish_if_complete(time.perf_counter())
+
         pygame.display.flip()
         if sleep_requested:
             fade_screen(screen, True)
             game_time = (game_time + 540) % 1440
             survival.advance(540, atom)
+            fridge_stock[:] = FRIDGE_STARTING_STOCK
             if atom.health <= 0:
                 atom.health = atom.max_health
                 atom_h.pos.update(HOUSE_SLEEP_SPOT)

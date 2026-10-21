@@ -44,6 +44,18 @@ _STATISTICS_RECORD_KEYS = (
     "distance_without_crash_m",
 )
 _HONOR_MIN, _HONOR_MAX = -100.0, 100.0
+_WEAPON_MAGAZINE_CAPACITIES = {
+    "pistol": 7,
+    "shotgun": 5,
+    "rifle": 50,
+    "smg": 20,
+}
+_WEAPON_RESERVE_CAPACITIES = {
+    "pistol": 49,
+    "shotgun": 25,
+    "rifle": 150,
+    "smg": 80,
+}
 
 
 def _bounded_int(value, default, minimum, maximum):
@@ -61,6 +73,17 @@ def _finite_number(value, default=0.0, minimum=0.0, maximum=1_000_000_000.0):
     if not math.isfinite(number):
         return default
     return max(minimum, min(maximum, number))
+
+
+def _normalize_weapon_ammo(values, field, capacities):
+    raw = values.get(field)
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        weapon: _bounded_int(raw[weapon], capacity, 0, capacity)
+        for weapon, capacity in capacities.items()
+        if weapon in raw
+    }
 
 
 def _normalize_statistics(values: dict) -> dict[str, int | float | str]:
@@ -135,6 +158,12 @@ def load_game_save():
         ),
         "ammo": _bounded_int(values.get("ammo"), 7, 0, 50),
         "reserve_ammo": _bounded_int(values.get("reserve_ammo"), 49, 0, 150),
+        "ammo_by_weapon": _normalize_weapon_ammo(
+            values, "ammo_by_weapon", _WEAPON_MAGAZINE_CAPACITIES
+        ),
+        "reserve_ammo_by_weapon": _normalize_weapon_ammo(
+            values, "reserve_ammo_by_weapon", _WEAPON_RESERVE_CAPACITIES
+        ),
         "weapon": values.get("weapon")
         if values.get("weapon") in ("none", "pistol", "shotgun", "rifle", "smg")
         else "pistol",
