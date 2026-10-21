@@ -1,6 +1,15 @@
 # ATOF
 Game About Mister Atom
 
+## Version 0.8.0 Alpha 1 — "Save System & Open World"
+
+- Added 5-slot save system accessible from pause menu (ESC).
+- Moved all save/config/statistics files to ~/.atof directory for cross-platform consistency.
+- Removed chapter selection from main menu - game now starts directly in open world mode.
+- Added cross-platform font fallback list (Arial, DejaVu Sans, Liberation Sans, etc.) for better compatibility.
+- Adjusted handgun barrel offset to the right by 10 pixels.
+- Updated version to 0.8.0-alpha.1.
+
 ## Version 0.7.0 — "Story Foundations"
 
 - Fixed potential KeyError issues when loading game saves by using .get() with defaults.

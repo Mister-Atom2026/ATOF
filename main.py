@@ -5,8 +5,8 @@ import pygame
 
 from settings_manager import load_settings, load_statistics, save_settings
 
-VERSION = "0.7.1"
-RELEASE_NAME = "Driver Inferno"
+VERSION = "0.8.0"
+RELEASE_NAME = "Save System & Open World"
 APP_SETTINGS = load_settings()
 
 import constants
@@ -42,14 +42,16 @@ COLOR_WHITE = (255, 255, 255)
 COLOR_ORANGE = (212, 91, 18)
 COLOR_BROWN = (60, 40, 30)
 font_path = "static.ttf"
+# Cross-platform font fallback list
+FALLBACK_FONTS = ["Arial", "DejaVu Sans", "Liberation Sans", "Helvetica", "Verdana", "Tahoma", "Segoe UI", "sans-serif"]
 try:
     logo_font = pygame.font.Font(font_path, 150)
     menu_font = pygame.font.Font(font_path, 70)
     settings_font = pygame.font.Font(font_path, 42)
 except (pygame.error, OSError):
-    logo_font = pygame.font.SysFont("Arial", 150)
-    menu_font = pygame.font.SysFont("Arial", 70)
-    settings_font = pygame.font.SysFont("Arial", 42)
+    logo_font = pygame.font.SysFont(FALLBACK_FONTS, 150)
+    menu_font = pygame.font.SysFont(FALLBACK_FONTS, 70)
+    settings_font = pygame.font.SysFont(FALLBACK_FONTS, 42)
 
 
 def rebuild_fonts():
@@ -59,9 +61,9 @@ def rebuild_fonts():
         menu_font = pygame.font.Font(font_path, min(70, max(40, HEIGHT // 10)))
         settings_font = pygame.font.Font(font_path, min(42, max(24, HEIGHT // 17)))
     except (pygame.error, OSError):
-        logo_font = pygame.font.SysFont("Arial", min(150, max(80, HEIGHT // 6)))
-        menu_font = pygame.font.SysFont("Arial", min(70, max(40, HEIGHT // 10)))
-        settings_font = pygame.font.SysFont("Arial", min(42, max(24, HEIGHT // 17)))
+        logo_font = pygame.font.SysFont(FALLBACK_FONTS, min(150, max(80, HEIGHT // 6)))
+        menu_font = pygame.font.SysFont(FALLBACK_FONTS, min(70, max(40, HEIGHT // 10)))
+        settings_font = pygame.font.SysFont(FALLBACK_FONTS, min(42, max(24, HEIGHT // 17)))
 
 rebuild_fonts()
 
@@ -446,50 +448,21 @@ def start_play_flow():
     language = LANGUAGES[APP_SETTINGS["lang_idx"]]
     text = translations[language]
     chapters = engine.get_available_chapters()
-    while True:
-        choice = show_selection_menu(
-            text["play"],
-            [text["load_save"], text["choose_chapter"]],
-            text["back"],
-        )
-        if choice == "EXIT":
-            return False
-        if choice == "BACK":
-            return True
-        if choice == 0:
-            game_save = engine.load_game_save()
-            if game_save is None:
-                if show_selection_menu(text["no_save"], [], text["back"]) == "EXIT":
-                    return False
-                continue
-            chapter = next(
-                (
-                    available
-                    for available in chapters
-                    if available.chapter_id == game_save["chapter_id"]
-                ),
-                None,
-            )
-            if chapter is None:
-                if show_selection_menu(text["no_save"], [], text["back"]) == "EXIT":
-                    return False
-                continue
-            return launch_chapter(chapter, continue_story=True)
-
-        chapter_labels = [
-            f"{chapter.number}. {chapter.title}"
-            for chapter in chapters
-        ]
-        chapter_choice = show_selection_menu(
-            text["chapter_selection"],
-            chapter_labels,
-            text["back"],
-        )
-        if chapter_choice == "EXIT":
-            return False
-        if chapter_choice == "BACK":
-            continue
-        return launch_chapter(chapters[chapter_choice], continue_story=False)
+    
+    game_save = engine.load_game_save()
+    if game_save is None:
+        chapter = chapters[0]  # Default to first chapter
+        return launch_chapter(chapter, continue_story=False)
+    
+    chapter = next(
+        (
+            available
+            for available in chapters
+            if available.chapter_id == game_save["chapter_id"]
+        ),
+        chapters[0],  # Fallback to first chapter
+    )
+    return launch_chapter(chapter, continue_story=True)
 
 
 def activate_menu_option(index):

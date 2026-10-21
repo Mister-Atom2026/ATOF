@@ -1639,7 +1639,7 @@ def draw_handgun(screen, player_position, target_position, offset_x, offset_y):
     direction = direction.normalize()
     side = pygame.Vector2(-direction.y, direction.x)
     grip = start + direction * 7
-    barrel = start + direction * 21
+    barrel = start + direction * 21 - side * 10
     points = (
         grip + side * 3,
         grip - side * 3,
@@ -2008,7 +2008,87 @@ def selection_menu(screen, title, options, font, small_font, back_label, setting
         clock.tick(FPS)
 
 
-def pause_menu(screen, font, small_font, settings, trans_dict, languages, controls=None, stats=None, on_change=None):
+def save_slot_menu(screen, font, small_font, settings, trans_dict, languages, game_state, controls=None):
+    """Show save slot selection menu with 5 slots."""
+    from settings_manager import get_all_save_slots, save_to_slot
+    
+    pygame.mouse.set_visible(True)
+    sel = 0
+    clock = pygame.time.Clock()
+    last_hovered = None
+    
+    while True:
+        t = trans_dict[languages[settings['lang_idx']]]
+        slots = get_all_save_slots()
+        
+        slot_labels = []
+        for slot in slots:
+            if slot.get("empty"):
+                slot_labels.append(f"Slot {slot['index'] + 1}: Empty")
+            else:
+                time_str = f"{int(slot['game_time'] // 60):02d}:{int(slot['game_time'] % 60):02d}"
+                slot_labels.append(f"Slot {slot['index'] + 1}: {slot['money']} UAH | {time_str} | {slot['game_state']}")
+        
+        slot_labels.append("Back")
+        
+        screen.fill((0, 0, 0))
+        m_pos = pygame.mouse.get_pos()
+        rects = [pygame.Rect(50, 150 + i * 70, 700, 60) for i in range(len(slot_labels))]
+        
+        title = font.render("Select Save Slot", True, (212, 91, 18))
+        screen.blit(title, (50, 80))
+        
+        for event in pygame.event.get():
+            if controls is not None:
+                controls.process_event(event)
+            if event.type == pygame.QUIT:
+                return "EXIT"
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    play_menu_sound("click")
+                    return "BACK"
+                if event.key == pygame.K_UP:
+                    sel = (sel - 1) % len(slot_labels)
+                    play_menu_sound("hover")
+                if event.key == pygame.K_DOWN:
+                    sel = (sel + 1) % len(slot_labels)
+                    play_menu_sound("hover")
+                if event.key == pygame.K_RETURN:
+                    play_menu_sound("click")
+                    if sel == len(slot_labels) - 1:  # Back
+                        return "BACK"
+                    else:  # Save to slot
+                        save_to_slot(sel, game_state)
+                        return "SAVED"
+            
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                for i, r in enumerate(rects):
+                    if r.collidepoint(event.pos):
+                        play_menu_sound("click")
+                        if i == len(slot_labels) - 1:  # Back
+                            return "BACK"
+                        else:  # Save to slot
+                            save_to_slot(i, game_state)
+                            return "SAVED"
+        
+        for i, label in enumerate(slot_labels):
+            if rects[i].collidepoint(m_pos):
+                if last_hovered != i:
+                    play_menu_sound("hover")
+                last_hovered = i
+                sel = i
+            color = (212, 91, 18) if i == sel else (255, 255, 255)
+            txt = small_font.render(label, True, color)
+            screen.blit(txt, (50, 150 + i * 70))
+        
+        if not any(rect.collidepoint(m_pos) for rect in rects):
+            last_hovered = None
+        
+        pygame.display.flip()
+        clock.tick(FPS)
+
+
+def pause_menu(screen, font, small_font, settings, trans_dict, languages, controls=None, stats=None, on_change=None, game_state=None):
     pygame.mouse.set_visible(True)
     sel = 0
     clock = pygame.time.Clock()
@@ -2018,22 +2098,29 @@ def pause_menu(screen, font, small_font, settings, trans_dict, languages, contro
         if index == 0:
             return "CONTINUE"
         if index == 1:
+            if game_state is not None:
+                save_result = save_slot_menu(screen, font, small_font, settings, trans_dict, languages, game_state, controls)
+                if save_result == "EXIT":
+                    return "EXIT"
+                return None
+            return None
+        if index == 2:
             stats_result = stats_dialog(screen, font, small_font, translations, stats, controls)
             return "EXIT" if stats_result == "EXIT" else None
-        if index == 2:
+        if index == 3:
             settings_result = settings_sub_menu(screen, font, settings, trans_dict, languages, controls, on_change)
             return settings_result if settings_result in ("EXIT", "VIDEO_CHANGED") else None
-        elif index == 3 and confirm_dialog(screen, font, small_font, translations, controls):
+        elif index == 4 and confirm_dialog(screen, font, small_font, translations, controls):
             return "MENU"
         return None
 
     while True:
         t = trans_dict[languages[settings['lang_idx']]]
-        options = [t["resume"], t["stats"], t["settings"], t["menu"]]
+        options = [t["resume"], "Save Game", t["stats"], t["settings"], t["menu"]]
 
         screen.fill((0, 0, 0))
         m_pos = pygame.mouse.get_pos()
-        rects = [pygame.Rect(50, 200 + i * 100, 500, 60) for i in range(len(options))]
+        rects = [pygame.Rect(50, 180 + i * 90, 500, 60) for i in range(len(options))]
 
         for event in pygame.event.get():
             if controls is not None:

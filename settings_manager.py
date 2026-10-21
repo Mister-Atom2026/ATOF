@@ -3,9 +3,18 @@ import math
 from pathlib import Path
 
 
-SETTINGS_PATH = Path(__file__).resolve().parent / "config.json"
-STATISTICS_PATH = Path(__file__).resolve().parent / "statistics.json"
-GAME_SAVE_PATH = Path(__file__).resolve().parent / "savegame.json"
+import os
+
+_SETTINGS_DIR = Path(os.path.expanduser("~/.atof"))
+_SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+
+SETTINGS_PATH = _SETTINGS_DIR / "config.json"
+STATISTICS_PATH = _SETTINGS_DIR / "statistics.json"
+GAME_SAVE_PATH = _SETTINGS_DIR / "savegame.json"
+SAVE_SLOTS_DIR = _SETTINGS_DIR / "saves"
+SAVE_SLOTS_DIR.mkdir(parents=True, exist_ok=True)
+
+SAVE_SLOT_COUNT = 5
 DEFAULT_KEYS: dict[str, int] = {
     "up": 1073741906,
     "down": 1073741905,
@@ -171,6 +180,54 @@ def save_game_save(game_state):
         encoding="utf-8",
     )
     temporary_path.replace(GAME_SAVE_PATH)
+
+
+def get_save_slot_path(slot_index: int) -> Path:
+    """Get the path for a specific save slot (0-4)."""
+    if not 0 <= slot_index < SAVE_SLOT_COUNT:
+        raise ValueError(f"Slot index must be 0-{SAVE_SLOT_COUNT-1}, got {slot_index}")
+    return SAVE_SLOTS_DIR / f"save_slot_{slot_index}.json"
+
+
+def load_save_slot(slot_index: int):
+    """Load a specific save slot. Returns None if slot is empty or invalid."""
+    try:
+        slot_path = get_save_slot_path(slot_index)
+        values = json.loads(slot_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(values, dict):
+        return None
+    return values
+
+
+def save_to_slot(slot_index: int, game_state: dict):
+    """Save game state to a specific slot."""
+    slot_path = get_save_slot_path(slot_index)
+    temporary_path = slot_path.with_suffix(".json.tmp")
+    temporary_path.write_text(
+        json.dumps(game_state, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    temporary_path.replace(slot_path)
+
+
+def get_all_save_slots() -> list:
+    """Return list of save slot info (None if empty, dict with metadata if occupied)."""
+    slots = []
+    for i in range(SAVE_SLOT_COUNT):
+        slot_data = load_save_slot(i)
+        if slot_data:
+            slots.append({
+                "index": i,
+                "chapter_id": slot_data.get("chapter_id", "unknown"),
+                "money": slot_data.get("money", 0),
+                "game_time": slot_data.get("game_time", 0),
+                "game_state": slot_data.get("game_state", "CITY"),
+            })
+        else:
+            slots.append({"index": i, "empty": True})
+    return slots
 
 
 def _normalize_settings(values):

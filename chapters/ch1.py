@@ -425,6 +425,45 @@ def run(screen, settings, *, continue_game=True):
         engine.save_session_statistics(money, total_earned, total_spent, game_time, collected_treasures,
                                         personal_records, honor_and_respect)
 
+    def get_current_game_state():
+        return {
+            "chapter_id": "ch1",
+            "hero_health": atom.health,
+            "ammo": weapons.ammo,
+            "reserve_ammo": weapons.reserve_ammo,
+            "weapon": weapons.selected,
+            "honor": honor_and_respect.honor,
+            "respect": honor_and_respect.respect,
+            "wanted_level": wanted.level,
+            "wanted_escape_timer": wanted.escape_timer,
+            "game_state": game_state,
+            "player": {
+                "x": atom.pos.x,
+                "y": atom.pos.y,
+                "angle": atom.angle,
+            },
+            "car": {
+                "x": car.pos.x,
+                "y": car.pos.y,
+                "angle": car.angle,
+                "speed": car.speed,
+                "health": car.health,
+                "is_broken": car.is_broken,
+            },
+            "house_player": {
+                "x": atom_h.pos.x,
+                "y": atom_h.pos.y,
+                "angle": atom_h.angle,
+            },
+            "money": money,
+            "earned": total_earned,
+            "spent": total_spent,
+            "game_time": game_time,
+            "collected_treasures": list(collected_treasures),
+            "distance_streak": distance_since_crash,
+            "drift_streak": current_drift_distance,
+        }
+
     running = True
     frame_clock.reset()
     while running:
@@ -530,6 +569,7 @@ def run(screen, settings, *, continue_game=True):
                             "respect": honor_and_respect.respect,
                         },
                         on_change=engine.save_settings,
+                        game_state=get_current_game_state(),
                     )
                     apply_audio_settings()
                     if res == "VIDEO_CHANGED":
