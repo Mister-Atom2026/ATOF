@@ -5,8 +5,8 @@ import pygame
 
 from settings_manager import load_settings, load_statistics, save_settings
 
-VERSION = "0.8.0"
-RELEASE_NAME = "Save System & Open World"
+VERSION = "0.8.0-alpha.2"
+RELEASE_NAME = "Open World Survival & Radio"
 APP_SETTINGS = load_settings()
 
 import constants
@@ -35,6 +35,7 @@ except pygame.error:
 pygame.display.set_caption("ATOF")
 
 import engine
+import open_world
 LANGUAGES = list(engine.SUPPORTED_LANGUAGES)
 
 COLOR_BG = (0, 0, 0)
@@ -85,8 +86,6 @@ load_and_play_menu_music()
 translations = {
     "English": {
         "play": "Play",
-        "choose_chapter": "Choose Chapter",
-        "chapter_selection": "Choose Chapter",
         "settings": "Settings",
         "additional_content": "Additional Content",
         "exit": "Exit",
@@ -123,8 +122,6 @@ translations = {
     },
     "Українська": {
         "play": "Грати",
-        "choose_chapter": "Вибрати главу",
-        "chapter_selection": "Вибір глави",
         "settings": "Налаштування",
         "additional_content": "Додатковий контент",
         "exit": "Вихід",
@@ -161,8 +158,6 @@ translations = {
     },
     "Русский": {
         "play": "Играть",
-        "choose_chapter": "Выбрать главу",
-        "chapter_selection": "Выбор главы",
         "settings": "Настройки",
         "additional_content": "Дополнительный контент",
         "exit": "Выход",
@@ -199,8 +194,6 @@ translations = {
     },
     "Español": {
         "play": "Jugar",
-        "choose_chapter": "Elegir capítulo",
-        "chapter_selection": "Elegir capítulo",
         "settings": "Ajustes",
         "additional_content": "Contenido adicional",
         "exit": "Salir",
@@ -237,8 +230,6 @@ translations = {
     },
     "Deutsch": {
         "play": "Spielen",
-        "choose_chapter": "Kapitel auswählen",
-        "chapter_selection": "Kapitel auswählen",
         "settings": "Einstellungen",
         "additional_content": "Zusatzinhalte",
         "exit": "Beenden",
@@ -275,8 +266,6 @@ translations = {
     },
     "Français": {
         "play": "Jouer",
-        "choose_chapter": "Choisir un chapitre",
-        "chapter_selection": "Choisir un chapitre",
         "settings": "Paramètres",
         "additional_content": "Contenu supplémentaire",
         "exit": "Quitter",
@@ -407,30 +396,13 @@ def apply_video_settings():
     save_settings(APP_SETTINGS)
 
 
-def show_selection_menu(title, options, back_label):
+def launch_open_world(continue_game):
     global screen, WIDTH, HEIGHT
-    result, screen = engine.selection_menu(
-        screen,
-        title,
-        options,
-        menu_font,
-        settings_font,
-        back_label,
-        APP_SETTINGS,
-    )
-    WIDTH, HEIGHT = screen.get_size()
-    rebuild_fonts()
-    return result
-
-
-def launch_chapter(chapter, continue_story):
-    global screen, WIDTH, HEIGHT
-    chapter_module = engine.load_chapter(chapter.chapter_id)
     pygame.mixer.music.stop()
-    result = chapter_module.run(
+    result = open_world.run(
         screen,
         APP_SETTINGS,
-        continue_game=continue_story,
+        continue_game=continue_game,
     )
     screen = pygame.display.get_surface()
     WIDTH, HEIGHT = screen.get_size()
@@ -444,31 +416,15 @@ def launch_chapter(chapter, continue_story):
     return True
 
 
-def start_play_flow():
-    language = LANGUAGES[APP_SETTINGS["lang_idx"]]
-    text = translations[language]
-    chapters = engine.get_available_chapters()
-    
+def start_open_world():
     game_save = engine.load_game_save()
-    if game_save is None:
-        chapter = chapters[0]  # Default to first chapter
-        return launch_chapter(chapter, continue_story=False)
-    
-    chapter = next(
-        (
-            available
-            for available in chapters
-            if available.chapter_id == game_save["chapter_id"]
-        ),
-        chapters[0],  # Fallback to first chapter
-    )
-    return launch_chapter(chapter, continue_story=True)
+    return launch_open_world(continue_game=game_save is not None)
 
 
 def activate_menu_option(index):
     global screen, WIDTH, HEIGHT
     if index == 0:
-        return start_play_flow()
+        return start_open_world()
 
     if index == 1:
         result = engine.settings_sub_menu(

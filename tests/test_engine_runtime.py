@@ -89,7 +89,7 @@ class EngineRuntimeTests(unittest.TestCase):
         wanted.clear()
         self.assertEqual(wanted.level, 0)
 
-    def test_weapon_wheel_selects_with_middle_mouse_and_releases(self):
+    def test_weapon_wheel_selects_shotgun_with_middle_mouse_and_releases(self):
         weapons = engine.WeaponWheel()
         screen_size = (800, 600)
 
@@ -113,7 +113,7 @@ class EngineRuntimeTests(unittest.TestCase):
             ),
             screen_size,
         )
-        self.assertEqual(weapons.selected, "knife")
+        self.assertEqual(weapons.selected, "shotgun")
 
         weapons.process_event(
             pygame.event.Event(
@@ -128,15 +128,19 @@ class EngineRuntimeTests(unittest.TestCase):
     def test_weapon_wheel_fires_pistol_and_spread_shotgun(self):
         weapons = engine.WeaponWheel(ammo=2, reserve_ammo=5, selected="pistol")
 
-        pistol_shots = weapons.fire((0, 0), (100, 0))
-        self.assertEqual(len(pistol_shots), 1)
-        self.assertEqual(weapons.ammo, 1)
+        with patch("engine.time.perf_counter", side_effect=(1.1, 3.2, 4.0, 10.1)):
+            pistol_shots = weapons.fire((0, 0), (100, 0))
+            self.assertEqual(len(pistol_shots), 1)
+            self.assertEqual(weapons.ammo, 1)
 
-        weapons.selected = "shotgun"
-        shotgun_pellets = weapons.fire((0, 0), (100, 0))
-        self.assertEqual(len(shotgun_pellets), 5)
-        self.assertEqual(weapons.ammo, 0)
-        self.assertEqual(weapons.reload(), 5)
+            weapons.selected = "shotgun"
+            shotgun_pellets = weapons.fire((0, 0), (100, 0))
+            self.assertEqual(len(shotgun_pellets), 8)
+            self.assertEqual(weapons.ammo, 0)
+            self.assertEqual(weapons.reload(), 5)
+            self.assertEqual(weapons.ammo, 0)
+            self.assertTrue(weapons.update_reload())
+
         self.assertEqual(weapons.ammo, 5)
         self.assertEqual(weapons.reserve_ammo, 0)
 
@@ -169,23 +173,6 @@ class EngineRuntimeTests(unittest.TestCase):
         self.assertIs(HousePlayer, engine.HousePlayer)
         self.assertIs(GPS, engine.GPS)
 
-    def test_chapter_registry_exposes_number_and_title(self):
-        chapters = engine.get_available_chapters()
-
-        self.assertEqual(
-            [(chapter.number, chapter.title) for chapter in chapters],
-            [(1, "Driver Inferno")],
-        )
-
-    def test_engine_loads_registered_chapter_module(self):
-        chapter = engine.load_chapter("ch1")
-
-        self.assertTrue(callable(chapter.run))
-
-    def test_engine_rejects_unknown_chapter_ids(self):
-        with self.assertRaises(KeyError):
-            engine.load_chapter("missing")
-
     def test_selection_menu_returns_selected_option(self):
         screen = pygame.display.set_mode((800, 600))
         event = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_RETURN)
@@ -194,7 +181,7 @@ class EngineRuntimeTests(unittest.TestCase):
             result, returned_screen = engine.selection_menu(
                 screen,
                 "Play",
-                ["Load Save", "Choose Chapter"],
+                ["Start Open World", "Settings"],
                 pygame.font.SysFont(None, 32),
                 pygame.font.SysFont(None, 24),
                 "Back",
@@ -204,7 +191,7 @@ class EngineRuntimeTests(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertIs(returned_screen, screen)
 
-    def test_game_save_keeps_chapter_identifier_and_supports_old_saves(self):
+    def test_game_save_ignores_legacy_chapter_identifier(self):
         with tempfile.TemporaryDirectory() as directory:
             save_path = Path(directory) / "savegame.json"
             with patch.object(settings_manager, "GAME_SAVE_PATH", save_path):
@@ -214,13 +201,13 @@ class EngineRuntimeTests(unittest.TestCase):
                     "player": {"x": 1, "y": 2},
                     "car": {"x": 3, "y": 4},
                 })
-                self.assertEqual(settings_manager.load_game_save()["chapter_id"], "chapter-2")
+                self.assertNotIn("chapter_id", settings_manager.load_game_save())
 
                 save_path.write_text(
                     '{"game_state":"CITY","player":{"x":1,"y":2},"car":{"x":3,"y":4}}',
                     encoding="utf-8",
                 )
-                self.assertEqual(settings_manager.load_game_save()["chapter_id"], "ch1")
+                self.assertNotIn("chapter_id", settings_manager.load_game_save())
 
     def test_save_normalization_includes_health_ammo_and_honor(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -228,14 +215,17 @@ class EngineRuntimeTests(unittest.TestCase):
             with patch.object(settings_manager, "GAME_SAVE_PATH", save_path):
                 save_path.write_text(
                     '{"player":{"x":1,"y":2},"car":{"x":3,"y":4},'
-                    '"hero_health":130,"ammo":20,"reserve_ammo":50,'
+                    '"hero_health":130,"hunger":130,"survival_minute_progress":61,'
+                    '"ammo":20,"reserve_ammo":50,'
                     '"honor":-120,"respect":120,"wanted_level":7}',
                     encoding="utf-8",
                 )
                 saved = settings_manager.load_game_save()
 
         self.assertEqual(saved["hero_health"], 100)
-        self.assertEqual(saved["ammo"], 12)
+        self.assertEqual(saved["hunger"], 100)
+        self.assertEqual(saved["survival_minute_progress"], 59.999)
+        self.assertEqual(saved["ammo"], 20)
         self.assertEqual(saved["reserve_ammo"], 50)
         self.assertEqual(saved["honor"], -100)
         self.assertEqual(saved["respect"], 100)

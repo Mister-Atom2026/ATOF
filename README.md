@@ -1,6 +1,31 @@
 # ATOF
 Game About Mister Atom
 
+## Version 0.8.0 Alpha 2 — "Open World Survival & Radio"
+
+- Moved the full open-world session loop from the old chapter module into `engine.run_open_world` and removed the chapter registry and `chapters/ch1.py` runtime.
+- Added `open_world.py` as a story-only home for future main missions and side quests; it delegates starting the game to the engine.
+- Saves now describe the open-world state directly; older saves with a chapter identifier still load, and that obsolete field is ignored.
+- Completely overhauled weapon system with 4 firearm types:
+  - **Mathew 37 (Pistol)**: 34 damage, 7-round mag, 49 reserve, 1.0s fire delay, 3.0s reload
+  - **Svityaz 111 (Shotgun)**: 120 damage (one-shot kill), 5-round mag, 25 reserve, 2.0s fire delay, 6.0s reload
+  - **Goida G-2 (Rifle)**: 20 damage, 50-round drum mag, 150 reserve, 0.3s fire delay, 5.0s reload
+  - **WR Mini .45 (SMG)**: 25 damage, 20-round mag, 80 reserve, 0.15s fire delay, 3.5s reload
+- Removed melee weapon (knife) - all weapons are now firearms
+- Implemented reload blocking: cannot fire while reloading
+- Added reload audio synchronization with reload duration
+- Set max HP for player and NPCs to 100
+- Added weapon-specific reload sounds (pistol_reload.wav, shotgun_reload.wav, rifle_reload.wav, smg_reload.wav)
+- Added texture slots for weapon sprites (to be filled with custom textures)
+- Updated all translations with new weapon names
+- Updated default ammo values to match new weapon stats
+- Added six CC0 radio tracks across Asphalt FM, Night Shift 88, and НРК (Народне Радіо); source and license links are listed in `radio/CC0_MUSIC_SOURCES.md`.
+- Radio stations behave like live broadcasts: their playlists keep advancing while the receiver is off, and turning them back on seeks to the current track position.
+- Added a localized glass-style HUD around the minimap, with a two-thirds radar, a hunger meter, and a health ring.
+- Hunger starts at 100 and drops by 5 each in-game hour; sprinting is disabled at 20, starvation drains health, and hunger above 70 slowly restores health.
+- Added Left Shift sprinting and cursor-facing for armed movement; weapon aim stays within 45 degrees of the character's facing direction.
+- Saved hunger and progress through the current in-game hour so survival effects remain consistent after loading.
+
 ## Version 0.8.0 Alpha 1 — "Save System & Open World"
 
 - Added 5-slot save system accessible from pause menu (ESC).

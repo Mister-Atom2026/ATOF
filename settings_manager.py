@@ -123,16 +123,20 @@ def load_game_save():
     treasures = values.get("collected_treasures", [])
     if not isinstance(treasures, list) or any(not isinstance(item, str) for item in treasures):
         treasures = []
+    game_time = _finite_number(values.get("game_time"), maximum=1439.999)
 
     return {
-        "chapter_id": values.get("chapter_id")
-        if isinstance(values.get("chapter_id"), str) and values.get("chapter_id")
-        else "ch1",
         "hero_health": _finite_number(values.get("hero_health"), default=100.0, maximum=100.0),
-        "ammo": _bounded_int(values.get("ammo"), 12, 0, 12),
-        "reserve_ammo": _bounded_int(values.get("reserve_ammo"), 48, 0, 240),
+        "hunger": _finite_number(values.get("hunger"), default=100.0, maximum=100.0),
+        "survival_minute_progress": _finite_number(
+            values.get("survival_minute_progress"),
+            default=game_time % 60,
+            maximum=59.999,
+        ),
+        "ammo": _bounded_int(values.get("ammo"), 7, 0, 50),
+        "reserve_ammo": _bounded_int(values.get("reserve_ammo"), 49, 0, 150),
         "weapon": values.get("weapon")
-        if values.get("weapon") in ("none", "pistol", "knife", "shotgun")
+        if values.get("weapon") in ("none", "pistol", "shotgun", "rifle", "smg")
         else "pistol",
         "honor": _finite_number(values.get("honor"), minimum=_HONOR_MIN, maximum=_HONOR_MAX),
         "respect": _finite_number(values.get("respect"), minimum=_HONOR_MIN, maximum=_HONOR_MAX),
@@ -166,7 +170,7 @@ def load_game_save():
         "money": _bounded_int(values.get("money"), 100, 0, 2**31 - 1),
         "earned": _bounded_int(values.get("earned"), 0, 0, 2**31 - 1),
         "spent": _bounded_int(values.get("spent"), 0, 0, 2**31 - 1),
-        "game_time": _finite_number(values.get("game_time"), maximum=1439.999),
+        "game_time": game_time,
         "collected_treasures": treasures,
         "distance_streak": _finite_number(values.get("distance_streak")),
         "drift_streak": _finite_number(values.get("drift_streak")),
@@ -220,7 +224,6 @@ def get_all_save_slots() -> list:
         if slot_data:
             slots.append({
                 "index": i,
-                "chapter_id": slot_data.get("chapter_id", "unknown"),
                 "money": slot_data.get("money", 0),
                 "game_time": slot_data.get("game_time", 0),
                 "game_state": slot_data.get("game_state", "CITY"),

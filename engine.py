@@ -1,4 +1,3 @@
-import importlib
 import json
 import math
 import random
@@ -24,6 +23,9 @@ import traffic
 WIDTH = _constants.WIDTH
 HEIGHT = _constants.HEIGHT
 FPS = _constants.FPS
+WORLD_WIDTH = _constants.WORLD_WIDTH
+WORLD_HEIGHT = _constants.WORLD_HEIGHT
+HOUSE_SLEEP_SPOT = _constants.HOUSE_SLEEP_SPOT
 SUPPORTED_LANGUAGES = (
     "English",
     "Українська",
@@ -308,7 +310,7 @@ class GameAssets:
 
 
 @dataclass(frozen=True)
-class ChapterResources:
+class GameResources:
     assets: GameAssets
     audio: "GameAudio"
     game_font: pygame.font.Font
@@ -316,40 +318,11 @@ class ChapterResources:
 
 
 @dataclass(frozen=True)
-class ChapterDefinition:
-    number: int
-    chapter_id: str
-    title: str
-    module: str
-
-
-AVAILABLE_CHAPTERS = (
-    ChapterDefinition(1, "ch1", "Driver Inferno", "chapters.ch1"),
-)
-
-
-def get_available_chapters() -> tuple[ChapterDefinition, ...]:
-    return AVAILABLE_CHAPTERS
-
-
-def get_chapter(chapter_id: str) -> ChapterDefinition:
-    for chapter in AVAILABLE_CHAPTERS:
-        if chapter.chapter_id == chapter_id:
-            return chapter
-    raise KeyError(f"Unknown chapter: {chapter_id}")
-
-
-def load_chapter(chapter_id: str):
-    """Import the selected chapter module from the engine registry."""
-    chapter = get_chapter(chapter_id)
-    return importlib.import_module(chapter.module)
-
-
-@dataclass(frozen=True)
 class GameAudio:
     phone_click: pygame.mixer.Sound
     car_sounds: dict[str, pygame.mixer.Sound]
     footsteps: dict[str, pygame.mixer.Sound]
+    weapon_sounds: dict[str, pygame.mixer.Sound]
     engine_channel: pygame.mixer.Channel
     crash_channel: pygame.mixer.Channel
     footstep_channel: pygame.mixer.Channel
@@ -393,15 +366,15 @@ def load_game_assets(
     )
 
 
-def load_chapter_resources(
+def load_game_resources(
     screen_size: tuple[int, int],
     world_size: tuple[int, int],
-) -> ChapterResources:
-    """Load the chapter's prepared visual, audio, and font resources."""
+) -> GameResources:
+    """Load the prepared world visuals, audio, and fonts."""
     audio = load_game_audio()
     assets = load_game_assets(screen_size, world_size)
     game_font, small_font = load_game_fonts()
-    return ChapterResources(
+    return GameResources(
         assets=assets,
         audio=audio,
         game_font=game_font,
@@ -410,7 +383,7 @@ def load_chapter_resources(
 
 
 def load_game_audio() -> GameAudio:
-    """Create the chapter's sound effects and dedicated mixer channels."""
+    """Create game sound effects and dedicated mixer channels."""
     sound_root = _ASSET_ROOT / "sounds"
 
     def load_sound(filename: str) -> pygame.mixer.Sound:
@@ -430,6 +403,23 @@ def load_game_audio() -> GameAudio:
         "grass": load_sound("footstep_on_grass.wav"),
         "house": load_sound("footstep_on_wood.wav"),
     }
+    weapon_sounds = {}
+    try:
+        weapon_sounds["pistol_reload"] = load_sound("pistol_reload.wav")
+    except (pygame.error, OSError):
+        pass
+    try:
+        weapon_sounds["shotgun_reload"] = load_sound("shotgun_reload.wav")
+    except (pygame.error, OSError):
+        pass
+    try:
+        weapon_sounds["rifle_reload"] = load_sound("rifle_reload.wav")
+    except (pygame.error, OSError):
+        pass
+    try:
+        weapon_sounds["smg_reload"] = load_sound("smg_reload.wav")
+    except (pygame.error, OSError):
+        pass
 
     phone_click.set_volume(0.4)
     car_sounds["engine"].set_volume(0.3)
@@ -444,6 +434,7 @@ def load_game_audio() -> GameAudio:
         phone_click=phone_click,
         car_sounds=car_sounds,
         footsteps=footsteps,
+        weapon_sounds=weapon_sounds,
         engine_channel=pygame.mixer.Channel(6),
         crash_channel=pygame.mixer.Channel(7),
         footstep_channel=pygame.mixer.Channel(5),
@@ -452,7 +443,7 @@ def load_game_audio() -> GameAudio:
 
 
 def load_game_fonts() -> tuple[pygame.font.Font, pygame.font.Font]:
-    """Load the chapter fonts, falling back to system fonts if needed."""
+    """Load the game fonts, falling back to system fonts if needed."""
     font_path = str(_ASSET_ROOT / "static.ttf")
     try:
         return pygame.font.Font(font_path, 40), pygame.font.Font(font_path, 25)
@@ -471,7 +462,7 @@ def is_at_sleep_spot(game_state, position) -> bool:
 
 
 def configure_game_audio(settings, audio: GameAudio) -> None:
-    """Apply saved audio levels to the chapter's sound effects."""
+    """Apply saved audio levels to the game's sound effects."""
     configure_audio(settings)
 
     button_gain = settings.get("button_volume", 100) / 100
@@ -486,142 +477,139 @@ def configure_game_audio(settings, audio: GameAudio) -> None:
         sound.set_volume(0.2 * footsteps_gain)
 
 
+@dataclass(frozen=True)
+class RadioTrack:
+    title: str
+    path: str
+    duration: float
+
+
+@dataclass(frozen=True)
+class RadioStation:
+    name: str
+    genre_key: str
+    tracks: tuple[RadioTrack, ...]
+
+
 _RADIO_STATIONS = (
-    (
-        "Midnight FM",
+    RadioStation(
+        "Asphalt FM",
+        "radio_genre_rock",
         (
-            ("Crystal Cave", "radio/driver_inferno/crystal_cave_song18.mp3"),
-            ("Observing the Star", "radio/driver_inferno/observing_the_star.ogg"),
+            RadioTrack("Sidewalk Talk", "radio/asphalt_fm/sidewalk_talk.ogg", 262.68),
+            RadioTrack("rooms for music.", "radio/asphalt_fm/rooms_for_music.mp3", 200.280816),
         ),
     ),
-    (
-        "Freeway Radio",
+    RadioStation(
+        "Night Shift 88",
+        "radio_genre_synthwave",
         (
-            ("Freeway Fumes", "radio/driver_inferno/freeway_fumes.mp3"),
-            ("Detour", "radio/driver_inferno/detour.mp3"),
+            RadioTrack("All The Fight Left!", "radio/night_shift/all_the_fight_left.mp3", 171.984),
+            RadioTrack("Soft and Furious - 02 - Queen", "radio/night_shift/soft_and_furious_queen.ogg", 205.427982),
+        ),
+    ),
+    RadioStation(
+        "НРК — Народне Радіо",
+        "radio_genre_folk",
+        (
+            RadioTrack("Medieval Theme", "radio/nrk/medieval_theme.mp3", 146.416327),
+            RadioTrack("Kings Feast", "radio/nrk/kings_feast.mp3", 130.0563),
         ),
     ),
 )
 
 
 class GameRadio:
-    """Cycle through two bundled stations and radio-off, preserving song positions."""
+    """Play stations as live playlists whose clocks keep running while tuned away."""
 
-    def __init__(self, settings):
+    def __init__(self, settings, *, monotonic_clock=None):
         self.settings = settings
-        self.off_index = len(_RADIO_STATIONS)
-        self.station_index = self.off_index
-        self.track_indexes = [0 for _ in _RADIO_STATIONS]
-        self.positions = [
-            [0.0 for _ in station_tracks]
-            for _, station_tracks in _RADIO_STATIONS
-        ]
+        self.monotonic_clock = monotonic_clock or time.monotonic
+        self.started_at = self.monotonic_clock()
+        self.station_index = 0
+        self.is_on = False
         self.is_playing = False
+        self._paused_for_game = False
         self._loaded_track: tuple[int, int] | None = None
-        self._playback_offset = 0.0
 
     @property
     def station_name(self) -> str:
-        if self.station_index == self.off_index:
-            return ""
-        return _RADIO_STATIONS[self.station_index][0]
+        return _RADIO_STATIONS[self.station_index].name
 
     @property
-    def is_on(self) -> bool:
-        return self.station_index != self.off_index
+    def station_genre_key(self) -> str:
+        return _RADIO_STATIONS[self.station_index].genre_key
 
     @property
     def track_name(self) -> str:
-        if self.station_index == self.off_index:
-            return ""
-        tracks = _RADIO_STATIONS[self.station_index][1]
-        return tracks[self.track_indexes[self.station_index]][0]
+        station = _RADIO_STATIONS[self.station_index]
+        track_index, _offset = self._live_track_position(self.station_index)
+        return station.tracks[track_index].title
 
-    def _current_track(self) -> tuple[int, int]:
-        return self.station_index, self.track_indexes[self.station_index]
+    def _live_track_position(self, station_index: int, now: float | None = None) -> tuple[int, float]:
+        station = _RADIO_STATIONS[station_index]
+        now = self.monotonic_clock() if now is None else now
+        playlist_duration = sum(track.duration for track in station.tracks)
+        playlist_position = max(0.0, now - self.started_at) % playlist_duration
+        for track_index, track in enumerate(station.tracks):
+            if playlist_position < track.duration:
+                return track_index, playlist_position
+            playlist_position -= track.duration
+        return 0, 0.0
 
-    def _remember_position(self) -> None:
-        position_ms = pygame.mixer.music.get_pos()
-        if position_ms >= 0:
-            station_index, track_index = self._current_track()
-            self.positions[station_index][track_index] = (
-                self._playback_offset + position_ms / 1000
-            )
+    def _play_live_track(self, *, force: bool = False) -> None:
+        track_index, offset = self._live_track_position(self.station_index)
+        track_key = (self.station_index, track_index)
+        if not force and self._loaded_track == track_key and pygame.mixer.music.get_busy():
+            self.is_playing = True
+            return
 
-    def _play_selected_track(self) -> None:
-        station_index, track_index = self._current_track()
-        tracks = _RADIO_STATIONS[station_index][1]
-        _, relative_path = tracks[track_index]
-        track_path = _ASSET_ROOT / relative_path
-        self._playback_offset = self.positions[station_index][track_index]
+        track = _RADIO_STATIONS[self.station_index].tracks[track_index]
+        track_path = _ASSET_ROOT / track.path
         pygame.mixer.music.load(str(track_path))
-        pygame.mixer.music.play(start=self._playback_offset)
-        self._loaded_track = (station_index, track_index)
+        pygame.mixer.music.play(start=offset)
+        self._loaded_track = track_key
         self.is_playing = True
         configure_audio(self.settings)
 
     def toggle(self) -> None:
-        if self.station_index == self.off_index:
-            return
-        if self.is_playing:
-            self._remember_position()
-            pygame.mixer.music.pause()
+        self.is_on = not self.is_on
+        self._paused_for_game = False
+        if not self.is_on:
+            pygame.mixer.music.stop()
+            self._loaded_track = None
             self.is_playing = False
             return
-
-        if self._loaded_track == self._current_track():
-            pygame.mixer.music.unpause()
-            self.is_playing = True
-        else:
-            self._play_selected_track()
+        self._play_live_track(force=True)
 
     def pause(self) -> None:
         if self.is_playing:
-            self._remember_position()
             pygame.mixer.music.pause()
             self.is_playing = False
+            self._paused_for_game = True
 
     def resume(self) -> None:
-        if self.is_playing or self.station_index == self.off_index:
+        if not self._paused_for_game:
             return
-        if self._loaded_track == self._current_track():
-            pygame.mixer.music.unpause()
-            self.is_playing = True
-        else:
-            self._play_selected_track()
+        self._paused_for_game = False
+        if self.is_on:
+            self._play_live_track(force=True)
 
     def cycle_station(self, direction: int) -> None:
-        was_off = self.station_index == self.off_index
-        was_playing = self.is_playing
-        if was_playing:
-            self._remember_position()
-            pygame.mixer.music.stop()
-            self._loaded_track = None
-            self.is_playing = False
-        self.station_index = (
-            self.station_index + direction
-        ) % (len(_RADIO_STATIONS) + 1)
-        if self.station_index == self.off_index:
-            pygame.mixer.music.stop()
-            self._loaded_track = None
-            return
-        if was_playing or was_off:
-            self._play_selected_track()
+        self.station_index = (self.station_index + direction) % len(_RADIO_STATIONS)
+        self._loaded_track = None
+        if self.is_on and not self._paused_for_game:
+            self._play_live_track(force=True)
 
     def update(self) -> None:
-        if not self.is_playing or pygame.mixer.music.get_busy():
-            return
-        station_index = self.station_index
-        tracks = _RADIO_STATIONS[station_index][1]
-        track_index = self.track_indexes[station_index]
-        self.positions[station_index][track_index] = 0.0
-        self.track_indexes[station_index] = (track_index + 1) % len(tracks)
-        self._playback_offset = 0.0
-        self._play_selected_track()
+        if self.is_on and not self._paused_for_game:
+            self._play_live_track()
 
     def stop(self) -> None:
-        self.pause()
         pygame.mixer.music.stop()
+        self.is_on = False
+        self.is_playing = False
+        self._paused_for_game = False
         self._loaded_track = None
 
 
@@ -653,7 +641,7 @@ def _sync_display_state(surface, settings):
     settings["video_height"] = height
     _constants.WIDTH, _constants.HEIGHT, _constants.FPS = width, height, fps_limit
     WIDTH, HEIGHT, FPS = width, height, fps_limit
-    for module_name in ("main", "chapters.ch1"):
+    for module_name in ("main",):
         module = sys.modules.get(module_name)
         if module is not None:
             module.WIDTH = width
@@ -850,15 +838,76 @@ def projectile_hits_wall(start, end, collision_mask) -> bool:
 
 
 class WeaponWheel:
-    WEAPONS = ("none", "pistol", "knife", "shotgun")
+    WEAPONS = ("none", "pistol", "shotgun", "rifle", "smg")
 
-    def __init__(self, ammo: int = 12, reserve_ammo: int = 48, selected: str = "pistol"):
+    # Weapon stats: (damage, fire_delay, reload_time, mag_size, reserve_max, spread_count, spread_angles, projectile_speed, range)
+    WEAPON_STATS = {
+        "pistol": {
+            "damage": 34.0,
+            "fire_delay": 1.0,
+            "reload_time": 3.0,
+            "mag_size": 7,
+            "reserve_max": 49,
+            "spread_count": 1,
+            "spread_angles": (0,),
+            "projectile_speed": 26.0,
+            "range": 900.0,
+        },
+        "shotgun": {
+            "damage": 120.0,
+            "fire_delay": 2.0,
+            "reload_time": 6.0,
+            "mag_size": 5,
+            "reserve_max": 25,
+            "spread_count": 8,
+            "spread_angles": (-15, -10, -5, 0, 5, 10, 15, 20),
+            "projectile_speed": 21.0,
+            "range": 500.0,
+        },
+        "rifle": {
+            "damage": 20.0,
+            "fire_delay": 0.3,
+            "reload_time": 5.0,
+            "mag_size": 50,
+            "reserve_max": 150,
+            "spread_count": 1,
+            "spread_angles": (0,),
+            "projectile_speed": 35.0,
+            "range": 1200.0,
+        },
+        "smg": {
+            "damage": 25.0,
+            "fire_delay": 0.15,
+            "reload_time": 3.5,
+            "mag_size": 20,
+            "reserve_max": 80,
+            "spread_count": 1,
+            "spread_angles": (0,),
+            "projectile_speed": 28.0,
+            "range": 800.0,
+        },
+    }
+
+    def __init__(self, ammo: int = 7, reserve_ammo: int = 49, selected: str = "pistol"):
         if selected not in self.WEAPONS:
             raise ValueError(f"Unknown weapon: {selected}")
         self.selected = selected
-        self.ammo = max(0, min(12, int(ammo)))
-        self.reserve_ammo = max(0, min(240, int(reserve_ammo)))
+        stats = self.WEAPON_STATS.get(selected, self.WEAPON_STATS["pistol"])
+        self.ammo = max(0, min(stats["mag_size"], int(ammo)))
+        self.reserve_ammo = max(0, min(stats["reserve_max"], int(reserve_ammo)))
         self.wheel_open = False
+        self.last_fire_time = 0.0
+        self.is_reloading = False
+        self.reload_start_time = 0.0
+        self.reload_end_time = 0.0
+
+        # Texture slots for weapon sprites (to be filled later)
+        self.weapon_textures = {
+            "pistol": None,  # Mathew 37 texture
+            "shotgun": None,  # Svityaz 111 texture
+            "rifle": None,    # Goida G-2 texture
+            "smg": None,      # WR Mini .45 texture
+        }
 
     def process_event(self, event, screen_size) -> None:
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 2:
@@ -878,54 +927,94 @@ class WeaponWheel:
             return
         angle = math.degrees(math.atan2(direction.y, direction.x))
         index = round((angle + 90) / 90) % len(self.WEAPONS)
-        self.selected = self.WEAPONS[index]
+        new_weapon = self.WEAPONS[index]
+        if new_weapon != self.selected:
+            self.selected = new_weapon
+            self.is_reloading = False  # Cancel reload on weapon switch
 
-    def reload(self) -> int:
-        transfer = min(12 - self.ammo, self.reserve_ammo)
-        self.ammo += transfer
-        self.reserve_ammo -= transfer
+    def reload(self, audio=None) -> int:
+        if self.is_reloading:
+            return 0
+        if self.selected == "none":
+            return 0
+        stats = self.WEAPON_STATS[self.selected]
+        if self.ammo >= stats["mag_size"] or self.reserve_ammo <= 0:
+            return 0
+
+        self.is_reloading = True
+        self.reload_start_time = time.perf_counter()
+        self.reload_end_time = self.reload_start_time + stats["reload_time"]
+
+        # Play reload sound if available
+        if audio and hasattr(audio, "weapon_sounds"):
+            sound_key = f"{self.selected}_reload"
+            if sound_key in audio.weapon_sounds:
+                try:
+                    audio.weapon_sounds[sound_key].play()
+                except (pygame.error, AttributeError):
+                    pass
+
+        # Schedule ammo transfer (will happen when reload completes)
+        transfer = min(stats["mag_size"] - self.ammo, self.reserve_ammo)
+        self._pending_ammo_transfer = transfer
         return transfer
 
+    def update_reload(self) -> bool:
+        """Update reload state. Returns True if reload just completed."""
+        if not self.is_reloading:
+            return False
+
+        current_time = time.perf_counter()
+        if current_time >= self.reload_end_time:
+            # Reload complete
+            self.ammo += self._pending_ammo_transfer
+            self.reserve_ammo -= self._pending_ammo_transfer
+            self.is_reloading = False
+            return True
+        return False
+
+    def get_reload_progress(self) -> float:
+        """Get reload progress as 0.0-1.0."""
+        if not self.is_reloading:
+            return 0.0
+        current_time = time.perf_counter()
+        elapsed = current_time - self.reload_start_time
+        stats = self.WEAPON_STATS[self.selected]
+        return min(1.0, elapsed / stats["reload_time"])
+
     def fire(self, origin, target) -> list[Projectile]:
-        if self.selected not in ("pistol", "shotgun") or self.ammo <= 0:
+        if self.selected == "none" or self.is_reloading:
             return []
+        if self.ammo <= 0:
+            return []
+
+        stats = self.WEAPON_STATS[self.selected]
+        current_time = time.perf_counter()
+
+        # Check fire delay
+        if current_time - self.last_fire_time < stats["fire_delay"]:
+            return []
+
         self.ammo -= 1
-        pellet_count = 5 if self.selected == "shotgun" else 1
-        speed = 21.0 if self.selected == "shotgun" else 26.0
-        damage = 11.0 if self.selected == "shotgun" else 24.0
-        spread = (-12, -6, 0, 6, 12) if pellet_count > 1 else (0,)
+        self.last_fire_time = current_time
+
         projectiles = []
-        for angle in spread:
+        for angle in stats["spread_angles"]:
             projectile = create_projectile(
                 origin,
                 target,
                 "player",
-                speed=speed,
-                damage=damage,
+                speed=stats["projectile_speed"],
+                damage=stats["damage"],
             )
             if projectile is not None:
                 projectile.velocity.rotate_ip(angle)
-                projectile.remaining_range = 500.0 if pellet_count > 1 else 900.0
+                projectile.remaining_range = stats["range"]
                 projectiles.append(projectile)
         return projectiles
 
     def melee_target(self, origin, target, candidates, max_distance=70.0):
-        if self.selected != "knife":
-            return None
-        origin = pygame.Vector2(origin)
-        direction = pygame.Vector2(target) - origin
-        if direction.length_squared() == 0:
-            return None
-        direction.normalize_ip()
-        for candidate in candidates:
-            if not getattr(candidate, "is_alive", True):
-                continue
-            offset = pygame.Vector2(candidate.pos) - origin
-            if (
-                0 < offset.length_squared() <= max_distance**2
-                and direction.dot(offset.normalize()) > 0.35
-            ):
-                return candidate
+        # Melee removed for now - all weapons are firearms
         return None
 
     def draw(self, screen, labels) -> None:
@@ -990,9 +1079,16 @@ class HostileOfficer:
         self.pos = pygame.Vector2(position)
         self.fire_cooldown = 0.0
         self.is_alive = True
+        self.health = 100.0
+        self.max_health = 100.0
 
     def update(self, frame_scale: float) -> None:
         self.fire_cooldown = max(0.0, self.fire_cooldown - frame_scale)
+
+    def take_damage(self, amount: float) -> None:
+        self.health = max(0.0, self.health - max(0.0, amount))
+        if self.health <= 0:
+            self.is_alive = False
 
     def draw(self, screen, offset_x: float, offset_y: float) -> None:
         center = round(self.pos.x + offset_x), round(self.pos.y + offset_y)
@@ -1021,7 +1117,18 @@ class Player:
     def take_damage(self, amount: float) -> None:
         self.health = max(0.0, self.health - max(0.0, amount))
 
-    def update(self, keys, col_mask, car_obj=None, npc_cars=None, frame_scale=1.0):
+    def update(
+        self,
+        keys,
+        col_mask,
+        car_obj=None,
+        npc_cars=None,
+        frame_scale=1.0,
+        *,
+        cursor_world=None,
+        armed=False,
+        can_sprint=True,
+    ):
         move = pygame.Vector2(0, 0)
 
         if keys[pygame.K_w] or keys[pygame.K_UP]:
@@ -1034,30 +1141,38 @@ class Player:
         elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
             move.x = 1
 
+        aim_direction = None
+        if armed and cursor_world is not None:
+            aim_direction = pygame.Vector2(cursor_world) - self.pos
+            if aim_direction.length_squared():
+                self.angle = -math.degrees(math.atan2(aim_direction.x, aim_direction.y))
+
         if move.length() > 0:
             self.is_moving = True
 
             # Set the character facing direction.
-            if move.y == 1:
-                if move.x == 1:
+            if aim_direction is None and move.y == 1:
+                if move.x > 0:
                     self.angle = -45
-                elif move.x == -1:
+                elif move.x < 0:
                     self.angle = 45
                 else:
                     self.angle = 0
-            elif move.y == -1:
-                if move.x == 1:
+            elif aim_direction is None and move.y == -1:
+                if move.x > 0:
                     self.angle = -135
-                elif move.x == -1:
+                elif move.x < 0:
                     self.angle = 135
                 else:
                     self.angle = 180
-            elif move.x == 1:
+            elif aim_direction is None and move.x > 0:
                 self.angle = -90
-            elif move.x == -1:
+            elif aim_direction is None and move.x < 0:
                 self.angle = 90
 
-            move = move.normalize() * self.speed * frame_scale
+            sprinting = can_sprint and keys[pygame.K_LSHIFT]
+            movement_speed = self.speed * (1.65 if sprinting else 1.0)
+            move = move.normalize() * movement_speed * frame_scale
             new_pos = self.pos + move
 
             can_move = True
@@ -1111,6 +1226,44 @@ class Player:
             screen.blit(rotated, rect)
         else:
             pygame.draw.circle(screen, (255, 200, 0), (int(self.pos.x + offset_x), int(self.pos.y + offset_y)), 15)
+
+
+class SurvivalNeeds:
+    """Track hunger and hourly health effects using in-game minutes."""
+
+    HUNGER_DRAIN_PER_HOUR = 5.0
+    STARVATION_DAMAGE_PER_HOUR = 10.0
+    REGEN_PER_HOUR = 5.0
+
+    def __init__(self, hunger=100.0, minutes_into_hour=0.0):
+        self.hunger = max(0.0, min(100.0, float(hunger)))
+        self.minutes_into_hour = max(0.0, min(59.999, float(minutes_into_hour)))
+
+    @property
+    def can_sprint(self) -> bool:
+        return self.hunger > 20
+
+    def advance(self, game_minutes: float, player: Player) -> int:
+        """Apply hunger/health changes for each crossed in-game hour."""
+        if game_minutes <= 0:
+            return 0
+
+        self.minutes_into_hour += game_minutes
+        crossed_hours = int(self.minutes_into_hour // 60)
+        self.minutes_into_hour -= crossed_hours * 60
+        for _ in range(crossed_hours):
+            if self.hunger <= 0:
+                player.take_damage(self.STARVATION_DAMAGE_PER_HOUR)
+                continue
+
+            well_fed = self.hunger > 70
+            self.hunger = max(0.0, self.hunger - self.HUNGER_DRAIN_PER_HOUR)
+            if well_fed:
+                player.health = min(
+                    player.max_health,
+                    player.health + self.REGEN_PER_HOUR,
+                )
+        return crossed_hours
 
 
 def _get_surface_grip(col_mask, surface_map, position, angle):
@@ -1631,15 +1784,30 @@ def draw_atom_character(ctx, x, y, atom_tex, angle):
     ctx.blit(rotated_atom, rect)
 
 
-def draw_handgun(screen, player_position, target_position, offset_x, offset_y):
+def draw_handgun(
+    screen,
+    player_position,
+    target_position,
+    offset_x,
+    offset_y,
+    player_angle=None,
+    weapon_type="pistol",
+):
     start = pygame.Vector2(player_position) + pygame.Vector2(offset_x, offset_y)
     direction = pygame.Vector2(target_position) - pygame.Vector2(player_position)
     if direction.length_squared() == 0:
         return
+    weapon_length = 35 if weapon_type in ("shotgun", "rifle") else 25
+    if player_angle is not None:
+        desired_angle = -math.degrees(math.atan2(direction.x, direction.y))
+        angle_delta = (desired_angle - player_angle + 180) % 360 - 180
+        limited_angle = player_angle + max(-45, min(45, angle_delta))
+        angle_radians = math.radians(limited_angle)
+        direction = pygame.Vector2(-math.sin(angle_radians), math.cos(angle_radians))
     direction = direction.normalize()
     side = pygame.Vector2(-direction.y, direction.x)
     grip = start + direction * 7
-    barrel = start + direction * 21 - side * 10
+    barrel = start + direction * weapon_length - side * 10
     points = (
         grip + side * 3,
         grip - side * 3,
@@ -1657,44 +1825,22 @@ def draw_handgun(screen, player_position, target_position, offset_x, offset_y):
 
 
 def draw_player_status(screen, player, ammo, reserve_ammo, wanted_level, labels):
-    """Draw on-foot health, ammunition, and wanted status in the bottom-right corner."""
-    screen_width = screen.get_width()
+    """Draw ammunition and wanted status in the lower-left corner."""
     screen_height = screen.get_height()
     small_font = pygame.font.Font(None, 24)
 
-    # Draw health bar above the speedometer position
-    bar_width = 100
-    bar_height = 10
-    bar_x = screen_width - 330 - bar_width // 2
-    bar_y = screen_height - 120 - 75 - 30  # Above where speedometer would be
-
-    health_ratio = max(0.0, min(1.0, player.health / player.max_health))
-    health_color = (int(255 * (1 - health_ratio)), int(255 * health_ratio), 0)
-
-    pygame.draw.rect(screen, (50, 50, 50), (bar_x, bar_y, bar_width, bar_height))
-    pygame.draw.rect(screen, health_color, (bar_x, bar_y, int(bar_width * health_ratio), bar_height))
-    pygame.draw.rect(screen, (200, 200, 200), (bar_x, bar_y, bar_width, bar_height), 1)
-
-    # Draw HP text
-    health_text = labels.get("player_hp", "HP: {current}/{maximum}").format(
-        current=round(player.health),
-        maximum=round(player.max_health),
-    )
-    health_surface = small_font.render(health_text, True, (255, 255, 255))
-    screen.blit(health_surface, (screen_width - 330 - health_surface.get_width() // 2, bar_y - 20))
-
-    # Draw ammo and wanted in bottom-right corner
+    # The minimap now owns the health display, so keep these clear of it.
     ammo_text = labels.get("ammo", "Ammo: {current}/{reserve}").format(
         current=ammo,
         reserve=reserve_ammo,
     )
     ammo_surface = small_font.render(ammo_text, True, (255, 255, 255))
-    screen.blit(ammo_surface, (screen_width - ammo_surface.get_width() - 20, screen_height - 50))
+    screen.blit(ammo_surface, (20, screen_height - 52))
 
     stars = "* " * wanted_level + "- " * (5 - wanted_level)
     wanted_text = labels.get("wanted", "Wanted: {stars}").format(stars=stars)
     wanted_surface = small_font.render(wanted_text, True, (255, 190, 90))
-    screen.blit(wanted_surface, (screen_width - wanted_surface.get_width() - 20, screen_height - 25))
+    screen.blit(wanted_surface, (20, screen_height - 27))
 
 
 def _format_gps_distance(distance: float) -> str:
@@ -1708,6 +1854,16 @@ def _draw_gps_marker(surface, center, radius):
     pygame.draw.circle(surface, (255, 255, 255), center, radius + 1)
     pygame.draw.circle(surface, (255, 112, 0), center, radius)
     pygame.draw.circle(surface, (255, 255, 255), center, max(2, radius // 3))
+
+
+def _sector_polygon_points(center, radius, start_angle, end_angle, steps=72):
+    """Return the center and arc points for a screen-coordinate pie sector."""
+    cx, cy = center
+    points = [(round(cx), round(cy))]
+    for step in range(steps + 1):
+        angle = math.radians(start_angle + (end_angle - start_angle) * step / steps)
+        points.append((round(cx + math.cos(angle) * radius), round(cy + math.sin(angle) * radius)))
+    return points
 
 
 def _minimap_gps_position(player_position, destination, ratio_x, ratio_y, offset, center, radius):
@@ -1746,8 +1902,11 @@ def draw_gta_minimap(
     house_pos=(7738, 2325),
     gps: GPS | None = None,
     labels: Mapping[str, str] | None = None,
+    *,
+    hunger=100.0,
+    health=100.0,
 ):
-    """Draw a minimap that stays within the world bounds."""
+    """Draw a glass HUD with a two-thirds radar, hunger wedge, and health ring."""
 
     size, margin = 200, 30
     screen_width, screen_height = screen.get_size()
@@ -1806,11 +1965,6 @@ def draw_gta_minimap(
     if gps is not None:
         distance = gps.distance_to((target.pos.x, target.pos.y))
         destination = gps.destination
-    # Apply a circular mask to crop the map edges.
-    mask = pygame.Surface((size, size), pygame.SRCALPHA)
-    pygame.draw.circle(mask, (255, 255, 255, 255), (half_size, half_size), half_size)
-    mini_surf.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
-
     # Keep distant destinations visible at the radar edge, pointing outward.
     if destination is not None:
         marker_pos = _minimap_gps_position(
@@ -1824,13 +1978,97 @@ def draw_gta_minimap(
         )
         _draw_gps_marker(mini_surf, marker_pos, 9)
 
+    # The lower 120 degrees are reserved for the glass hunger panel; the
+    # remaining 240 degrees show the world radar.
+    radar_mask = pygame.Surface((size, size), pygame.SRCALPHA)
+    pygame.draw.polygon(
+        radar_mask,
+        (255, 255, 255, 255),
+        _sector_polygon_points((half_size, half_size), half_size, 150, 390),
+    )
+    mini_surf.blit(radar_mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+
+    glass = pygame.Surface((size, size), pygame.SRCALPHA)
+    hunger_sector = _sector_polygon_points(
+        (half_size, half_size), half_size - 1, 30, 150
+    )
+    pygame.draw.polygon(glass, (12, 42, 58, 224), hunger_sector)
+    pygame.draw.lines(
+        glass,
+        (118, 225, 239, 190),
+        False,
+        hunger_sector[1:],
+        2,
+    )
+    pygame.draw.line(glass, (160, 235, 245, 110), (half_size, half_size + 6),
+                     (half_size, size - 8), 1)
+    screen.blit(glass, (x, y))
+
+    # Localized satiety readout and fill bar sit inside the lower glass segment.
+    text_labels = labels or {}
+    hunger_value = max(0, min(100, round(float(hunger))))
+    hunger_text = text_labels.get("hunger_meter", "HUNGER {value}%").format(
+        value=hunger_value
+    )
+    hunger_font = pygame.font.Font(None, 15)
+    hunger_surface = hunger_font.render(hunger_text, True, (238, 250, 255))
+    hunger_surface.set_alpha(245)
+    screen.blit(
+        hunger_surface,
+        hunger_surface.get_rect(center=(x + half_size, y + half_size + 17)),
+    )
+    hunger_bar = pygame.Rect(x + 48, y + size - 17, 104, 7)
+    pygame.draw.rect(screen, (7, 20, 28), hunger_bar, border_radius=4)
+    fill_width = round(hunger_bar.width * hunger_value / 100)
+    if fill_width:
+        hunger_color = (82, 218, 158) if hunger_value > 20 else (238, 151, 70)
+        pygame.draw.rect(
+            screen,
+            hunger_color,
+            (hunger_bar.x, hunger_bar.y, fill_width, hunger_bar.height),
+            border_radius=4,
+        )
+
+    # A full ring is the health bar: its colored arc shrinks with current HP.
+    center_on_screen = (x + half_size, y + half_size)
+    health_ratio = max(0.0, min(1.0, float(health) / 100.0))
+    ring_rect = pygame.Rect(
+        center_on_screen[0] - half_size - 8,
+        center_on_screen[1] - half_size - 8,
+        size + 16,
+        size + 16,
+    )
+    pygame.draw.circle(screen, (15, 25, 32), center_on_screen, half_size + 8, 5)
+    health_color = (67, 224, 142) if health_ratio > 0.5 else (
+        (247, 181, 75) if health_ratio > 0.2 else (239, 75, 67)
+    )
+    if health_ratio > 0:
+        pygame.draw.arc(
+            screen,
+            health_color,
+            ring_rect,
+            math.radians(270),
+            math.radians(270 + 360 * health_ratio),
+            5,
+        )
+
     # Draw the minimap on the main screen.
-    # Border.
-    pygame.draw.circle(screen, (255, 255, 255), (x + half_size, y + half_size), half_size + 3, 3)
     # Map.
     screen.blit(mini_surf, (x, y))
+    pygame.draw.circle(screen, (209, 237, 244), center_on_screen, half_size, 2)
+    pygame.draw.arc(screen, (91, 171, 190), ring_rect, math.radians(30),
+                    math.radians(150), 3)
+
+    health_text = text_labels.get("health_meter", "HP {value}%").format(
+        value=round(health_ratio * 100)
+    )
+    health_font = pygame.font.Font(None, 15)
+    health_surface = health_font.render(health_text, True, (245, 255, 255))
+    health_back = health_surface.get_rect(center=(x + half_size, y + 15))
+    health_back.inflate_ip(8, 4)
+    pygame.draw.rect(screen, (8, 20, 28, 185), health_back, border_radius=5)
+    screen.blit(health_surface, health_surface.get_rect(center=health_back.center))
     if distance is not None:
-        text_labels = labels or {}
         text = text_labels.get("gps_distance", "Distance: {distance}").format(
             distance=_format_gps_distance(distance)
         )
@@ -3036,12 +3274,12 @@ def save_session_statistics(money, total_earned, total_spent, game_time, collect
     })
 
 
-def save_chapter_game_state(chapter_id, game_state, atom, atom_h, car, weapons, wanted,
-                            honor_and_respect, money, total_earned, total_spent, game_time,
-                            collected_treasures, distance_since_crash, current_drift_distance):
-    """Save the chapter game state."""
-    save_game_save({
-        "chapter_id": chapter_id,
+def build_game_state_data(game_state, atom, atom_h, car, weapons, wanted,
+                          honor_and_respect, money, total_earned, total_spent, game_time,
+                          collected_treasures, distance_since_crash, current_drift_distance,
+                          survival=None):
+    """Build the serializable state shared by manual and automatic saves."""
+    return {
         "game_state": game_state,
         "player": {
             "x": atom.pos.x,
@@ -3049,6 +3287,10 @@ def save_chapter_game_state(chapter_id, game_state, atom, atom_h, car, weapons, 
             "angle": atom.angle,
         },
         "hero_health": atom.health,
+        "hunger": survival.hunger if survival is not None else 100.0,
+        "survival_minute_progress": (
+            survival.minutes_into_hour if survival is not None else game_time % 60
+        ),
         "ammo": weapons.ammo,
         "reserve_ammo": weapons.reserve_ammo,
         "weapon": weapons.selected,
@@ -3076,7 +3318,19 @@ def save_chapter_game_state(chapter_id, game_state, atom, atom_h, car, weapons, 
         "collected_treasures": sorted(collected_treasures),
         "distance_streak": distance_since_crash,
         "drift_streak": current_drift_distance,
-    })
+    }
+
+
+def save_game_state(game_state, atom, atom_h, car, weapons, wanted,
+                    honor_and_respect, money, total_earned, total_spent, game_time,
+                    collected_treasures, distance_since_crash, current_drift_distance,
+                    survival=None):
+    """Persist the current open-world state."""
+    save_game_save(build_game_state_data(
+        game_state, atom, atom_h, car, weapons, wanted, honor_and_respect,
+        money, total_earned, total_spent, game_time, collected_treasures,
+        distance_since_crash, current_drift_distance, survival,
+    ))
 
 
 def handle_car_audio(car, in_car, sounds, e_chan, c_chan):
@@ -3340,3 +3594,991 @@ def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_s
             labels["choose_color"], True, (165, 165, 165)
         )
         screen.blit(hint, (display_rect.x + 15, display_rect.y + 220))
+
+
+
+def run_open_world(screen, settings, *, continue_game=True):
+    """Run ATOF's continuous open-world game session."""
+    WORLD_WIDTH = _constants.WORLD_WIDTH
+    WORLD_HEIGHT = _constants.WORLD_HEIGHT
+    HOUSE_SLEEP_SPOT = _constants.HOUSE_SLEEP_SPOT
+    traffic_timer = 0
+    traffic_state = "RED"  # RED pauses route N; GREEN pauses route A1.
+    frame_count = 0
+    keyboard = KeyboardState()
+    # Spawn the configured traffic and police at game start.
+    npc_cars = traffic.init_traffic(18)
+    fleeing_drivers: list[FleeingDriver] = []
+    hostile_officers: list[HostileOfficer] = []
+    projectiles: list[Projectile] = []
+    map_scale = 4.0
+    current_world_width = int(WORLD_WIDTH * map_scale)
+    current_world_height = int(WORLD_HEIGHT * map_scale)
+    camera = Camera2D(
+        screen.get_size(),
+        (current_world_width, current_world_height),
+    )
+    resources = load_game_resources(
+        screen.get_size(),
+        (current_world_width, current_world_height),
+    )
+    # Load the game resources.
+    target_y = 450.0
+    phone_y_offset = 450.0
+    game_audio = resources.audio
+    phone_click_sfx = game_audio.phone_click
+    current_app = 0  # 0 is the phone menu; 1–9 are apps.
+    game_save = load_game_save() if continue_game else None
+    money = game_save.get("money", 100) if game_save else 100
+    total_earned = game_save.get("earned", 0) if game_save else 0
+    total_spent = game_save.get("spent", 0) if game_save else 0
+    money_history = [("+100", "start")] if not game_save else []
+    # Keep track of collected treasures so they cannot be collected repeatedly.
+    collected_treasures = set()
+    phone_active = False  # Phone state.
+    phone_settings = get_phone_settings()
+    weapons = WeaponWheel(
+        game_save.get("ammo", 7) if game_save else 7,
+        game_save.get("reserve_ammo", 49) if game_save else 49,
+        game_save.get("weapon", "pistol") if game_save else "pistol",
+    )
+    wanted = WantedLevel(
+        game_save.get("wanted_level", 0) if game_save else 0,
+        game_save.get("wanted_escape_timer", 0) if game_save else 0,
+    )
+    # --- Time and lighting ---
+    game_time = game_save.get("game_time", 480.0) if game_save else 480.0
+    night_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    wake_overlay = pygame.Surface(screen.get_size())
+    car_sfx = game_audio.car_sounds
+    step_sounds = game_audio.footsteps
+
+    def apply_audio_settings():
+        configure_game_audio(settings, game_audio)
+        traffic.configure_audio(settings)
+
+    apply_audio_settings()
+
+    engine_chan = game_audio.engine_channel
+    crash_chan = game_audio.crash_channel
+    foot_chan = game_audio.footstep_channel
+    horn_chan = game_audio.horn_channel
+    clock = pygame.time.Clock()
+    frame_clock = FrameClock()
+    frame_renderer = LayeredRenderer()
+    languages = SUPPORTED_LANGUAGES
+
+    assets = resources.assets
+    atom_img = assets.atom
+    original_nav_map = assets.original_nav_map
+    world_bg = assets.world_background
+    full_map_img = assets.full_map
+    col_mask = assets.collision_mask
+    house_visual = assets.house_visual
+    house_collision = assets.house_collision
+    house_info = assets.house_info
+
+    show_debug = False
+    game_state = game_save.get("game_state", "HOUSE") if game_save else "HOUSE"
+    scene_manager = SceneManager(game_state)
+    scene_manager.register("CITY")
+    scene_manager.register("HOUSE")
+    in_car = False
+
+    # GAME OBJECTS
+    atom = Player(7738, 2330)
+    car = Car(7985, 2383)
+    car.angle = 270
+    if game_save:
+        player_data = game_save.get("player", {})
+        atom.pos.update(player_data.get("x", 7738), player_data.get("y", 2330))
+        atom.angle = player_data.get("angle", 0)
+        atom.health = game_save.get("hero_health", atom.max_health)
+        car_data = game_save.get("car", {})
+        car.pos.update(car_data.get("x", 7985), car_data.get("y", 2383))
+        car.angle = car_data.get("angle", 270)
+        car.speed = car_data.get("speed", 0)
+        car.motion_velocity = pygame.Vector2(car.speed, 0).rotate(-car.angle + 180)
+        car.health = min(car_data.get("health", car.max_health), car.max_health)
+        car.is_broken = car_data.get("is_broken", False)
+    survival = SurvivalNeeds(
+        game_save.get("hunger", 100.0) if game_save else 100.0,
+        game_save.get("survival_minute_progress", game_time % 60) if game_save else game_time % 60,
+    )
+    atom_h = HousePlayer(162, 161)
+    atom_h.pos.update(HOUSE_SLEEP_SPOT)
+    if game_save and game_save.get("game_state") == "HOUSE":
+        house_data = game_save.get("house_player", {})
+        atom_h.pos.update(
+            house_data.get("x", 147),
+            house_data.get("y", 156),
+        )
+        atom_h.angle = house_data.get("angle", 0)
+    gps = GPS()
+    if game_save:
+        collected_treasures.update(game_save.get("collected_treasures", []))
+    personal_records = load_statistics()
+    honor_and_respect = HonorAndRespect(
+        game_save.get("honor", personal_records.get("honor", 0)) if game_save else personal_records.get("honor", 0),
+        game_save.get("respect", personal_records.get("respect", 0)) if game_save else personal_records.get("respect", 0),
+    )
+    distance_since_crash = game_save.get("distance_streak", 0.0) if game_save else 0.0
+    current_drift_distance = game_save.get("drift_streak", 0.0) if game_save else 0.0
+    sleep_requested = False
+    wake_fade_started = None
+    manual_headlights = False
+    radio = GameRadio(settings)
+
+    game_font, small_font = resources.game_font, resources.small_font
+
+    translations = {
+        "English": {
+            "hint": "[F] Enter / steal car", "enter": "[E] Enter House", "exit": "[E] Exit House",
+            "resume": "Resume", "stats": "Stats", "settings": "Settings", "menu": "To Menu",
+            "vol": "Volume", "lang": "Language", "back": "Back",
+            "volume": "Volume", "music_vol": "Music Volume", "npc_vol": "NPC Volume",
+            "crash_vol": "Crash Volume", "button_vol": "Button Volume",
+            "footsteps_vol": "Footsteps Volume",
+            "audio_hint": "Up/Down selects a sound; Left/Right adjusts it; Esc returns",
+            "repair": "Hold [R] to repair", "confirm_q": "Leave the game?",
+            "confirm_w": "Progress in this session will be lost.", "yes": "YES", "no": "NO",
+            "stats_title": "Session statistics", "stats_money": "Money: {money} UAH",
+            "stats_time": "Time: {time}", "stats_treasures": "Treasures found: {treasures}",
+            "stats_earned": "Total earned: {amount} UAH", "stats_spent": "Total spent: {amount} UAH", "stats_hint": "Press Esc or Enter to return",
+            "stats_honor": "Honor: {value}", "stats_respect": "Respect: {value}",
+            "player_hp": "HP: {current}/{maximum}", "ammo": "Ammo: {current}/{reserve}",
+            "wanted": "Wanted: {stars}", "reload": "Reloaded", "empty_ammo": "Out of ammo",
+            "weapon_hint": "Mouse: move while armed | Left Shift: sprint | LMB: fire | R: reload",
+            "none": "Unarmed", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "smg": "WR Mini .45",
+            "steal_hint": "[F] Steal vehicle",
+            "gps_distance": "Distance: {distance}", "gps_set": "Left-click: set destination",
+            "gps_clear": "Right-click/Backspace: clear destination",
+            "radio_on": "{station} · {genre} · {track} | V: radio off | ,/<: previous | ./>: next",
+            "radio_paused": "{station} · {genre} · {track} | V: radio on | ,/<: previous | ./>: next",
+            "radio_off": "RADIO OFF | V: on | ,/<: previous station | ./>: next station",
+        },
+        "Українська": {
+            "hint": "[F] Сісти / викрасти авто", "enter": "[E] Увійти в дім", "exit": "[E] Вийти з дому",
+            "resume": "Продовжити", "stats": "Статистика", "settings": "Налаштування", "menu": "В меню",
+            "vol": "Гучність", "lang": "Мова", "back": "Назад",
+            "volume": "Гучність", "music_vol": "Гучність музики", "npc_vol": "Гучність НПС",
+            "crash_vol": "Гучність аварій", "button_vol": "Гучність кнопок",
+            "footsteps_vol": "Гучність кроків",
+            "audio_hint": "↑/↓ обирає звук; ←/→ змінює гучність; Esc — назад",
+            "repair": "Тримайте [R] для ремонту", "confirm_q": "Вийти з гри?",
+            "confirm_w": "Прогрес цієї сесії буде втрачено.", "yes": "ТАК", "no": "НІ",
+            "stats_title": "Статистика сесії", "stats_money": "Гроші: {money} UAH",
+            "stats_time": "Час: {time}", "stats_treasures": "Знайдено скарбів: {treasures}",
+            "stats_earned": "Всього зароблено: {amount} UAH", "stats_spent": "Всього витрачено: {amount} UAH", "stats_hint": "Натисніть Esc або Enter, щоб повернутися",
+            "stats_honor": "Честь: {value}", "stats_respect": "Повага: {value}",
+            "player_hp": "ЗД: {current}/{maximum}", "ammo": "Патрони: {current}/{reserve}",
+            "wanted": "Розшук: {stars}", "reload": "Перезаряджено", "empty_ammo": "Немає патронів",
+            "weapon_hint": "Миша: рух зі зброєю | Лівий Shift: біг | ЛКМ: стріляти | R: перезарядити",
+            "none": "Без зброї", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "smg": "WR Mini .45",
+            "steal_hint": "[F] Викрасти авто",
+            "gps_distance": "Відстань: {distance}", "gps_set": "ЛКМ: поставити точку",
+            "gps_clear": "ПКМ/Backspace: прибрати точку",
+            "radio_on": "{station} · {genre} · {track} | V: вимкнути | ,/<: попередня | ./>: наступна",
+            "radio_paused": "{station} · {genre} · {track} | V: увімкнути | ,/<: попередня | ./>: наступна",
+            "radio_off": "РАДІО ВИМКНЕНО | V: увімкнути | ,/<: попередня станція | ./>: наступна станція",
+        },
+        "Русский": {
+            "hint": "[F] Сесть / угнать авто", "enter": "[E] Войти в дом", "exit": "[E] Выйти из дома",
+            "resume": "Продолжить", "stats": "Статистика", "settings": "Настройки", "menu": "В меню",
+            "vol": "Громкость", "lang": "Язык", "back": "Назад",
+            "volume": "Громкость", "music_vol": "Громкость музыки", "npc_vol": "Громкость НПС",
+            "crash_vol": "Громкость аварий", "button_vol": "Громкость кнопок",
+            "footsteps_vol": "Громкость шагов",
+            "audio_hint": "↑/↓ выбирает звук; ←/→ меняет громкость; Esc — назад",
+            "repair": "Удерживайте [R], чтобы починить", "confirm_q": "Выйти из игры?",
+            "confirm_w": "Прогресс этой сессии будет потерян.", "yes": "ДА", "no": "НЕТ",
+            "stats_title": "Статистика сессии", "stats_money": "Деньги: {money} UAH",
+            "stats_time": "Время: {time}", "stats_treasures": "Найдено сокровищ: {treasures}",
+            "stats_earned": "Всего заработано: {amount} UAH", "stats_spent": "Всего потрачено: {amount} UAH", "stats_hint": "Нажмите Esc или Enter, чтобы вернуться",
+            "stats_honor": "Честь: {value}", "stats_respect": "Уважение: {value}",
+            "player_hp": "ЗД: {current}/{maximum}", "ammo": "Патроны: {current}/{reserve}",
+            "wanted": "Розыск: {stars}", "reload": "Перезаряжено", "empty_ammo": "Нет патронов",
+            "weapon_hint": "Мышь: движение с оружием | Левый Shift: бег | ЛКМ: стрелять | R: перезарядить",
+            "none": "Без оружия", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "smg": "WR Mini .45",
+            "steal_hint": "[F] Угнать авто",
+            "gps_distance": "Расстояние: {distance}", "gps_set": "ЛКМ: поставить точку",
+            "gps_clear": "ПКМ/Backspace: убрать точку",
+            "radio_on": "{station} · {genre} · {track} | V: выключить | ,/<: предыдущая | ./>: следующая",
+            "radio_paused": "{station} · {genre} · {track} | V: включить | ,/<: предыдущая | ./>: следующая",
+            "radio_off": "РАДИО ВЫКЛЮЧЕНО | V: включить | ,/<: предыдущая станция | ./>: следующая станция",
+        },
+        "Español": {
+            "hint": "[F] Entrar / robar coche", "enter": "[E] Entrar en casa", "exit": "[E] Salir de casa",
+            "resume": "Reanudar", "stats": "Estadísticas", "settings": "Ajustes", "menu": "Volver al menú",
+            "vol": "Volumen", "lang": "Idioma", "back": "Atrás",
+            "volume": "Volumen", "music_vol": "Volumen de la música", "npc_vol": "Volumen de los NPC",
+            "crash_vol": "Volumen de choques", "button_vol": "Volumen de botones",
+            "footsteps_vol": "Volumen de pasos",
+            "audio_hint": "↑/↓ elegir sonido; ←/→ ajustar volumen; Esc para volver",
+            "repair": "Mantén [R] para reparar", "confirm_q": "¿Salir del juego?",
+            "confirm_w": "Se perderá el progreso de esta sesión.", "yes": "SÍ", "no": "NO",
+            "stats_title": "Estadísticas de la sesión", "stats_money": "Dinero: {money} UAH",
+            "stats_time": "Tiempo: {time}", "stats_treasures": "Tesoros encontrados: {treasures}",
+            "stats_earned": "Total ganado: {amount} UAH", "stats_spent": "Total gastado: {amount} UAH",
+            "stats_hint": "Pulsa Esc o Enter para volver",
+            "stats_honor": "Honor: {value}", "stats_respect": "Respeto: {value}",
+            "player_hp": "Salud: {current}/{maximum}", "ammo": "Munición: {current}/{reserve}",
+            "wanted": "Búsqueda: {stars}", "reload": "Recargado", "empty_ammo": "Sin munición",
+            "weapon_hint": "Ratón: moverse armado | Mayús izq.: correr | Clic izq.: disparar | R: recargar",
+            "none": "Sin arma", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "smg": "WR Mini .45",
+            "steal_hint": "[F] Robar vehículo",
+            "gps_distance": "Distancia: {distance}", "gps_set": "Clic izquierdo: marcar destino",
+            "gps_clear": "Clic derecho/Retroceso: borrar destino",
+            "radio_on": "{station} · {genre} · {track} | V: apagar | ,/<: anterior | ./>: siguiente",
+            "radio_paused": "{station} · {genre} · {track} | V: encender | ,/<: anterior | ./>: siguiente",
+            "radio_off": "RADIO APAGADA | V: encender | ,/<: emisora anterior | ./>: siguiente",
+        },
+        "Deutsch": {
+            "hint": "[F] Einsteigen / Auto stehlen", "enter": "[E] Haus betreten", "exit": "[E] Haus verlassen",
+            "resume": "Fortsetzen", "stats": "Statistik", "settings": "Einstellungen", "menu": "Zum Hauptmenü",
+            "vol": "Lautstärke", "lang": "Sprache", "back": "Zurück",
+            "volume": "Lautstärke", "music_vol": "Musiklautstärke", "npc_vol": "NPC-Lautstärke",
+            "crash_vol": "Lautstärke für Unfälle", "button_vol": "Tastenlautstärke",
+            "footsteps_vol": "Schrittlautstärke",
+            "audio_hint": "↑/↓ Ton wählen; ←/→ Lautstärke ändern; Esc zurück",
+            "repair": "[R] zum Reparieren halten", "confirm_q": "Spiel verlassen?",
+            "confirm_w": "Der Fortschritt dieser Sitzung geht verloren.", "yes": "JA", "no": "NEIN",
+            "stats_title": "Sitzungsstatistik", "stats_money": "Geld: {money} UAH",
+            "stats_time": "Zeit: {time}", "stats_treasures": "Gefundene Schätze: {treasures}",
+            "stats_earned": "Insgesamt verdient: {amount} UAH", "stats_spent": "Insgesamt ausgegeben: {amount} UAH",
+            "stats_hint": "Esc oder Enter drücken, um zurückzukehren",
+            "stats_honor": "Ehre: {value}", "stats_respect": "Ansehen: {value}",
+            "player_hp": "LP: {current}/{maximum}", "ammo": "Munition: {current}/{reserve}",
+            "wanted": "Gesucht: {stars}", "reload": "Nachgeladen", "empty_ammo": "Keine Munition",
+            "weapon_hint": "Maus: mit Waffe bewegen | Linke Umschalttaste: sprinten | Linksklick: schießen | R: nachladen",
+            "none": "Keine Waffe", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "smg": "WR Mini .45",
+            "steal_hint": "[F] Auto stehlen",
+            "gps_distance": "Entfernung: {distance}", "gps_set": "Linksklick: Ziel setzen",
+            "gps_clear": "Rechtsklick/Backspace: Ziel löschen",
+            "radio_on": "{station} · {genre} · {track} | V: ausschalten | ,/<: zurück | ./>: weiter",
+            "radio_paused": "{station} · {genre} · {track} | V: einschalten | ,/<: zurück | ./>: weiter",
+            "radio_off": "RADIO AUS | V: einschalten | ,/<: vorheriger Sender | ./>: nächster Sender",
+        },
+        "Français": {
+            "hint": "[F] Monter / voler une voiture", "enter": "[E] Entrer dans la maison", "exit": "[E] Sortir de la maison",
+            "resume": "Reprendre", "stats": "Statistiques", "settings": "Paramètres", "menu": "Menu principal",
+            "vol": "Volume", "lang": "Langue", "back": "Retour",
+            "volume": "Volume", "music_vol": "Volume de la musique", "npc_vol": "Volume des PNJ",
+            "crash_vol": "Volume des collisions", "button_vol": "Volume des boutons",
+            "footsteps_vol": "Volume des pas",
+            "audio_hint": "↑/↓ choisir le son ; ←/→ régler le volume ; Échap pour revenir",
+            "repair": "Maintenir [R] pour réparer", "confirm_q": "Quitter la partie ?",
+            "confirm_w": "La progression de cette session sera perdue.", "yes": "OUI", "no": "NON",
+            "stats_title": "Statistiques de la session", "stats_money": "Argent : {money} UAH",
+            "stats_time": "Temps : {time}", "stats_treasures": "Trésors trouvés : {treasures}",
+            "stats_earned": "Total gagné : {amount} UAH", "stats_spent": "Total dépensé : {amount} UAH",
+            "stats_hint": "Appuyez sur Échap ou Entrée pour revenir",
+            "stats_honor": "Honneur : {value}", "stats_respect": "Respect : {value}",
+            "player_hp": "Santé : {current}/{maximum}", "ammo": "Munitions : {current}/{reserve}",
+            "wanted": "Recherché : {stars}", "reload": "Rechargé", "empty_ammo": "Plus de munitions",
+            "weapon_hint": "Souris : avancer armé | Maj gauche : courir | Clic gauche : tirer | R : recharger",
+            "none": "Désarmé", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "smg": "WR Mini .45",
+            "steal_hint": "[F] Voler la voiture",
+            "gps_distance": "Distance : {distance}", "gps_set": "Clic gauche : définir la destination",
+            "gps_clear": "Clic droit/Retour arrière : supprimer la destination",
+            "radio_on": "{station} · {genre} · {track} | V : éteindre | ,/< : précédente | ./> : suivante",
+            "radio_paused": "{station} · {genre} · {track} | V : allumer | ,/< : précédente | ./> : suivante",
+            "radio_off": "RADIO ÉTEINTE | V : allumer | ,/< : station précédente | ./> : station suivante",
+        }
+    }
+
+    per_language_labels = {
+        "English": {
+            "sleep_save": "Press [E] / [T] by the bed to sleep and save",
+            "hunger_meter": "HUNGER {value}%", "health_meter": "HP {value}%",
+            "radio_genre_rock": "Alternative rock", "radio_genre_synthwave": "Synthwave",
+            "radio_genre_folk": "Folk / world",
+            "video": "Video", "window_mode": "Window mode", "window_mode_value": "Resizable",
+            "resolution": "Resolution", "fps_limit": "Frame rate limit",
+            "fps_unlimited": "Unlimited",
+            "video_hint": "FPS is not monitor Hz. Use the title bar button to maximize.",
+            "stats_max_speed": "Top speed: {value} km/h",
+            "stats_longest_drift": "Longest drift: {value} m",
+            "stats_no_crash": "Longest drive without a crash: {value} m",
+        },
+        "Українська": {
+            "sleep_save": "Натисніть [E] / [T] біля ліжка, щоб заснути й зберегтися",
+            "hunger_meter": "СИТІСТЬ {value}%", "health_meter": "ЗД {value}%",
+            "radio_genre_rock": "Альтернативний рок", "radio_genre_synthwave": "Синтвейв",
+            "radio_genre_folk": "Фолк / етно",
+            "video": "Відео", "window_mode": "Режим вікна", "window_mode_value": "Змінний розмір",
+            "resolution": "Роздільність", "fps_limit": "Ліміт кадрів (FPS)",
+            "fps_unlimited": "Без обмежень",
+            "video_hint": "FPS — не герци монітора. Натисніть кнопку в заголовку, щоб розгорнути вікно.",
+            "stats_max_speed": "Максимальна швидкість: {value} км/год",
+            "stats_longest_drift": "Найдовший занос: {value} м",
+            "stats_no_crash": "Найдовша поїздка без аварій: {value} м",
+        },
+        "Русский": {
+            "sleep_save": "Нажмите [E] / [T] у кровати, чтобы поспать и сохраниться",
+            "hunger_meter": "СЫТОСТЬ {value}%", "health_meter": "ЗД {value}%",
+            "radio_genre_rock": "Альтернативный рок", "radio_genre_synthwave": "Синтвейв",
+            "radio_genre_folk": "Фолк / этно",
+            "video": "Видео", "window_mode": "Режим окна", "window_mode_value": "Изменяемый размер",
+            "resolution": "Разрешение", "fps_limit": "Лимит кадров (FPS)",
+            "fps_unlimited": "Без ограничений",
+            "video_hint": "FPS — не герцы монитора. Нажмите кнопку в заголовке, чтобы развернуть окно.",
+            "stats_max_speed": "Максимальная скорость: {value} км/ч",
+            "stats_longest_drift": "Самый длинный занос: {value} м",
+            "stats_no_crash": "Самая длинная поездка без аварий: {value} м",
+        },
+        "Español": {
+            "sleep_save": "Pulsa [E] / [T] junto a la cama para dormir y guardar",
+            "hunger_meter": "HAMBRE {value}%", "health_meter": "SALUD {value}%",
+            "radio_genre_rock": "Rock alternativo", "radio_genre_synthwave": "Synthwave",
+            "radio_genre_folk": "Folk / tradicional",
+            "video": "Vídeo", "window_mode": "Modo de ventana", "window_mode_value": "Redimensionable",
+            "resolution": "Resolución", "fps_limit": "Límite de fotogramas (FPS)",
+            "fps_unlimited": "Sin límite",
+            "video_hint": "FPS no son los Hz. Usa el botón de la barra superior para maximizar.",
+            "stats_max_speed": "Velocidad máxima: {value} km/h",
+            "stats_longest_drift": "Derrape más largo: {value} m",
+            "stats_no_crash": "Trayecto más largo sin choque: {value} m",
+        },
+        "Deutsch": {
+            "sleep_save": "Am Bett [E] / [T] drücken, um zu schlafen und zu speichern",
+            "hunger_meter": "HUNGER {value}%", "health_meter": "LP {value}%",
+            "radio_genre_rock": "Alternative Rock", "radio_genre_synthwave": "Synthwave",
+            "radio_genre_folk": "Folk / Weltmusik",
+            "video": "Video", "window_mode": "Fenstermodus", "window_mode_value": "Größe änderbar",
+            "resolution": "Auflösung", "fps_limit": "Bildratenlimit (FPS)",
+            "fps_unlimited": "Unbegrenzt",
+            "video_hint": "FPS sind nicht Monitor-Hz. Mit der Schaltfläche in der Titelleiste maximieren.",
+            "stats_max_speed": "Höchstgeschwindigkeit: {value} km/h",
+            "stats_longest_drift": "Längster Drift: {value} m",
+            "stats_no_crash": "Längste Fahrt ohne Unfall: {value} m",
+        },
+        "Français": {
+            "sleep_save": "Appuyez sur [E] / [T] près du lit pour dormir et sauvegarder",
+            "hunger_meter": "FAIM {value}%", "health_meter": "SANTÉ {value}%",
+            "radio_genre_rock": "Rock alternatif", "radio_genre_synthwave": "Synthwave",
+            "radio_genre_folk": "Folk / musique du monde",
+            "video": "Vidéo", "window_mode": "Mode fenêtre", "window_mode_value": "Redimensionnable",
+            "resolution": "Résolution", "fps_limit": "Limite d’images (FPS)",
+            "fps_unlimited": "Illimitée",
+            "video_hint": "Les FPS ne sont pas les Hz. Utilisez le bouton de la barre de titre.",
+            "stats_max_speed": "Vitesse maximale : {value} km/h",
+            "stats_longest_drift": "Dérapage le plus long : {value} m",
+            "stats_no_crash": "Trajet le plus long sans accident : {value} m",
+        },
+    }
+    for language, labels in per_language_labels.items():
+        translations[language].update(labels)
+
+    def nearby_traffic_car(
+        position,
+        radius: float = 90,
+    ) -> traffic.TrafficCar | None:
+        candidates: list[traffic.TrafficCar] = [
+            npc for npc in npc_cars
+            if getattr(npc, "is_alive", True)
+            and npc.pos.distance_squared_to(position) <= radius * radius
+        ]
+        closest = min(
+            candidates,
+            key=lambda npc: npc.pos.distance_squared_to(position),
+            default=None,
+        )
+        if (
+            closest is not None
+            and closest.pos.distance_squared_to(position) < car.pos.distance_squared_to(position)
+        ):
+            return closest
+        return None
+
+    def hijack_traffic_car(npc):
+        nonlocal car, in_car
+        stolen_position = pygame.Vector2(npc.pos)
+        stolen_angle = npc.angle
+        stolen_police = npc.is_police
+        forward = pygame.Vector2(1, 0).rotate(stolen_angle + 180)
+        driver_position = stolen_position - forward * 35
+        if stolen_police:
+            hostile_officers.append(HostileOfficer(stolen_position + forward * 40))
+            wanted.raise_level(3)
+            honor_and_respect.change(honor=-15, respect=-8)
+        else:
+            fleeing_drivers.append(FleeingDriver(driver_position, atom.pos))
+            wanted.raise_level(1)
+            honor_and_respect.change(honor=-8, respect=-5)
+
+        npc.is_alive = False
+        replacement = Car(stolen_position.x, stolen_position.y)
+        replacement.angle = stolen_angle
+        replacement.vehicle_class = "stolen-police" if stolen_police else "stolen-sedan"
+        replacement.is_police = stolen_police
+        replacement.image = (
+            traffic.get_police_car_image()
+            if stolen_police
+            else traffic.get_traffic_car_image()
+        )
+        replacement.max_speed = 13.0 if stolen_police else 11.5
+        replacement.handling = 0.7 if stolen_police else 0.62
+        car = replacement
+        in_car = True
+        atom.pos.update(car.pos)
+
+    def reload_weapon():
+        weapons.reload(game_audio)
+
+    def update_combat(frame_scale):
+        update_combat_system(frame_scale, fleeing_drivers, hostile_officers, npc_cars,
+                                    projectiles, atom, car, in_car, col_mask, wanted, honor_and_respect)
+
+    def save_sleep_game():
+        save_game_state(game_state, atom, atom_h, car, weapons, wanted,
+                                        honor_and_respect, money, total_earned, total_spent, game_time,
+                                        collected_treasures, distance_since_crash, current_drift_distance,
+                                        survival)
+        save_session_statistics(money, total_earned, total_spent, game_time, collected_treasures,
+                                        personal_records, honor_and_respect)
+
+    def save_last_session_stats():
+        save_session_statistics(money, total_earned, total_spent, game_time, collected_treasures,
+                                        personal_records, honor_and_respect)
+
+    def get_current_game_state():
+        return build_game_state_data(
+            game_state,
+            atom,
+            atom_h,
+            car,
+            weapons,
+            wanted,
+            honor_and_respect,
+            money,
+            total_earned,
+            total_spent,
+            game_time,
+            collected_treasures,
+            distance_since_crash,
+            current_drift_distance,
+            survival,
+        )
+
+    running = True
+    frame_clock.reset()
+    while running:
+        frame_scale = frame_clock.tick(clock, FPS)
+        target = car if in_car else atom
+        off_x = off_y = 0
+        traffic_timer += frame_scale / 60
+        if traffic_timer > 5:  # Switch the traffic-light phase every five seconds.
+            traffic_state = "GREEN" if traffic_state == "RED" else "RED"
+            traffic_timer = 0
+        phone_y_offset += (target_y - phone_y_offset) * (1 - (5 / 6) ** frame_scale)
+        # Update the phone slide animation before drawing it.
+        target_y = 0.0 if phone_active else 450.0
+        current_lang_name = languages[settings['lang_idx']]
+        t = translations.get(current_lang_name, translations["English"])
+        keys = keyboard
+        # One real second advances one in-game minute; survival uses that same clock.
+        game_minute_delta = frame_scale / 60
+        game_time = (game_time + game_minute_delta) % 1440
+        survival.advance(game_minute_delta, atom)
+
+        frame_count += frame_scale
+        if frame_count >= 60:
+            traffic.analyze_traffic_jams(npc_cars)
+            frame_count %= 60
+
+        # Update weapon reload state
+        weapons.update_reload()
+
+        # 1. Process events.
+        for event in pygame.event.get():
+            keyboard.process_event(event)
+            weapons.process_event(event, screen.get_size())
+            if event.type == pygame.VIDEORESIZE:
+                screen = apply_window_resize(event.size, settings)
+                camera.resize(screen.get_size())
+                full_map_img = pygame.transform.scale(original_nav_map, (WIDTH, HEIGHT))
+                night_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+                wake_overlay = pygame.Surface(screen.get_size())
+                save_settings(settings)
+            if event.type == pygame.QUIT:
+                save_last_session_stats()
+                return "EXIT"
+            if event.type == pygame.KEYDOWN:
+                # --- Phone controls ---
+                if keyboard.matches(event, pygame.K_m):
+                    phone_active = not phone_active
+                    current_app = 0
+                    phone_click_sfx.play()  # Play a sound when M opens or closes the phone.
+
+                if phone_active:
+                    # BACKSPACE controls.
+                    if event.key == pygame.K_BACKSPACE:
+                        if current_app != 0:
+                            current_app = 0  # Return to the phone menu.
+                            phone_click_sfx.play()
+                        else:
+                            phone_active = False  # Close the phone.
+                            phone_click_sfx.play()
+
+                    # Open phone apps from the home screen.
+                    elif current_app == 0:
+                        if keyboard.matches(event, pygame.K_1) or event.key == pygame.K_KP1:
+                            current_app = 1
+                            phone_click_sfx.play()
+                        elif keyboard.matches(event, pygame.K_2) or event.key == pygame.K_KP2:
+                            current_app = 2
+                            phone_click_sfx.play()
+                    elif current_app == 2:
+                        # Number keys select one of the available phone case colors.
+                        phone_color_keys = {
+                            pygame.K_1: 0, pygame.K_KP1: 0,
+                            pygame.K_2: 1, pygame.K_KP2: 1,
+                            pygame.K_3: 2, pygame.K_KP3: 2,
+                            pygame.K_4: 3, pygame.K_KP4: 3,
+                            pygame.K_5: 4, pygame.K_KP5: 4,
+                        }
+                        if event.key in phone_color_keys:
+                            phone_settings["case_idx"] = phone_color_keys[event.key]
+                            save_phone_settings(phone_settings)
+                            phone_click_sfx.play()
+                if event.key == pygame.K_F3:
+                    show_debug = not show_debug
+                if event.key == pygame.K_TAB:
+                    full_screen_map(
+                        screen, full_map_img, (car if in_car else atom),
+                        current_world_width, current_world_height,
+                        controls=keyboard, gps=gps, labels=t
+                    )
+                if event.key == pygame.K_ESCAPE:
+                    radio_was_playing = radio.is_playing
+                    radio.pause()
+                    res = pause_menu(
+                        screen, game_font, small_font, settings, translations, languages, keyboard,
+                        {
+                            "money": money,
+                            "earned": total_earned,
+                            "spent": total_spent,
+                            "time": f"{int(game_time / 60):02d}:{int(game_time % 60):02d}",
+                            "treasures": len(collected_treasures),
+                            "max_speed_kmh": personal_records["max_speed_kmh"],
+                            "longest_drift_m": personal_records["longest_drift_m"],
+                            "distance_without_crash_m": personal_records[
+                                "distance_without_crash_m"
+                            ],
+                            "honor": honor_and_respect.honor,
+                            "respect": honor_and_respect.respect,
+                        },
+                        on_change=save_settings,
+                        game_state=get_current_game_state(),
+                    )
+                    apply_audio_settings()
+                    if res == "VIDEO_CHANGED":
+                        screen = apply_video_settings(settings)
+                        camera.resize(screen.get_size())
+                        full_map_img = pygame.transform.scale(original_nav_map, (WIDTH, HEIGHT))
+                        night_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+                    clock.tick(0)
+                    frame_clock.reset()
+                    if res in ["MENU", "EXIT"]:
+                        radio.stop()
+                        save_last_session_stats()
+                        return res
+                    if radio_was_playing:
+                        radio.resume()
+                if (
+                    keyboard.matches(event, pygame.K_f)
+                    and game_state == "CITY"
+                    and not phone_active
+                ):
+                    old_in_car = in_car  # Save the previous state before toggling.
+                    nearby_car = nearby_traffic_car(atom.pos) if not in_car else None
+                    if nearby_car is not None:
+                        hijack_traffic_car(nearby_car)
+                    else:
+                        in_car = handle_car_logic(atom, car, in_car)
+
+                    # Play the sound only when the state changes.
+                    if in_car != old_in_car:
+                        if in_car:
+                            car_sfx['door_open'].play()
+                            radio.resume()
+                        else:
+                            car_sfx['door_close'].play()
+                            radio.pause()
+                if (
+                    event.type == pygame.KEYDOWN
+                    and game_state == "CITY"
+                    and not in_car
+                    and not phone_active
+                    and not (car.is_broken and atom.pos.distance_to(car.pos) < 100)
+                    and keyboard.matches(event, pygame.K_r)
+                ):
+                    reload_weapon()
+                if game_state == "CITY" and in_car and not getattr(event, "repeat", False):
+                    if keyboard.matches(event, pygame.K_h):
+                        manual_headlights = not manual_headlights
+                    if keyboard.matches(event, pygame.K_e):
+                        play_car_horn(car_sfx, horn_chan)
+                        traffic.respond_to_horn(npc_cars, car.pos)
+                    if keyboard.matches(event, pygame.K_v):
+                        radio.toggle()
+                    if keyboard.matches(event, pygame.K_COMMA):
+                        radio.cycle_station(-1)
+                    if keyboard.matches(event, pygame.K_PERIOD):
+                        radio.cycle_station(1)
+                sleep_key_pressed = (
+                    keyboard.matches(event, pygame.K_e)
+                    or event.key == pygame.K_t
+                    or getattr(event, "unicode", "").lower() in ("t", "т")
+                )
+                if sleep_key_pressed:
+                    if game_state == "HOUSE":
+                        if is_at_sleep_spot(game_state, atom_h.pos):
+                            sleep_requested = True
+                        elif keyboard.matches(event, pygame.K_e) and check_house_exit(
+                            atom_h, house_info
+                        ):
+                            scene_manager.transition("CITY")
+                            game_state = scene_manager.current
+                            atom.pos = pygame.Vector2(7731, 2326)
+                    elif keyboard.matches(event, pygame.K_e) and not in_car:
+                        if atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
+                            scene_manager.transition("HOUSE")
+                            game_state = scene_manager.current
+                            atom_h.pos = pygame.Vector2(HOUSE_SLEEP_SPOT)
+            if (
+                event.type == pygame.MOUSEBUTTONDOWN
+                and event.button == 1
+                and game_state == "CITY"
+                and not in_car
+                and not phone_active
+            ):
+                target_position = camera.screen_to_world(event.pos)
+                if weapons.selected == "knife":
+                    hit = weapons.melee_target(
+                        atom.pos,
+                        target_position,
+                        [*npc_cars, *hostile_officers, *fleeing_drivers],
+                    )
+                    if hit is not None:
+                        hit.is_alive = False
+                        wanted.raise_level(2 if getattr(hit, "is_police", False) else 1)
+                        honor_and_respect.change(honor=-20, respect=-15)
+                else:
+                    projectiles.extend(weapons.fire(atom.pos, target_position))
+                direction = target_position - atom.pos
+                if direction.length_squared():
+                    atom.angle = -math.degrees(math.atan2(direction.x, direction.y))
+
+        radio.update()
+
+        # 2. Update the game state.
+
+        if game_state == "CITY":
+            target = car if in_car else atom
+
+            # Update all traffic and pass the collision mask.
+            # 1. Update traffic and police.
+            for npc in npc_cars:
+                # Pass the arguments used by traffic.py.
+                npc.update(col_mask, car, npc_cars, traffic_state, frame_scale)
+            if in_car:
+                previous_car_pos = pygame.Vector2(car.pos)
+                car.update(
+                    keys,
+                    col_mask,
+                    True,
+                    npc_cars,
+                    frame_scale,
+                    surface_map=world_bg,
+                )
+                atom.pos = pygame.Vector2(car.pos)
+                travelled = previous_car_pos.distance_to(car.pos)
+                if car.just_hit:
+                    distance_since_crash = 0.0
+                    current_drift_distance = 0.0
+                else:
+                    distance_since_crash += travelled
+                    personal_records["distance_without_crash_m"] = max(
+                        personal_records["distance_without_crash_m"],
+                        distance_since_crash,
+                    )
+                    if car.is_drifting:
+                        current_drift_distance += travelled
+                        personal_records["longest_drift_m"] = max(
+                            personal_records["longest_drift_m"],
+                            current_drift_distance,
+                        )
+                    else:
+                        current_drift_distance = 0.0
+                personal_records["max_speed_kmh"] = max(
+                    personal_records["max_speed_kmh"],
+                    abs(car.speed) * 8,
+                )
+            else:
+                atom.update(
+                    keys,
+                    col_mask,
+                    car,
+                    npc_cars,
+                    frame_scale,
+                    cursor_world=camera.screen_to_world(pygame.mouse.get_pos()),
+                    armed=(
+                        weapons.selected != "none"
+                        and not weapons.wheel_open
+                        and not phone_active
+                    ),
+                    can_sprint=survival.can_sprint and not phone_active,
+                )
+                car.update(
+                    keys,
+                    col_mask,
+                    False,
+                    npc_cars,
+                    frame_scale,
+                    surface_map=world_bg,
+                )
+
+                # Treasures and secrets.
+                if "guard" not in collected_treasures and atom.pos.distance_to(pygame.Vector2(8909, 1139)) < 60:
+                    money += 100
+                    total_earned += 100
+                    money_history.append(("+100", "guard"))
+                    collected_treasures.add("guard")
+
+                if "exit" not in collected_treasures and atom.pos.distance_to(pygame.Vector2(4549, 5245)) < 60:
+                    money += 111
+                    total_earned += 111
+                    money_history.append(("+111", "bridge"))
+                    collected_treasures.add("exit")
+
+                # Repair logic.
+                if car.is_broken and atom.pos.distance_to(car.pos) < 100:
+                    if money >= 50 and keys[pygame.K_r]:
+                        car.repair_progress += frame_scale
+                        if car.repair_progress >= 180:  # Three seconds at 60 FPS.
+                            car.health = car.max_health
+                            car.is_broken = False
+                            car.repair_progress = 0
+                            money -= 50
+                            total_spent += 50
+                            money_history.append(("-50", "repair"))
+                    else:
+                        car.repair_progress = 0
+
+            handle_surface_footsteps(keys, in_car, game_state, atom.pos, col_mask, step_sounds, foot_chan)
+            handle_car_audio(car, in_car, car_sfx, engine_chan, crash_chan)
+            update_combat(frame_scale)
+            off_x, off_y = camera.follow(target.pos)
+        else:
+            atom_h.update(keys, house_collision, frame_scale)
+            if "nightstand" not in collected_treasures:
+                if atom_h.pos.distance_to(pygame.Vector2(206, 199)) < 40:
+                    money += 200
+                    total_earned += 200
+                    money_history.append(("+200", "nightstand"))
+                    collected_treasures.add("nightstand")
+
+            if "sofa" not in collected_treasures:
+                if atom_h.pos.distance_to(pygame.Vector2(723, 128)) < 40:
+                    money += 300
+                    total_earned += 300
+                    money_history.append(("+300", "sofa"))
+                    collected_treasures.add("sofa")
+            handle_surface_footsteps(keys, in_car, game_state, atom_h.pos, None, step_sounds, foot_chan)
+
+        if atom.health <= 0:
+            fade_screen(screen, True, duration=0.35)
+            radio.pause()
+            if game_state != "HOUSE":
+                scene_manager.transition("HOUSE")
+            game_state = "HOUSE"
+            in_car = False
+            atom_h.pos.update(HOUSE_SLEEP_SPOT)
+            atom.health = atom.max_health
+            wanted.clear()
+            projectiles.clear()
+            hostile_officers.clear()
+            weapons.ammo = 12
+            car.speed = 0
+            car.motion_velocity.update(0, 0)
+            target = atom_h
+            wake_fade_started = time.perf_counter()
+
+        # 3. Build and render explicit engine-owned scene layers.
+        frame_renderer.begin_frame()
+        if game_state == "CITY":
+            headlights_on = in_car and manual_headlights
+
+            def draw_city_background():
+                screen.fill((30, 30, 30))
+                screen.blit(world_bg, (off_x, off_y))
+
+            def draw_city_world():
+                car.draw(screen, off_x, off_y)
+                draw_car_smoke(screen, car, off_x, off_y)
+                for npc in npc_cars:
+                    npc.draw(screen, off_x, off_y)
+                for driver in fleeing_drivers:
+                    driver.draw(screen, off_x, off_y)
+                for officer in hostile_officers:
+                    officer.draw(screen, off_x, off_y)
+                for projectile in projectiles:
+                    projectile.draw(screen, off_x, off_y)
+                if in_car:
+                    return
+
+                screen_position = camera.world_to_screen(atom.pos)
+                draw_atom_character(
+                    screen, screen_position.x, screen_position.y, atom_img, atom.angle
+                )
+                if weapons.selected != "none" and not weapons.wheel_open:
+                    draw_handgun(
+                        screen,
+                        atom.pos,
+                        camera.screen_to_world(pygame.mouse.get_pos()),
+                        off_x,
+                        off_y,
+                        atom.angle,
+                        weapons.selected,
+                    )
+                draw_city_hints(screen, small_font, atom, car, t)
+                if nearby_traffic_car(atom.pos) is not None:
+                    steal_text = small_font.render(t["steal_hint"], True, (255, 210, 100))
+                    screen.blit(
+                        steal_text,
+                        (WIDTH // 2 - steal_text.get_width() // 2, HEIGHT - 155),
+                    )
+                if car.is_broken and atom.pos.distance_to(car.pos) < 100:
+                    rendered = small_font.render(t["repair"], True, (255, 255, 255))
+                    screen.blit(
+                        rendered,
+                        (WIDTH // 2 - rendered.get_width() // 2, HEIGHT // 2 + 100),
+                    )
+                    if car.repair_progress > 0:
+                        pygame.draw.rect(
+                            screen, (0, 0, 0),
+                            (WIDTH // 2 - 100, HEIGHT // 2 + 140, 200, 15),
+                        )
+                        progress_width = int(200 * (car.repair_progress / 180))
+                        pygame.draw.rect(
+                            screen, (0, 120, 255),
+                            (WIDTH // 2 - 100, HEIGHT // 2 + 140, progress_width, 15),
+                        )
+                        pygame.draw.rect(
+                            screen, (255, 255, 255),
+                            (WIDTH // 2 - 100, HEIGHT // 2 + 140, 200, 15), 2,
+                        )
+
+            def draw_city_lighting():
+                ambient = get_ambient_color(game_time)
+                if ambient[3] > 0:
+                    night_overlay.fill(ambient)
+                    screen.blit(night_overlay, (0, 0))
+                if headlights_on:
+                    car.draw_headlights(screen, off_x, off_y, col_mask)
+
+            def draw_city_ui():
+                if in_car:
+                    car.draw_speedometer(screen)
+                draw_player_status(
+                    screen,
+                    atom,
+                    weapons.ammo,
+                    weapons.reserve_ammo,
+                    wanted.level,
+                    t,
+                )
+                weapons.draw(screen, t)
+                draw_gta_minimap(
+                    screen,
+                    original_nav_map,
+                    target,
+                    current_world_width,
+                    current_world_height,
+                    gps=gps,
+                    labels=t,
+                    hunger=survival.hunger,
+                    health=atom.health,
+                )
+                if in_car:
+                    radio_label = t["radio_on"] if radio.is_on else t["radio_off"]
+                    screen.blit(
+                        small_font.render(
+                            radio_label.format(
+                                station=radio.station_name,
+                                genre=t[radio.station_genre_key],
+                                track=radio.track_name,
+                            ),
+                            True,
+                            (255, 255, 255),
+                        ),
+                        (20, 50),
+                    )
+                else:
+                    hint = small_font.render(t["weapon_hint"], True, (255, 255, 255))
+                    screen.blit(hint, (20, HEIGHT - hint.get_height() - 20))
+
+            frame_renderer.submit(RenderLayer.BACKGROUND, draw_city_background)
+            frame_renderer.submit(RenderLayer.WORLD, draw_city_world)
+            frame_renderer.submit(RenderLayer.LIGHTING, draw_city_lighting)
+            frame_renderer.submit(RenderLayer.UI, draw_city_ui)
+        else:
+            def draw_house_background():
+                draw_house_scene(
+                    screen, house_visual, house_info, atom_h, small_font, t
+                )
+
+            def draw_house_ui():
+                if is_at_sleep_spot(game_state, atom_h.pos):
+                    sleep_text = small_font.render(t["sleep_save"], True, (255, 255, 255))
+                    screen.blit(
+                        sleep_text,
+                        sleep_text.get_rect(center=(WIDTH // 2, HEIGHT - 80)),
+                    )
+
+            frame_renderer.submit(RenderLayer.BACKGROUND, draw_house_background)
+            frame_renderer.submit(RenderLayer.UI, draw_house_ui)
+        frame_renderer.render()
+
+        # In-game clock.
+        h, m = int(game_time / 60), int(game_time % 60)
+        time_text = small_font.render(f"{h:02d}:{m:02d}", True, (255, 255, 255))
+        screen.blit(time_text, (WIDTH - 100, 20))
+
+        if show_debug:
+            draw_debug_coords(
+                screen,
+                (atom_h if game_state == "HOUSE" else target),
+                game_state,
+                clock.get_fps(),
+            )
+        if phone_y_offset < 449.0:
+            draw_mobile_phone(screen, money, game_time, small_font,
+                                     current_app, phone_settings, phone_y_offset, money_history,
+                                     current_lang_name)
+
+        if wake_fade_started is not None:
+            fade_progress = (time.perf_counter() - wake_fade_started) / 1.2
+            if fade_progress >= 1:
+                wake_fade_started = None
+            else:
+                wake_overlay.fill((0, 0, 0))
+                wake_overlay.set_alpha(round(255 * (1 - fade_progress)))
+                screen.blit(wake_overlay, (0, 0))
+
+        pygame.display.flip()
+        if sleep_requested:
+            fade_screen(screen, True)
+            game_time = (game_time + 540) % 1440
+            survival.advance(540, atom)
+            if atom.health <= 0:
+                atom.health = atom.max_health
+                atom_h.pos.update(HOUSE_SLEEP_SPOT)
+            save_sleep_game()
+            sleep_requested = False
+            wake_fade_started = time.perf_counter()
+
+    save_last_session_stats()
+    return "EXIT"
