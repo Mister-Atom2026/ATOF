@@ -16,6 +16,7 @@ C_DIRT = (185, 122, 87) # Brown represents the dirt road.
 # House sleep spot position.
 HOUSE_SLEEP_SPOT = (147, 156)
 HOUSE_SLEEP_RADIUS = 24
+HOUSE_ENTRY_SPOT = (300, 70)
 
 # City garage shown near the player's starting vehicle.
 GARAGE_POS = (8013, 2484)

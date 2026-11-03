@@ -253,6 +253,9 @@ class TrafficCar:
         self.is_police = False
         self.vehicle_class = "sedan"
         self.is_alive = True
+        self.health = 300.0
+        self.max_health = 300.0
+        self.death_timer = 0.0
         self.pos = pygame.Vector2(TRAFFIC_NODES[start_node_id]["pos"])
         self.target_node = random.choice(TRAFFIC_NODES[start_node_id]["next"])
         target = pygame.Vector2(TRAFFIC_NODES[self.target_node]["pos"])
@@ -283,6 +286,7 @@ class TrafficCar:
 
     def update(self, col_mask, player_car, other_traffic, _traffic_state, frame_scale=1.0):
         if not self.is_alive:
+            self.death_timer = max(0.0, self.death_timer - frame_scale)
             return
         if self.is_arrested:
             self.current_speed = self.speed = 0
@@ -342,10 +346,27 @@ class TrafficCar:
             beep_sound.play()
 
     def draw(self, screen, off_x, off_y):
-        if not self.is_alive:
+        if not self.is_alive and self.death_timer <= 0:
             return
         draw_pos = (self.pos.x + off_x, self.pos.y + off_y)
+        if not self.is_alive:
+            pygame.draw.ellipse(
+                screen,
+                (105, 18, 22),
+                pygame.Rect(round(draw_pos[0] - 22), round(draw_pos[1] - 10), 44, 20),
+            )
+            pygame.draw.circle(screen, (150, 25, 28), (round(draw_pos[0]), round(draw_pos[1])), 7)
+            return
         screen.blit(self.image, self.image.get_rect(center=draw_pos))
+
+    def take_damage(self, amount: float) -> None:
+        if not self.is_alive:
+            return
+        self.health = max(0.0, self.health - max(0.0, amount))
+        if self.health <= 0:
+            self.is_alive = False
+            self.death_timer = 600.0
+            self.current_speed = self.speed = 0.0
 
 
 def _load_horn():

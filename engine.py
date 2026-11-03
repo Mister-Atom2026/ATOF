@@ -28,6 +28,7 @@ FPS = _constants.FPS
 WORLD_WIDTH = _constants.WORLD_WIDTH
 WORLD_HEIGHT = _constants.WORLD_HEIGHT
 HOUSE_SLEEP_SPOT = _constants.HOUSE_SLEEP_SPOT
+HOUSE_ENTRY_SPOT = _constants.HOUSE_ENTRY_SPOT
 SUPPORTED_LANGUAGES = (
     "English",
     "Українська",
@@ -1042,7 +1043,10 @@ def projectile_hits_wall(start, end, collision_mask) -> bool:
         if not (0 <= x < width and 0 <= y < height):
             return True
         pixel = collision_mask.get_at((x, y))
-        if pixel.r < 50 and pixel.g < 50 and pixel.b < 50:
+        if (
+            (pixel.r < 50 and pixel.g < 50 and pixel.b < 50)
+            or (pixel.r > 200 and pixel.g < 70 and pixel.b < 70)
+        ):
             return True
     return False
 
@@ -1229,7 +1233,7 @@ class WeaponWheel:
         if direction.length_squared() < 30**2:
             return
         angle = math.degrees(math.atan2(direction.y, direction.x))
-        index = round((angle + 90) / 90) % len(self.WEAPONS)
+        index = round((angle + 90) / (360 / len(self.WEAPONS))) % len(self.WEAPONS)
         new_weapon = self.WEAPONS[index]
         if new_weapon != self.selected:
             self.selected = new_weapon
@@ -1333,11 +1337,9 @@ class WeaponWheel:
         center = pygame.Vector2(screen.get_size()) / 2
         pygame.draw.circle(screen, (12, 12, 18), center, 148)
         pygame.draw.circle(screen, (180, 180, 190), center, 148, 2)
-        positions = (
-            center + pygame.Vector2(0, -88),
-            center + pygame.Vector2(88, 0),
-            center + pygame.Vector2(0, 88),
-            center + pygame.Vector2(-88, 0),
+        positions = tuple(
+            center + pygame.Vector2(0, -88).rotate(index * 72)
+            for index in range(len(self.WEAPONS))
         )
         font = _cached_ui_font(None, 27)
         for weapon, position in zip(self.WEAPONS, positions):
@@ -1360,9 +1362,15 @@ class FleeingDriver:
             direction.update(1, 0)
         self.direction = direction.normalize()
         self.is_alive = True
+        self.health = 60.0
+        self.max_health = 60.0
+        self.death_timer = 0.0
         self.lifetime = 1800.0
 
     def update(self, col_mask, frame_scale: float) -> None:
+        if not self.is_alive:
+            self.death_timer = max(0.0, self.death_timer - frame_scale)
+            return
         self.lifetime -= frame_scale
         if self.lifetime <= 0:
             self.is_alive = False
@@ -1380,8 +1388,21 @@ class FleeingDriver:
 
     def draw(self, screen, offset_x: float, offset_y: float) -> None:
         center = round(self.pos.x + offset_x), round(self.pos.y + offset_y)
+        if not self.is_alive:
+            if self.death_timer <= 0:
+                return
+            pygame.draw.ellipse(screen, (105, 18, 22), (center[0] - 16, center[1] - 8, 32, 16))
+            return
         pygame.draw.circle(screen, (40, 90, 220), center, 8)
         pygame.draw.circle(screen, (238, 190, 150), center, 4)
+
+    def take_damage(self, amount: float) -> None:
+        if not self.is_alive:
+            return
+        self.health = max(0.0, self.health - max(0.0, amount))
+        if self.health <= 0:
+            self.is_alive = False
+            self.death_timer = 600.0
 
 
 class HostileOfficer:
@@ -1391,17 +1412,26 @@ class HostileOfficer:
         self.is_alive = True
         self.health = 100.0
         self.max_health = 100.0
+        self.death_timer = 0.0
 
     def update(self, frame_scale: float) -> None:
         self.fire_cooldown = max(0.0, self.fire_cooldown - frame_scale)
+        if not self.is_alive:
+            self.death_timer = max(0.0, self.death_timer - frame_scale)
 
     def take_damage(self, amount: float) -> None:
         self.health = max(0.0, self.health - max(0.0, amount))
         if self.health <= 0:
             self.is_alive = False
+            self.death_timer = 600.0
 
     def draw(self, screen, offset_x: float, offset_y: float) -> None:
         center = round(self.pos.x + offset_x), round(self.pos.y + offset_y)
+        if not self.is_alive:
+            if self.death_timer <= 0:
+                return
+            pygame.draw.ellipse(screen, (105, 18, 22), (center[0] - 18, center[1] - 9, 36, 18))
+            return
         pygame.draw.circle(screen, (35, 45, 80), center, 9)
         pygame.draw.circle(screen, (220, 175, 135), center, 4)
 
@@ -3542,17 +3572,18 @@ def update_combat_system(frame_scale, fleeing_drivers, hostile_officers, npc_car
             if hit_car is not None:
                 hit_position = pygame.Vector2(hit_car.pos)
                 hit_police = getattr(hit_car, "is_police", False)
-                hit_car.is_alive = False
-                if hit_police:
-                    hostile_officers.append(
-                        HostileOfficer(hit_position + pygame.Vector2(35, 0))
-                    )
-                    wanted.raise_level(2)
-                    honor_and_respect.change(honor=-12, respect=-7)
-                else:
-                    fleeing_drivers.append(FleeingDriver(hit_position, atom.pos))
-                    wanted.raise_level(1)
-                    honor_and_respect.change(honor=-10, respect=-6)
+                hit_car.take_damage(projectile.damage)
+                if not hit_car.is_alive:
+                    if hit_police:
+                        hostile_officers.append(
+                            HostileOfficer(hit_position + pygame.Vector2(35, 0))
+                        )
+                        wanted.raise_level(2)
+                        honor_and_respect.change(honor=-12, respect=-7)
+                    else:
+                        fleeing_drivers.append(FleeingDriver(hit_position, atom.pos))
+                        wanted.raise_level(1)
+                        honor_and_respect.change(honor=-10, respect=-6)
                 continue
 
             hit_officer = next(
@@ -3564,7 +3595,7 @@ def update_combat_system(frame_scale, fleeing_drivers, hostile_officers, npc_car
                 None,
             )
             if hit_officer is not None:
-                hit_officer.is_alive = False
+                hit_officer.take_damage(projectile.damage)
                 wanted.raise_level(1)
                 continue
 
@@ -3577,7 +3608,7 @@ def update_combat_system(frame_scale, fleeing_drivers, hostile_officers, npc_car
                 None,
             )
             if hit_driver is not None:
-                hit_driver.is_alive = False
+                hit_driver.take_damage(projectile.damage)
                 honor_and_respect.change(honor=-25, respect=-20)
                 wanted.raise_level(2)
                 continue
@@ -3907,25 +3938,23 @@ def apply_car_upgrades(car) -> None:
 
 
 def draw_garage(screen, off_x, off_y) -> None:
-    """Draw the garage facade as a readable world overlay."""
+    """Draw a top-down garage footprint and parking bays."""
     x, y = _constants.GARAGE_POS
-    rect = pygame.Rect(round(x + off_x - 120), round(y + off_y - 75), 240, 150)
+    rect = pygame.Rect(round(x + off_x - 145), round(y + off_y - 95), 290, 190)
     if not screen.get_rect().colliderect(rect):
         return
-    pygame.draw.rect(screen, (57, 48, 43), rect, border_radius=8)
-    pygame.draw.polygon(
-        screen,
-        (105, 35, 29),
-        [(rect.left - 10, rect.top + 10), (rect.centerx, rect.top - 38),
-         (rect.right + 10, rect.top + 10)],
-    )
-    door = pygame.Rect(rect.centerx - 55, rect.bottom - 105, 110, 105)
-    pygame.draw.rect(screen, (25, 30, 35), door)
-    for line_x in range(door.left + 12, door.right, 20):
-        pygame.draw.line(screen, (75, 82, 88), (line_x, door.top), (line_x, door.bottom), 2)
-    pygame.draw.rect(screen, (214, 142, 35), (rect.left + 20, rect.top + 24, 200, 30), border_radius=4)
+    pygame.draw.rect(screen, (48, 48, 52), rect, border_radius=5)
+    pygame.draw.rect(screen, (18, 19, 22), rect, 4, border_radius=5)
+    for column in range(1, 5):
+        bay_x = rect.left + column * rect.width // 5
+        pygame.draw.line(screen, (125, 125, 105), (bay_x, rect.top + 55), (bay_x, rect.bottom - 12), 2)
+    door = pygame.Rect(rect.left + 18, rect.top + 12, rect.width - 36, 35)
+    pygame.draw.rect(screen, (24, 29, 34), door)
+    for line_x in range(door.left + 10, door.right, 18):
+        pygame.draw.line(screen, (90, 98, 105), (line_x, door.top), (line_x, door.bottom), 2)
+    pygame.draw.rect(screen, (214, 142, 35), (rect.left + 72, rect.bottom - 35, 146, 23), border_radius=4)
     label = _cached_ui_font(None, 18, bold=True).render("GARAGE", True, (30, 20, 10))
-    screen.blit(label, label.get_rect(center=(rect.centerx, rect.top + 39)))
+    screen.blit(label, label.get_rect(center=(rect.centerx, rect.bottom - 23)))
 
 
 # 1. Phone settings storage.
@@ -4262,13 +4291,13 @@ def run_open_world(screen, settings, *, continue_game=True):
         game_save.get("hunger", 100.0) if game_save else 100.0,
         game_save.get("survival_minute_progress", game_time % 60) if game_save else game_time % 60,
     )
-    atom_h = HousePlayer(162, 161)
-    atom_h.pos.update(HOUSE_SLEEP_SPOT)
+    atom_h = HousePlayer(*HOUSE_ENTRY_SPOT)
+    atom_h.pos.update(HOUSE_ENTRY_SPOT)
     if game_save and game_save.get("game_state") == "HOUSE":
         house_data = game_save.get("house_player", {})
         atom_h.pos.update(
-            house_data.get("x", 147),
-            house_data.get("y", 156),
+            house_data.get("x", HOUSE_ENTRY_SPOT[0]),
+            house_data.get("y", HOUSE_ENTRY_SPOT[1]),
         )
         atom_h.angle = house_data.get("angle", 0)
     gps = GPS()
@@ -4626,7 +4655,7 @@ def run_open_world(screen, settings, *, continue_game=True):
         wheel_prices = (180, 400, 750, 1200, 1800)
         while True:
             screen.fill((20, 18, 16))
-            title = font.render("GARAGE", True, (238, 164, 47))
+            title = game_font.render("GARAGE", True, (238, 164, 47))
             screen.blit(title, title.get_rect(center=(screen.get_width() // 2, 55)))
             cards = []
             for index, stored in enumerate(garage_cars):
@@ -5058,7 +5087,7 @@ def run_open_world(screen, settings, *, continue_game=True):
             scene_manager.transition(transition_destination)
             game_state = scene_manager.current
             if game_state == "HOUSE":
-                atom_h.pos.update(HOUSE_SLEEP_SPOT)
+                atom_h.pos.update(HOUSE_ENTRY_SPOT)
             else:
                 atom.pos.update(7731, 2326)
                 in_car = False
