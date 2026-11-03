@@ -16,3 +16,9 @@ C_DIRT = (185, 122, 87) # Brown represents the dirt road.
 # House sleep spot position.
 HOUSE_SLEEP_SPOT = (147, 156)
 HOUSE_SLEEP_RADIUS = 24
+
+# City garage shown near the player's starting vehicle.
+GARAGE_POS = (8013, 2484)
+GARAGE_RADIUS = 150
+NPC_TRAFFIC_LIMIT = 22
+NPC_RESPAWN_SECONDS = 60.0

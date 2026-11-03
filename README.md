@@ -1,12 +1,20 @@
 # ATOF
 Game About Mister Atom
 
- ## Version 0.8.0 Beta 3 — "Weather, Saves & Packaging"
+## Version 0.8.0 Beta 4 — "Garage, Traffic & Rain"
+
+- Adds a garage at the starting vehicle location, opened with E, with up to five stored vehicles.
+- Adds six named engine and wheel upgrade levels with prices and vehicle statistics.
+- Rain now significantly reduces grip and makes driving harder.
+- Keeps the player's previous car visible after taking an NPC vehicle.
+- Maintains 22 NPC vehicles and respawns missing traffic every 60 seconds.
+
+## Version 0.8.0 Beta 3 — "Weather, Saves & Packaging"
 
 - Adds localized dynamic weather: clear skies, rain, fog, snow, and black ice.
 - December through February use winter weather and reduce vehicle grip during snow and ice.
 - Adds a `videos/` folder for ordered startup videos; each video can be skipped independently with Esc.
-- Saves the active game state when leaving the game or returning to the main menu.
+- Saves the active game state only after sleeping at the bed.
 - Stores phone settings alongside saves instead of writing into the application directory.
 - Uses the bundled `static.ttf` consistently instead of platform-dependent Arial fallbacks.
 - Adds `requirements.txt` and `ATOF.spec` for cross-platform PyInstaller preparation.

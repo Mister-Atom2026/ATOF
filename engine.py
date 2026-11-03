@@ -1688,6 +1688,8 @@ class Car:
         self.accel = 0.09
         self.friction = 0.04
         self.brake_force = 0.3
+        self.engine_upgrade = 0
+        self.wheel_upgrade = 0
         self.motion_velocity = pygame.Vector2()
 
         self.skid_marks = []
@@ -3614,7 +3616,7 @@ def save_session_statistics(money, total_earned, total_spent, game_time, collect
 def build_game_state_data(game_state, atom, atom_h, car, weapons, wanted,
                           honor_and_respect, money, total_earned, total_spent, game_time,
                           collected_treasures, distance_since_crash, current_drift_distance,
-                          survival=None):
+                          survival=None, garage_cars=None):
     """Build the serializable state shared by manual and automatic saves."""
     return {
         "game_state": game_state,
@@ -3649,7 +3651,10 @@ def build_game_state_data(game_state, atom, atom_h, car, weapons, wanted,
             "speed": car.speed,
             "health": car.health,
             "is_broken": car.is_broken,
+            "engine_upgrade": int(getattr(car, "engine_upgrade", 0)),
+            "wheel_upgrade": int(getattr(car, "wheel_upgrade", 0)),
         },
+        "garage_cars": list(garage_cars or [])[:5],
         "money": money,
         "earned": total_earned,
         "spent": total_spent,
@@ -3663,12 +3668,12 @@ def build_game_state_data(game_state, atom, atom_h, car, weapons, wanted,
 def save_game_state(game_state, atom, atom_h, car, weapons, wanted,
                     honor_and_respect, money, total_earned, total_spent, game_time,
                     collected_treasures, distance_since_crash, current_drift_distance,
-                    survival=None):
+                    survival=None, garage_cars=None):
     """Persist the current open-world state."""
     save_game_save(build_game_state_data(
         game_state, atom, atom_h, car, weapons, wanted, honor_and_respect,
         money, total_earned, total_spent, game_time, collected_treasures,
-        distance_since_crash, current_drift_distance, survival,
+        distance_since_crash, current_drift_distance, survival, garage_cars,
     ))
 
 
@@ -3747,7 +3752,7 @@ class WeatherSystem:
                 "alpha": self.rng.randint(70, 145),
                 "width": self.rng.choice((1, 1, 1, 2)),
             }
-            for _ in range(150)
+            for _ in range(230)
         ]
         self._rain_splashes: list[tuple[float, float, float]] = []
         self._flakes = [
@@ -3761,7 +3766,12 @@ class WeatherSystem:
 
     @property
     def grip_multiplier(self) -> float:
-        return 0.48 if self.weather == "ice" else 0.82 if self.weather == "snow" else 1.0
+        return (
+            0.48 if self.weather == "ice"
+            else 0.68 if self.weather == "rain"
+            else 0.82 if self.weather == "snow"
+            else 1.0
+        )
 
     def _choose_weather(self) -> str:
         if self.is_winter:
@@ -3884,6 +3894,38 @@ def draw_car_smoke(screen, car, off_x, off_y):
 
     # Blit the smoke surface onto the screen.
     screen.blit(smoke_surf, (0, 0))
+
+
+def apply_car_upgrades(car) -> None:
+    """Apply the six engine and wheel levels to a car's driving model."""
+    engine_level = max(0, min(5, int(getattr(car, "engine_upgrade", 0))))
+    wheel_level = max(0, min(5, int(getattr(car, "wheel_upgrade", 0))))
+    car.max_speed = 16.25 + engine_level * 0.8
+    car.accel = 0.09 + engine_level * 0.012
+    car.handling = 0.82 + wheel_level * 0.025
+    car.friction = 0.04 + wheel_level * 0.004
+
+
+def draw_garage(screen, off_x, off_y) -> None:
+    """Draw the garage facade as a readable world overlay."""
+    x, y = _constants.GARAGE_POS
+    rect = pygame.Rect(round(x + off_x - 120), round(y + off_y - 75), 240, 150)
+    if not screen.get_rect().colliderect(rect):
+        return
+    pygame.draw.rect(screen, (57, 48, 43), rect, border_radius=8)
+    pygame.draw.polygon(
+        screen,
+        (105, 35, 29),
+        [(rect.left - 10, rect.top + 10), (rect.centerx, rect.top - 38),
+         (rect.right + 10, rect.top + 10)],
+    )
+    door = pygame.Rect(rect.centerx - 55, rect.bottom - 105, 110, 105)
+    pygame.draw.rect(screen, (25, 30, 35), door)
+    for line_x in range(door.left + 12, door.right, 20):
+        pygame.draw.line(screen, (75, 82, 88), (line_x, door.top), (line_x, door.bottom), 2)
+    pygame.draw.rect(screen, (214, 142, 35), (rect.left + 20, rect.top + 24, 200, 30), border_radius=4)
+    label = _cached_ui_font(None, 18, bold=True).render("GARAGE", True, (30, 20, 10))
+    screen.blit(label, label.get_rect(center=(rect.centerx, rect.top + 39)))
 
 
 # 1. Phone settings storage.
@@ -4101,7 +4143,8 @@ def run_open_world(screen, settings, *, continue_game=True):
     frame_count = 0
     keyboard = KeyboardState()
     # Spawn the configured traffic and police at game start.
-    npc_cars = traffic.init_traffic(18)
+    npc_cars = traffic.init_traffic(_constants.NPC_TRAFFIC_LIMIT)
+    traffic_respawn_timer = 0.0
     fleeing_drivers: list[FleeingDriver] = []
     hostile_officers: list[HostileOfficer] = []
     projectiles: list[Projectile] = []
@@ -4201,6 +4244,20 @@ def run_open_world(screen, settings, *, continue_game=True):
         car.motion_velocity = pygame.Vector2(car.speed, 0).rotate(-car.angle + 180)
         car.health = min(car_data.get("health", car.max_health), car.max_health)
         car.is_broken = car_data.get("is_broken", False)
+        car.engine_upgrade = int(car_data.get("engine_upgrade", 0))
+        car.wheel_upgrade = int(car_data.get("wheel_upgrade", 0))
+    apply_car_upgrades(car)
+    garage_cars = list(game_save.get("garage_cars", []))[:5] if game_save else []
+    parked_cars = []
+    if not garage_cars:
+        garage_cars = [{
+            "name": "Special Tornado",
+            "vehicle_class": "sport",
+            "engine_upgrade": car.engine_upgrade,
+            "wheel_upgrade": car.wheel_upgrade,
+            "health": car.health,
+            "is_broken": car.is_broken,
+        }]
     survival = SurvivalNeeds(
         game_save.get("hunger", 100.0) if game_save else 100.0,
         game_save.get("survival_minute_progress", game_time % 60) if game_save else game_time % 60,
@@ -4494,6 +4551,8 @@ def run_open_world(screen, settings, *, continue_game=True):
 
     def hijack_traffic_car(npc):
         nonlocal car, in_car
+        if car not in parked_cars and not getattr(car, "is_police", False):
+            parked_cars.append(car)
         stolen_position = pygame.Vector2(npc.pos)
         stolen_angle = npc.angle
         stolen_police = npc.is_police
@@ -4520,6 +4579,8 @@ def run_open_world(screen, settings, *, continue_game=True):
         )
         replacement.max_speed = 13.0 if stolen_police else 11.5
         replacement.handling = 0.7 if stolen_police else 0.62
+        replacement.engine_upgrade = 0
+        replacement.wheel_upgrade = 0
         car = replacement
         in_car = True
         atom.pos.update(car.pos)
@@ -4536,13 +4597,146 @@ def run_open_world(screen, settings, *, continue_game=True):
         save_game_state(game_state, atom, atom_h, car, weapons, wanted,
                                         honor_and_respect, money, total_earned, total_spent, game_time,
                                         collected_treasures, distance_since_crash, current_drift_distance,
-                                        survival)
+                                        survival, garage_cars)
         save_session_statistics(money, total_earned, total_spent, game_time, collected_treasures,
                                         personal_records, honor_and_respect)
 
     def save_last_session_stats():
         save_session_statistics(money, total_earned, total_spent, game_time, collected_treasures,
                                         personal_records, honor_and_respect)
+
+    def car_record(vehicle, name=None):
+        return {
+            "name": name or getattr(vehicle, "vehicle_class", "vehicle").replace("-", " ").title(),
+            "vehicle_class": getattr(vehicle, "vehicle_class", "sport"),
+            "engine_upgrade": int(getattr(vehicle, "engine_upgrade", 0)),
+            "wheel_upgrade": int(getattr(vehicle, "wheel_upgrade", 0)),
+            "health": float(getattr(vehicle, "health", vehicle.max_health)),
+            "is_broken": bool(getattr(vehicle, "is_broken", False)),
+        }
+
+    def garage_menu():
+        nonlocal car, in_car, money, total_spent
+        selected = 0
+        clock = pygame.time.Clock()
+        engine_names = ("Factory", "Street Torque", "Sport Cam", "Turbo V6", "Twin Turbo", "Racing Spec")
+        wheel_names = ("Factory", "Rain Grip", "Road Sport", "Track Soft", "Semi Slick", "All Weather")
+        engine_prices = (250, 500, 900, 1400, 2100)
+        wheel_prices = (180, 400, 750, 1200, 1800)
+        while True:
+            screen.fill((20, 18, 16))
+            title = font.render("GARAGE", True, (238, 164, 47))
+            screen.blit(title, title.get_rect(center=(screen.get_width() // 2, 55)))
+            cards = []
+            for index, stored in enumerate(garage_cars):
+                rect = pygame.Rect(60, 110 + index * 64, 500, 52)
+                cards.append(rect)
+                color = (110, 67, 25) if index == selected else (48, 42, 38)
+                pygame.draw.rect(screen, color, rect, border_radius=5)
+                label = (
+                    f"{stored.get('name', 'Vehicle')}  |  "
+                    f"engine {int(stored.get('engine_upgrade', 0)) + 1}/6  |  "
+                    f"wheels {int(stored.get('wheel_upgrade', 0)) + 1}/6"
+                )
+                screen.blit(small_font.render(label, True, (255, 255, 255)), (rect.x + 14, rect.y + 15))
+
+            selected_car = garage_cars[selected]
+            engine_level = max(0, min(5, int(selected_car.get("engine_upgrade", 0))))
+            wheel_level = max(0, min(5, int(selected_car.get("wheel_upgrade", 0))))
+            specs = [
+                f"Vehicle: {selected_car.get('name', 'Vehicle')}",
+                f"Engine: {engine_names[engine_level]}",
+                f"Wheels: {wheel_names[wheel_level]}",
+                f"Max speed: {16.25 + engine_level * 0.8:.1f}",
+                f"Handling: {0.82 + wheel_level * 0.025:.2f}",
+                f"Health: {int(selected_car.get('health', 180))}",
+                f"Money: {money} UAH",
+            ]
+            for index, text in enumerate(specs):
+                screen.blit(small_font.render(text, True, (230, 230, 230)), (650, 125 + index * 32))
+
+            buttons = [
+                pygame.Rect(650, 305, 230, 42),
+                pygame.Rect(650, 355, 230, 42),
+                pygame.Rect(650, 415, 230, 42),
+                pygame.Rect(650, 465, 230, 42),
+            ]
+            levels = (
+                engine_level,
+                wheel_level,
+            )
+            labels = (
+                f"Engine: {engine_names[min(levels[0] + 1, 5)]} ({engine_prices[levels[0]] if levels[0] < 5 else 'MAX'} UAH)",
+                f"Wheels: {wheel_names[min(levels[1] + 1, 5)]} ({wheel_prices[levels[1]] if levels[1] < 5 else 'MAX'} UAH)",
+                "Store current car",
+                "Leave garage",
+            )
+            for rect, label in zip(buttons, labels):
+                pygame.draw.rect(screen, (76, 52, 31), rect, border_radius=5)
+                screen.blit(small_font.render(label, True, (255, 255, 255)), (rect.x + 12, rect.y + 11))
+            screen.blit(
+                small_font.render("Up/Down or click a car. Enter: take it. Esc: leave.", True, (180, 180, 180)),
+                (60, screen.get_height() - 42),
+            )
+            pygame.display.flip()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return "EXIT"
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        return "CONTINUE"
+                    if event.key in (pygame.K_UP, pygame.K_DOWN):
+                        selected = (selected + (1 if event.key == pygame.K_DOWN else -1)) % len(garage_cars)
+                    elif event.key == pygame.K_RETURN:
+                        previous = car_record(car, "Current vehicle")
+                        stored = garage_cars[selected]
+                        car.vehicle_class = stored.get("vehicle_class", "sport")
+                        car.engine_upgrade = int(stored.get("engine_upgrade", 0))
+                        car.wheel_upgrade = int(stored.get("wheel_upgrade", 0))
+                        car.health = min(float(stored.get("health", car.max_health)), car.max_health)
+                        car.is_broken = bool(stored.get("is_broken", False))
+                        apply_car_upgrades(car)
+                        garage_cars[selected] = previous
+                        in_car = False
+                        return "CONTINUE"
+                    elif event.key == pygame.K_s and len(garage_cars) < 5:
+                        garage_cars.append(car_record(car, "Stored vehicle"))
+                    elif event.key in (pygame.K_u, pygame.K_w):
+                        level = int(selected_car.get("engine_upgrade", 0))
+                        if level < 5 and money >= engine_prices[level]:
+                            money -= engine_prices[level]
+                            total_spent += engine_prices[level]
+                            selected_car["engine_upgrade"] = level + 1
+                    elif event.key in (pygame.K_i, pygame.K_r):
+                        level = int(selected_car.get("wheel_upgrade", 0))
+                        if level < 5 and money >= wheel_prices[level]:
+                            money -= wheel_prices[level]
+                            total_spent += wheel_prices[level]
+                            selected_car["wheel_upgrade"] = level + 1
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    for index, rect in enumerate(cards):
+                        if rect.collidepoint(event.pos):
+                            selected = index
+                    for button_index, rect in enumerate(buttons):
+                        if rect.collidepoint(event.pos):
+                            if button_index == 0:
+                                level = int(selected_car.get("engine_upgrade", 0))
+                                if level < 5 and money >= engine_prices[level]:
+                                    money -= engine_prices[level]
+                                    total_spent += engine_prices[level]
+                                    selected_car["engine_upgrade"] = level + 1
+                            elif button_index == 1:
+                                level = int(selected_car.get("wheel_upgrade", 0))
+                                if level < 5 and money >= wheel_prices[level]:
+                                    money -= wheel_prices[level]
+                                    total_spent += wheel_prices[level]
+                                    selected_car["wheel_upgrade"] = level + 1
+                            elif button_index == 2 and len(garage_cars) < 5:
+                                garage_cars.append(car_record(car, "Stored vehicle"))
+                            elif button_index == 3:
+                                return "CONTINUE"
+            clock.tick(FPS)
 
     def get_current_game_state():
         return build_game_state_data(
@@ -4778,15 +4972,18 @@ def run_open_world(screen, settings, *, continue_game=True):
                             radio.cycle_station(1)
                     elif not phone_active and keyboard.matches(event, pygame.K_e):
                         old_in_car = in_car
-                        nearby_car = nearby_traffic_car(atom.pos)
-                        if nearby_car is not None:
-                            hijack_traffic_car(nearby_car)
-                        elif atom.pos.distance_to(car.pos) < 100:
-                            if not car.is_broken:
-                                in_car = handle_car_logic(atom, car, in_car)
-                        elif atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
-                            scene_transition.begin("HOUSE", time.perf_counter())
-                            entered_house_this_event = True
+                        if atom.pos.distance_to(pygame.Vector2(_constants.GARAGE_POS)) < _constants.GARAGE_RADIUS:
+                            garage_menu()
+                        else:
+                            nearby_car = nearby_traffic_car(atom.pos)
+                            if nearby_car is not None:
+                                hijack_traffic_car(nearby_car)
+                            elif atom.pos.distance_to(car.pos) < 100:
+                                if not car.is_broken:
+                                    in_car = handle_car_logic(atom, car, in_car)
+                            elif atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
+                                scene_transition.begin("HOUSE", time.perf_counter())
+                                entered_house_this_event = True
                         if in_car != old_in_car:
                             car_sfx['door_open'].play()
                             radio.resume()
@@ -4882,6 +5079,15 @@ def run_open_world(screen, settings, *, continue_game=True):
             for npc in npc_cars:
                 # Pass the arguments used by traffic.py.
                 npc.update(col_mask, car, npc_cars, traffic_state, frame_scale)
+            traffic_respawn_timer += max(0.0, frame_scale) / 60.0
+            if traffic_respawn_timer >= _constants.NPC_RESPAWN_SECONDS:
+                traffic_respawn_timer = 0.0
+                npc_cars[:] = [
+                    npc for npc in npc_cars if getattr(npc, "is_alive", True)
+                ]
+                missing_npcs = _constants.NPC_TRAFFIC_LIMIT - len(npc_cars)
+                if missing_npcs > 0:
+                    npc_cars.extend(traffic.init_traffic(missing_npcs))
             if in_car:
                 previous_car_pos = pygame.Vector2(car.pos)
                 car.update(
@@ -5018,6 +5224,9 @@ def run_open_world(screen, settings, *, continue_game=True):
                 screen.blit(world_bg, (off_x, off_y))
 
             def draw_city_world():
+                draw_garage(screen, off_x, off_y)
+                for parked_car in parked_cars:
+                    parked_car.draw(screen, off_x, off_y)
                 car.draw(screen, off_x, off_y)
                 draw_car_smoke(screen, car, off_x, off_y)
                 for npc in npc_cars:
