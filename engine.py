@@ -4255,7 +4255,7 @@ def run_open_world(screen, settings, *, continue_game=True):
             "gps_distance": "Distance: {distance}", "gps_set": "Left-click: set destination",
             "gps_clear": "Right-click/Backspace: clear destination",
             "radio_on": "{station} · {genre} · {track} | ,/<: previous | ./>: next",
-            "radio_paused": "{station} · {genre} · {track} | V: radio on | ,/<: previous | ./>: next",
+            "radio_paused": "{station} · {genre} · {track} | ,/<: previous | ./>: next",
             "radio_off": "{station} · {genre} | ,/<: previous | ./>: next",
         },
         "Українська": {
@@ -4330,9 +4330,9 @@ def run_open_world(screen, settings, *, continue_game=True):
             "steal_hint": "[F] Robar vehículo",
             "gps_distance": "Distancia: {distance}", "gps_set": "Clic izquierdo: marcar destino",
             "gps_clear": "Clic derecho/Retroceso: borrar destino",
-            "radio_on": "{station} · {genre} · {track} | V: apagar | ,/<: anterior | ./>: siguiente",
-            "radio_paused": "{station} · {genre} · {track} | V: encender | ,/<: anterior | ./>: siguiente",
-            "radio_off": "RADIO APAGADA | V: encender | ,/<: emisora anterior | ./>: siguiente",
+            "radio_on": "{station} · {genre} · {track} | ,/<: anterior | ./>: siguiente",
+            "radio_paused": "{station} · {genre} · {track} | ,/<: anterior | ./>: siguiente",
+            "radio_off": "{station} · {genre} | ,/<: anterior | ./>: siguiente",
         },
         "Deutsch": {
             "hint": "[F] Einsteigen / Auto stehlen", "enter": "[E] Haus betreten", "exit": "[E] Haus verlassen",
@@ -4356,9 +4356,9 @@ def run_open_world(screen, settings, *, continue_game=True):
             "steal_hint": "[F] Auto stehlen",
             "gps_distance": "Entfernung: {distance}", "gps_set": "Linksklick: Ziel setzen",
             "gps_clear": "Rechtsklick/Backspace: Ziel löschen",
-            "radio_on": "{station} · {genre} · {track} | V: ausschalten | ,/<: zurück | ./>: weiter",
-            "radio_paused": "{station} · {genre} · {track} | V: einschalten | ,/<: zurück | ./>: weiter",
-            "radio_off": "RADIO AUS | V: einschalten | ,/<: vorheriger Sender | ./>: nächster Sender",
+            "radio_on": "{station} · {genre} · {track} | ,/<: zurück | ./>: weiter",
+            "radio_paused": "{station} · {genre} · {track} | ,/<: zurück | ./>: weiter",
+            "radio_off": "{station} · {genre} | ,/<: vorheriger Sender | ./>: nächster Sender",
         },
         "Français": {
             "hint": "[F] Monter / voler une voiture", "enter": "[E] Entrer dans la maison", "exit": "[E] Sortir de la maison",
@@ -4382,9 +4382,9 @@ def run_open_world(screen, settings, *, continue_game=True):
             "steal_hint": "[F] Voler la voiture",
             "gps_distance": "Distance : {distance}", "gps_set": "Clic gauche : définir la destination",
             "gps_clear": "Clic droit/Retour arrière : supprimer la destination",
-            "radio_on": "{station} · {genre} · {track} | V : éteindre | ,/< : précédente | ./> : suivante",
-            "radio_paused": "{station} · {genre} · {track} | V : allumer | ,/< : précédente | ./> : suivante",
-            "radio_off": "RADIO ÉTEINTE | V : allumer | ,/< : station précédente | ./> : station suivante",
+            "radio_on": "{station} · {genre} · {track} | ,/< : précédente | ./> : suivante",
+            "radio_paused": "{station} · {genre} · {track} | ,/< : précédente | ./> : suivante",
+            "radio_off": "{station} · {genre} | ,/< : station précédente | ./> : station suivante",
         }
     }
 
