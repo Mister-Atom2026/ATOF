@@ -2589,7 +2589,12 @@ def pause_menu(screen, font, small_font, settings, trans_dict, languages, contro
 
         screen.fill((0, 0, 0))
         m_pos = pygame.mouse.get_pos()
-        rects = [pygame.Rect(50, 180 + i * 90, 500, 60) for i in range(len(options))]
+        rects = [
+            font.render(option, True, (255, 255, 255)).get_rect(
+                topleft=(50, 200 + i * 100)
+            ).inflate(32, 24)
+            for i, option in enumerate(options)
+        ]
 
         for event in pygame.event.get():
             if controls is not None:
