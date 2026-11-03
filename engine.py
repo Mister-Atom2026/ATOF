@@ -4621,6 +4621,7 @@ def run_open_world(screen, settings, *, continue_game=True):
         clock = pygame.time.Clock()
         engine_names = ("Factory", "Street Torque", "Sport Cam", "Turbo V6", "Twin Turbo", "Racing Spec")
         wheel_names = ("Factory", "Rain Grip", "Road Sport", "Track Soft", "Semi Slick", "All Weather")
+        vehicle_weights = {"sport": 1600, "stolen-sedan": 1030, "stolen-police": 1420}
         engine_prices = (250, 500, 900, 1400, 2100)
         wheel_prices = (180, 400, 750, 1200, 1800)
         while True:
@@ -4647,6 +4648,7 @@ def run_open_world(screen, settings, *, continue_game=True):
                 f"Vehicle: {selected_car.get('name', 'Vehicle')}",
                 f"Engine: {engine_names[engine_level]}",
                 f"Wheels: {wheel_names[wheel_level]}",
+                f"Weight: {vehicle_weights.get(selected_car.get('vehicle_class'), 1600)} kg",
                 f"Max speed: {16.25 + engine_level * 0.8:.1f}",
                 f"Handling: {0.82 + wheel_level * 0.025:.2f}",
                 f"Health: {int(selected_car.get('health', 180))}",
