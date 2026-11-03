@@ -710,6 +710,7 @@ class GameRadio:
         self.monotonic_clock = monotonic_clock or time.monotonic
         self.started_at = self.monotonic_clock()
         self.station_index = 0
+        self.silent_mode = True
         self.is_on = False
         self.is_playing = False
         self._paused_for_game = False
@@ -717,10 +718,14 @@ class GameRadio:
 
     @property
     def station_name(self) -> str:
+        if self.silent_mode:
+            return "Radio Silent"
         return _RADIO_STATIONS[self.station_index].name
 
     @property
     def station_genre_key(self) -> str:
+        if self.silent_mode:
+            return "radio_genre_silent"
         return _RADIO_STATIONS[self.station_index].genre_key
 
     @property
@@ -731,6 +736,8 @@ class GameRadio:
 
     def _live_track_position(self, station_index: int, now: float | None = None) -> tuple[int, float]:
         station = _RADIO_STATIONS[station_index]
+        if not station.tracks:
+            return 0, 0.0
         now = self.monotonic_clock() if now is None else now
         playlist_duration = sum(track.duration for track in station.tracks)
         playlist_position = max(0.0, now - self.started_at) % playlist_duration
@@ -741,6 +748,12 @@ class GameRadio:
         return 0, 0.0
 
     def _play_live_track(self, *, force: bool = False) -> None:
+        if self.silent_mode:
+            pygame.mixer.music.stop()
+            self.is_on = False
+            self.is_playing = False
+            self._loaded_track = None
+            return
         track_index, offset = self._live_track_position(self.station_index)
         track_key = (self.station_index, track_index)
         if not force and self._loaded_track == track_key and pygame.mixer.music.get_busy():
@@ -756,6 +769,11 @@ class GameRadio:
         configure_audio(self.settings)
 
     def toggle(self) -> None:
+        if self.silent_mode:
+            self.silent_mode = False
+            self.is_on = True
+            self._play_live_track(force=True)
+            return
         self.is_on = not self.is_on
         self._paused_for_game = False
         if not self.is_on:
@@ -779,10 +797,18 @@ class GameRadio:
             self._play_live_track(force=True)
 
     def cycle_station(self, direction: int) -> None:
-        self.station_index = (self.station_index + direction) % len(_RADIO_STATIONS)
+        position = 0 if self.silent_mode else self.station_index + 1
+        position = (position + direction) % (len(_RADIO_STATIONS) + 1)
+        self.silent_mode = position == 0
+        if not self.silent_mode:
+            self.station_index = position - 1
+        self.is_on = not self.silent_mode
+        self.is_playing = False
         self._loaded_track = None
         if self.is_on and not self._paused_for_game:
             self._play_live_track(force=True)
+        else:
+            pygame.mixer.music.stop()
 
     def update(self) -> None:
         if self.is_on and not self._paused_for_game:
@@ -790,6 +816,7 @@ class GameRadio:
 
     def stop(self) -> None:
         pygame.mixer.music.stop()
+        self.silent_mode = True
         self.is_on = False
         self.is_playing = False
         self._paused_for_game = False
@@ -4227,9 +4254,9 @@ def run_open_world(screen, settings, *, continue_game=True):
             "steal_hint": "[F] Steal vehicle",
             "gps_distance": "Distance: {distance}", "gps_set": "Left-click: set destination",
             "gps_clear": "Right-click/Backspace: clear destination",
-            "radio_on": "{station} · {genre} · {track} | V: radio off | ,/<: previous | ./>: next",
+            "radio_on": "{station} · {genre} · {track} | ,/<: previous | ./>: next",
             "radio_paused": "{station} · {genre} · {track} | V: radio on | ,/<: previous | ./>: next",
-            "radio_off": "RADIO OFF | V: on | ,/<: previous station | ./>: next station",
+            "radio_off": "{station} · {genre} | ,/<: previous | ./>: next",
         },
         "Українська": {
             "hint": "[F] Сісти / викрасти авто", "enter": "[E] Увійти в дім", "exit": "[E] Вийти з дому",
@@ -4252,9 +4279,9 @@ def run_open_world(screen, settings, *, continue_game=True):
             "steal_hint": "[F] Викрасти авто",
             "gps_distance": "Відстань: {distance}", "gps_set": "ЛКМ: поставити точку",
             "gps_clear": "ПКМ/Backspace: прибрати точку",
-            "radio_on": "{station} · {genre} · {track} | V: вимкнути | ,/<: попередня | ./>: наступна",
-            "radio_paused": "{station} · {genre} · {track} | V: увімкнути | ,/<: попередня | ./>: наступна",
-            "radio_off": "РАДІО ВИМКНЕНО | V: увімкнути | ,/<: попередня станція | ./>: наступна станція",
+            "radio_on": "{station} · {genre} · {track} | ,/<: попередня | ./>: наступна",
+            "radio_paused": "{station} · {genre} · {track} | ,/<: попередня | ./>: наступна",
+            "radio_off": "{station} · {genre} | ,/<: попередня | ./>: наступна",
         },
         "Русский": {
             "hint": "[F] Сесть / угнать авто", "enter": "[E] Войти в дом", "exit": "[E] Выйти из дома",
@@ -4277,9 +4304,9 @@ def run_open_world(screen, settings, *, continue_game=True):
             "steal_hint": "[F] Угнать авто",
             "gps_distance": "Расстояние: {distance}", "gps_set": "ЛКМ: поставить точку",
             "gps_clear": "ПКМ/Backspace: убрать точку",
-            "radio_on": "{station} · {genre} · {track} | V: выключить | ,/<: предыдущая | ./>: следующая",
-            "radio_paused": "{station} · {genre} · {track} | V: включить | ,/<: предыдущая | ./>: следующая",
-            "radio_off": "РАДИО ВЫКЛЮЧЕНО | V: включить | ,/<: предыдущая станция | ./>: следующая станция",
+            "radio_on": "{station} · {genre} · {track} | ,/<: предыдущая | ./>: следующая",
+            "radio_paused": "{station} · {genre} · {track} | ,/<: предыдущая | ./>: следующая",
+            "radio_off": "{station} · {genre} | ,/<: предыдущая | ./>: следующая",
         },
         "Español": {
             "hint": "[F] Entrar / robar coche", "enter": "[E] Entrar en casa", "exit": "[E] Salir de casa",
@@ -4365,7 +4392,7 @@ def run_open_world(screen, settings, *, continue_game=True):
         "English": {
             "sleep_save": "Press [E] / [T] by the bed to sleep and save",
             "hunger_meter": "HUNGER {value}%", "health_meter": "HP {value}%",
-            "radio_genre_rock": "Alternative rock", "radio_genre_synthwave": "Synthwave",
+            "radio_genre_silent": "No music", "radio_genre_rock": "Alternative rock", "radio_genre_synthwave": "Synthwave",
             "radio_genre_folk": "Folk / world",
             "video": "Video", "window_mode": "Window mode", "window_mode_value": "Resizable",
             "resolution": "Resolution", "fps_limit": "Frame rate limit",
@@ -4378,7 +4405,7 @@ def run_open_world(screen, settings, *, continue_game=True):
         "Українська": {
             "sleep_save": "Натисніть [E] / [T] біля ліжка, щоб заснути й зберегтися",
             "hunger_meter": "СИТІСТЬ {value}%", "health_meter": "ЗД {value}%",
-            "radio_genre_rock": "Альтернативний рок", "radio_genre_synthwave": "Синтвейв",
+            "radio_genre_silent": "Без музики", "radio_genre_rock": "Альтернативний рок", "radio_genre_synthwave": "Синтвейв",
             "radio_genre_folk": "Фолк / етно",
             "video": "Відео", "window_mode": "Режим вікна", "window_mode_value": "Змінний розмір",
             "resolution": "Роздільність", "fps_limit": "Ліміт кадрів (FPS)",
@@ -4391,7 +4418,7 @@ def run_open_world(screen, settings, *, continue_game=True):
         "Русский": {
             "sleep_save": "Нажмите [E] / [T] у кровати, чтобы поспать и сохраниться",
             "hunger_meter": "СЫТОСТЬ {value}%", "health_meter": "ЗД {value}%",
-            "radio_genre_rock": "Альтернативный рок", "radio_genre_synthwave": "Синтвейв",
+            "radio_genre_silent": "Без музыки", "radio_genre_rock": "Альтернативный рок", "radio_genre_synthwave": "Синтвейв",
             "radio_genre_folk": "Фолк / этно",
             "video": "Видео", "window_mode": "Режим окна", "window_mode_value": "Изменяемый размер",
             "resolution": "Разрешение", "fps_limit": "Лимит кадров (FPS)",
@@ -4404,7 +4431,7 @@ def run_open_world(screen, settings, *, continue_game=True):
         "Español": {
             "sleep_save": "Pulsa [E] / [T] junto a la cama para dormir y guardar",
             "hunger_meter": "HAMBRE {value}%", "health_meter": "SALUD {value}%",
-            "radio_genre_rock": "Rock alternativo", "radio_genre_synthwave": "Synthwave",
+            "radio_genre_silent": "Sin música", "radio_genre_rock": "Rock alternativo", "radio_genre_synthwave": "Synthwave",
             "radio_genre_folk": "Folk / tradicional",
             "video": "Vídeo", "window_mode": "Modo de ventana", "window_mode_value": "Redimensionable",
             "resolution": "Resolución", "fps_limit": "Límite de fotogramas (FPS)",
@@ -4417,7 +4444,7 @@ def run_open_world(screen, settings, *, continue_game=True):
         "Deutsch": {
             "sleep_save": "Am Bett [E] / [T] drücken, um zu schlafen und zu speichern",
             "hunger_meter": "HUNGER {value}%", "health_meter": "LP {value}%",
-            "radio_genre_rock": "Alternative Rock", "radio_genre_synthwave": "Synthwave",
+            "radio_genre_silent": "Keine Musik", "radio_genre_rock": "Alternative Rock", "radio_genre_synthwave": "Synthwave",
             "radio_genre_folk": "Folk / Weltmusik",
             "video": "Video", "window_mode": "Fenstermodus", "window_mode_value": "Größe änderbar",
             "resolution": "Auflösung", "fps_limit": "Bildratenlimit (FPS)",
@@ -4430,7 +4457,7 @@ def run_open_world(screen, settings, *, continue_game=True):
         "Français": {
             "sleep_save": "Appuyez sur [E] / [T] près du lit pour dormir et sauvegarder",
             "hunger_meter": "FAIM {value}%", "health_meter": "SANTÉ {value}%",
-            "radio_genre_rock": "Rock alternatif", "radio_genre_synthwave": "Synthwave",
+            "radio_genre_silent": "Sans musique", "radio_genre_rock": "Rock alternatif", "radio_genre_synthwave": "Synthwave",
             "radio_genre_folk": "Folk / musique du monde",
             "video": "Vidéo", "window_mode": "Mode fenêtre", "window_mode_value": "Redimensionnable",
             "resolution": "Résolution", "fps_limit": "Limite d’images (FPS)",
@@ -4746,7 +4773,7 @@ def run_open_world(screen, settings, *, continue_game=True):
                             play_car_horn(car_sfx, horn_chan)
                             traffic.respond_to_horn(npc_cars, car.pos)
                         if keyboard.matches(event, pygame.K_v):
-                            radio.toggle()
+                            radio.cycle_station(1)
                         if keyboard.matches(event, pygame.K_COMMA):
                             radio.cycle_station(-1)
                         if keyboard.matches(event, pygame.K_PERIOD):
