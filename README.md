@@ -1,7 +1,7 @@
 # ATOF
 Game About Mister Atom
 
-## Version 0.8.0 Beta 3 — "Weather, Saves & Packaging"
+ ## Version 0.8.0 Beta 3 — "Weather, Saves & Packaging"
 
 - Adds localized dynamic weather: clear skies, rain, fog, snow, and black ice.
 - December through February use winter weather and reduce vehicle grip during snow and ice.
