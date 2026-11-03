@@ -1,5 +1,6 @@
 import os
 import unittest
+from datetime import date
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -23,6 +24,17 @@ class FakePlayer:
 
 
 class SurvivalAndRadioTests(unittest.TestCase):
+    def test_winter_weather_is_limited_to_snow_or_ice(self):
+        for month in (12, 1, 2):
+            weather = engine.WeatherSystem(date(2026, month, 15))
+            self.assertIn(weather.weather, {"snow", "ice"})
+            self.assertLess(weather.grip_multiplier, 1.0)
+
+    def test_non_winter_weather_has_no_ice_or_snow(self):
+        for month in (3, 6, 9):
+            weather = engine.WeatherSystem(date(2026, month, 15))
+            self.assertIn(weather.weather, {"clear", "rain", "fog"})
+
     def test_radio_stations_have_all_bundled_tracks(self):
         self.assertEqual(len(engine._RADIO_STATIONS), 3)
         self.assertEqual(sum(len(station.tracks) for station in engine._RADIO_STATIONS), 6)

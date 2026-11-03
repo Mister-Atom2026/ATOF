@@ -5,8 +5,8 @@ import pygame
 
 from settings_manager import load_settings, load_statistics, save_settings
 
-VERSION = "0.8.0-beta.2"
-RELEASE_NAME = "Open World Combat & HUD"
+VERSION = "0.8.0-beta.3"
+RELEASE_NAME = "Weather, Saves & Packaging"
 APP_SETTINGS = load_settings()
 
 import constants
@@ -36,23 +36,22 @@ pygame.display.set_caption("ATOF")
 
 import engine
 import open_world
+from video_intro import play_intro_videos
 LANGUAGES = list(engine.SUPPORTED_LANGUAGES)
 
 COLOR_BG = (0, 0, 0)
 COLOR_WHITE = (255, 255, 255)
 COLOR_ORANGE = (212, 91, 18)
 COLOR_BROWN = (60, 40, 30)
-font_path = "static.ttf"
-# Cross-platform font fallback list
-FALLBACK_FONTS = ["Arial", "DejaVu Sans", "Liberation Sans", "Helvetica", "Verdana", "Tahoma", "Segoe UI", "sans-serif"]
+font_path = str(engine._FONT_PATH)
 try:
     logo_font = pygame.font.Font(font_path, 150)
     menu_font = pygame.font.Font(font_path, 70)
     settings_font = pygame.font.Font(font_path, 42)
 except (pygame.error, OSError):
-    logo_font = pygame.font.SysFont(FALLBACK_FONTS, 150)
-    menu_font = pygame.font.SysFont(FALLBACK_FONTS, 70)
-    settings_font = pygame.font.SysFont(FALLBACK_FONTS, 42)
+    logo_font = pygame.font.Font(None, 150)
+    menu_font = pygame.font.Font(None, 70)
+    settings_font = pygame.font.Font(None, 42)
 
 
 def rebuild_fonts():
@@ -62,9 +61,9 @@ def rebuild_fonts():
         menu_font = pygame.font.Font(font_path, min(70, max(40, HEIGHT // 10)))
         settings_font = pygame.font.Font(font_path, min(42, max(24, HEIGHT // 17)))
     except (pygame.error, OSError):
-        logo_font = pygame.font.SysFont(FALLBACK_FONTS, min(150, max(80, HEIGHT // 6)))
-        menu_font = pygame.font.SysFont(FALLBACK_FONTS, min(70, max(40, HEIGHT // 10)))
-        settings_font = pygame.font.SysFont(FALLBACK_FONTS, min(42, max(24, HEIGHT // 17)))
+        logo_font = pygame.font.Font(None, min(150, max(80, HEIGHT // 6)))
+        menu_font = pygame.font.Font(None, min(70, max(40, HEIGHT // 10)))
+        settings_font = pygame.font.Font(None, min(42, max(24, HEIGHT // 17)))
 
 rebuild_fonts()
 
@@ -462,6 +461,8 @@ def main():
     clock = pygame.time.Clock()
 
     try:
+        if not play_intro_videos(screen):
+            return
         while True:
             language = LANGUAGES[APP_SETTINGS["lang_idx"]]
             text = translations[language]

@@ -11,6 +11,7 @@ _SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
 SETTINGS_PATH = _SETTINGS_DIR / "config.json"
 STATISTICS_PATH = _SETTINGS_DIR / "statistics.json"
 GAME_SAVE_PATH = _SETTINGS_DIR / "savegame.json"
+PHONE_SETTINGS_PATH = _SETTINGS_DIR / "phone_settings.json"
 SAVE_SLOTS_DIR = _SETTINGS_DIR / "saves"
 SAVE_SLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -243,6 +244,8 @@ def save_to_slot(slot_index: int, game_state: dict):
         encoding="utf-8",
     )
     temporary_path.replace(slot_path)
+    # Keep the selected slot as the continue-game save after restarting.
+    save_game_save(game_state)
 
 
 def get_all_save_slots() -> list:

@@ -1,6 +1,16 @@
 # ATOF
 Game About Mister Atom
 
+## Version 0.8.0 Beta 3 — "Weather, Saves & Packaging"
+
+- Adds localized dynamic weather: clear skies, rain, fog, snow, and black ice.
+- December through February use winter weather and reduce vehicle grip during snow and ice.
+- Adds a `videos/` folder for ordered startup videos; each video can be skipped independently with Esc.
+- Saves the active game state when leaving the game or returning to the main menu.
+- Stores phone settings alongside saves instead of writing into the application directory.
+- Uses the bundled `static.ttf` consistently instead of platform-dependent Arial fallbacks.
+- Adds `requirements.txt` and `ATOF.spec` for cross-platform PyInstaller preparation.
+
 ## Version 0.8.0 Beta 2 — "Open World Combat & HUD"
 
 - Holding the left mouse button keeps firing at the selected weapon's rate; releasing it or losing window focus stops fire.

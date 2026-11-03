@@ -2,6 +2,7 @@ import json
 import math
 import random
 import time
+from datetime import date
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import lru_cache
@@ -45,12 +46,13 @@ SPEEDOMETER_RADAR_GAP = 12
 @lru_cache(maxsize=64)
 def _cached_ui_font(name: str | None, size: int, bold: bool = False):
     """Reuse UI fonts instead of constructing system fonts during each frame."""
-    if name is None:
+    try:
+        font = pygame.font.Font(str(_FONT_PATH), size)
+    except (pygame.error, OSError):
         font = pygame.font.Font(None, size)
-        if bold:
-            font.set_bold(True)
-        return font
-    return pygame.font.SysFont(name, size, bold=bold)
+    if bold:
+        font.set_bold(True)
+    return font
 
 
 _MINIMAP_BACKGROUND_CACHE: dict[
@@ -153,7 +155,8 @@ _AUDIO_DEFAULTS = {
 }
 _audio_settings: dict[str, float] = {key: value / 100 for key, value in _AUDIO_DEFAULTS.items()}
 _MENU_SOUND_LEVELS = {"hover": 0.22, "click": 0.38}
-_ASSET_ROOT = Path(__file__).resolve().parent
+_ASSET_ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+_FONT_PATH = _ASSET_ROOT / "static.ttf"
 _image_cache: dict[tuple[Path, bool], pygame.Surface] = {}
 
 
@@ -623,14 +626,14 @@ def load_game_audio() -> GameAudio:
 
 
 def load_game_fonts() -> tuple[pygame.font.Font, pygame.font.Font]:
-    """Load the game fonts, falling back to system fonts if needed."""
+    """Load the bundled game fonts consistently on every platform."""
     font_path = str(_ASSET_ROOT / "static.ttf")
     try:
         return pygame.font.Font(font_path, 40), pygame.font.Font(font_path, 25)
     except (pygame.error, OSError):
         return (
-            pygame.font.SysFont("Arial", 40, bold=True),
-            pygame.font.SysFont("Arial", 25),
+            pygame.font.Font(None, 40),
+            pygame.font.Font(None, 25),
         )
 
 
@@ -1677,10 +1680,7 @@ class Car:
         self.ui_y = 600
         self.ui_radius = 75
 
-        try:
-            self.ui_font = pygame.font.Font(None, 20)
-        except pygame.error:
-            self.ui_font = pygame.font.SysFont("Arial", 14)
+        self.ui_font = _cached_ui_font(None, 20)
 
         try:
             self.image = load_image("cars/tornado/tornado_special.png", alpha=True)
@@ -1714,13 +1714,23 @@ class Car:
             self.speed = min(current_kmh / 8, self.max_speed)
             remaining_frames -= applied_frames
 
-    def update(self, keys, col_mask, active, npc_cars=None, frame_scale=1.0, surface_map=None):
+    def update(
+        self,
+        keys,
+        col_mask,
+        active,
+        npc_cars=None,
+        frame_scale=1.0,
+        surface_map=None,
+        weather_grip=1.0,
+    ):
         left_pressed = False
         right_pressed = False
         handbrake_pressed = False
         self.is_drifting = False
         self.is_braking = False
         surface_grip = _get_surface_grip(col_mask, surface_map, self.pos, self.angle)
+        surface_grip *= max(0.1, min(1.0, weather_grip))
         # A broken car does not respond to acceleration.
         if self.is_broken:
             active = False
@@ -2996,7 +3006,7 @@ def settings_sub_menu(screen, font, settings, trans_dict, languages, controls=No
         if not any(rect.collidepoint(mouse_pos) for rect in rects):
             last_hovered = None
 
-        studio_credit = pygame.font.SysFont("Arial", 16, bold=True).render(
+        studio_credit = _cached_ui_font(None, 16, bold=True).render(
             "Nayra Studio", True, (150, 150, 150)
         )
         screen.blit(studio_credit, studio_credit.get_rect(center=(screen_width // 2, screen_height - 24)))
@@ -3099,7 +3109,7 @@ def draw_debug_coords(screen, target, mode_label, fps=None):
     try:
         debug_f = _cached_ui_font("Consolas", 20, bold=True)
     except pygame.error:
-        debug_f = _cached_ui_font("Arial", 20)
+        debug_f = _cached_ui_font(None, 20)
 
     curr_x, curr_y = map(int, position)
 
@@ -3265,7 +3275,10 @@ def draw_interaction_prompt(screen, key, label, left_margin=20, bottom_margin=65
     key_rect = pygame.Rect(panel.x + 10, panel.centery - key_size // 2, key_size, key_size)
     pygame.draw.rect(screen, (228, 119, 31), key_rect, border_radius=8)
     pygame.draw.rect(screen, (255, 174, 75), key_rect, 1, border_radius=8)
-    screen.blit(key_surface, key_surface.get_rect(center=key_rect.center))
+    screen.blit(
+        key_surface,
+        key_surface.get_rect(center=(key_rect.centerx, key_rect.centery + 1)),
+    )
     label_rect = label_surface.get_rect(midleft=(key_rect.right + 12, panel.centery))
     screen.blit(label_surface, label_rect)
     return panel, key_rect, label_rect
@@ -3680,6 +3693,81 @@ def get_ambient_color(game_time_minutes):
     return 15, 15, 40, round(160 * darkness)
 
 
+WEATHER_LABELS = {
+    "English": {"clear": "Clear", "rain": "Rain", "fog": "Fog", "snow": "Snow", "ice": "Black ice"},
+    "Українська": {"clear": "Ясно", "rain": "Дощ", "fog": "Туман", "snow": "Сніг", "ice": "Ожеледь"},
+    "Русский": {"clear": "Ясно", "rain": "Дождь", "fog": "Туман", "snow": "Снег", "ice": "Гололёд"},
+    "Español": {"clear": "Despejado", "rain": "Lluvia", "fog": "Niebla", "snow": "Nieve", "ice": "Hielo"},
+    "Deutsch": {"clear": "Klar", "rain": "Regen", "fog": "Nebel", "snow": "Schnee", "ice": "Glatteis"},
+    "Français": {"clear": "Clair", "rain": "Pluie", "fog": "Brouillard", "snow": "Neige", "ice": "Verglas"},
+}
+
+
+class WeatherSystem:
+    """Provide seasonal weather, visual effects, and driving modifiers."""
+
+    CHANGE_INTERVAL = 300.0
+
+    def __init__(self, current_date: date | None = None, rng=None):
+        self.current_date = current_date or date.today()
+        self.rng = rng or random.Random()
+        self.timer = 0.0
+        self.weather = self._choose_weather()
+        self._flakes = [
+            (self.rng.randrange(WIDTH), self.rng.randrange(HEIGHT), self.rng.randrange(2, 5))
+            for _ in range(110)
+        ]
+
+    @property
+    def is_winter(self) -> bool:
+        return self.current_date.month in (12, 1, 2)
+
+    @property
+    def grip_multiplier(self) -> float:
+        return 0.48 if self.weather == "ice" else 0.82 if self.weather == "snow" else 1.0
+
+    def _choose_weather(self) -> str:
+        if self.is_winter:
+            return self.rng.choice(("snow", "ice"))
+        return self.rng.choices(("clear", "rain", "fog"), weights=(5, 3, 2), k=1)[0]
+
+    def update(self, frame_scale: float) -> None:
+        self.timer += max(0.0, frame_scale) / 60.0
+        if self.timer >= self.CHANGE_INTERVAL:
+            self.timer = 0.0
+            self.weather = self._choose_weather()
+
+    def label(self, language: str) -> str:
+        return WEATHER_LABELS.get(language, WEATHER_LABELS["English"]).get(
+            self.weather, self.weather.title()
+        )
+
+    def draw(self, screen) -> None:
+        width, height = screen.get_size()
+        if self.weather == "rain":
+            overlay = pygame.Surface((width, height), pygame.SRCALPHA)
+            for index in range(80):
+                x = (index * 97 + int(self.timer * 300)) % width
+                y = (index * 53 + int(self.timer * 420)) % height
+                pygame.draw.line(overlay, (100, 150, 210, 105), (x, y), (x - 5, y + 16), 1)
+            screen.blit(overlay, (0, 0))
+        elif self.weather == "fog":
+            overlay = pygame.Surface((width, height), pygame.SRCALPHA)
+            overlay.fill((190, 195, 205, 72))
+            screen.blit(overlay, (0, 0))
+        elif self.weather == "snow":
+            overlay = pygame.Surface((width, height), pygame.SRCALPHA)
+            for index, (x, y, radius) in enumerate(self._flakes):
+                draw_x = (x + int(self.timer * (12 + index % 8))) % width
+                draw_y = (y + int(self.timer * (28 + index % 12))) % height
+                pygame.draw.circle(overlay, (245, 245, 255, 190), (draw_x, draw_y), radius)
+            screen.blit(overlay, (0, 0))
+        elif self.weather == "ice":
+            overlay = pygame.Surface((width, height), pygame.SRCALPHA)
+            overlay.fill((170, 195, 220, 38))
+            screen.blit(overlay, (0, 0))
+
+
 def fade_screen(screen, fade_out, duration=0.8):
     frame = screen.copy()
     overlay = pygame.Surface(screen.get_size())
@@ -3728,21 +3816,61 @@ def draw_car_smoke(screen, car, off_x, off_y):
 
 # 1. Phone settings storage.
 def get_phone_settings():
-    path = Path(__file__).resolve().parent / "phone_settings.json"
+    from settings_manager import PHONE_SETTINGS_PATH
+
     default_settings = {
         "bg_idx": 0,
         "case_idx": 0,
         "owner": "Atom"
     }
-    if not path.exists():
-        path.write_text(json.dumps(default_settings), encoding="utf-8")
-        return default_settings
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        values = json.loads(PHONE_SETTINGS_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        try:
+            values = json.loads(
+                (_ASSET_ROOT / "phone_settings.json").read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError):
+            values = default_settings
+    if not isinstance(values, dict):
+        values = default_settings
+    try:
+        bg_idx = int(values.get("bg_idx", 0))
+    except (TypeError, ValueError):
+        bg_idx = 0
+    try:
+        case_idx = int(values.get("case_idx", 0))
+    except (TypeError, ValueError):
+        case_idx = 0
+    return {
+        "bg_idx": max(0, min(len(BG_PALETTE) - 1, bg_idx)),
+        "case_idx": max(0, min(len(CASE_PALETTE) - 1, case_idx)),
+        "owner": str(values.get("owner", "Atom")),
+    }
 
 
 def save_phone_settings(settings):
-    path = Path(__file__).resolve().parent / "phone_settings.json"
-    path.write_text(json.dumps(settings), encoding="utf-8")
+    from settings_manager import PHONE_SETTINGS_PATH
+
+    try:
+        bg_idx = int(settings.get("bg_idx", 0))
+    except (TypeError, ValueError):
+        bg_idx = 0
+    try:
+        case_idx = int(settings.get("case_idx", 0))
+    except (TypeError, ValueError):
+        case_idx = 0
+    normalized = {
+        "bg_idx": max(0, min(len(BG_PALETTE) - 1, bg_idx)),
+        "case_idx": max(0, min(len(CASE_PALETTE) - 1, case_idx)),
+        "owner": str(settings.get("owner", "Atom")),
+    }
+    temporary_path = PHONE_SETTINGS_PATH.with_suffix(".json.tmp")
+    temporary_path.write_text(
+        json.dumps(normalized, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    temporary_path.replace(PHONE_SETTINGS_PATH)
 
 
 # 2. Color palettes.
@@ -3833,13 +3961,13 @@ def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_s
         icon_x, icon_y = display_rect.x + 20, display_rect.y + 50
         pygame.draw.rect(screen, (80, 80, 120), (icon_x, icon_y, 45, 45), border_radius=10)
         screen.blit(font_small.render("1", True, (255, 255, 255)), (icon_x + 15, icon_y + 10))
-        name_surf = _cached_ui_font("Arial", 12, bold=True).render("Triple1", True, (220, 220, 220))
+        name_surf = _cached_ui_font(None, 12, bold=True).render("Triple1", True, (220, 220, 220))
         screen.blit(name_surf, (icon_x, icon_y + 50))
 
         settings_x = display_rect.x + 95
         pygame.draw.rect(screen, (55, 105, 100), (settings_x, icon_y, 45, 45), border_radius=10)
         screen.blit(font_small.render("2", True, (255, 255, 255)), (settings_x + 15, icon_y + 10))
-        settings_name = _cached_ui_font("Arial", 11, bold=True).render(
+        settings_name = _cached_ui_font(None, 11, bold=True).render(
             labels["settings_app"], True, (220, 220, 220)
         )
         screen.blit(settings_name, (settings_x, icon_y + 50))
@@ -3855,22 +3983,22 @@ def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_s
         # Transaction history.
         # Important: calculate y_hist relative to display_rect.y.
         y_hist = display_rect.y + 130
-        history_title = _cached_ui_font("Arial", 12, bold=True).render(labels["history"], True, (150, 150, 150))
+        history_title = _cached_ui_font(None, 12, bold=True).render(labels["history"], True, (150, 150, 150))
         screen.blit(history_title, (display_rect.x + 15, y_hist))
 
         for item in money_history[-3:]:
             y_hist += 25
             label = labels.get(item[1], item[1])
-            txt = _cached_ui_font("Arial", 12).render(f"{item[0]} - {label}", True, (200, 200, 200))
+            txt = _cached_ui_font(None, 12).render(f"{item[0]} - {label}", True, (200, 200, 200))
             screen.blit(txt, (display_rect.x + 15, y_hist))
 
     elif current_app == 2:
-        title = _cached_ui_font("Arial", 16, bold=True).render(
+        title = _cached_ui_font(None, 16, bold=True).render(
             labels["phone_settings"], True, (255, 255, 255)
         )
         screen.blit(title, (display_rect.x + 15, display_rect.y + 45))
 
-        category = _cached_ui_font("Arial", 13, bold=True).render(
+        category = _cached_ui_font(None, 13, bold=True).render(
             labels["phone_color"], True, (190, 190, 190)
         )
         screen.blit(category, (display_rect.x + 15, display_rect.y + 90))
@@ -3883,10 +4011,10 @@ def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_s
             border_color = (255, 215, 0) if idx == selected_idx else (180, 180, 180)
             border_width = 3 if idx == selected_idx else 1
             pygame.draw.rect(screen, border_color, swatch, border_width, border_radius=6)
-            number = _cached_ui_font("Arial", 11, bold=True).render(str(idx + 1), True, (235, 235, 235))
+            number = _cached_ui_font(None, 11, bold=True).render(str(idx + 1), True, (235, 235, 235))
             screen.blit(number, (swatch.x + 10, swatch.bottom + 5))
 
-        selected_name = _cached_ui_font("Arial", 14, bold=True).render(
+        selected_name = _cached_ui_font(None, 14, bold=True).render(
             labels["colors"][selected_idx], True, (255, 255, 255)
         )
         screen.blit(selected_name, (display_rect.x + 15, display_rect.y + 175))
@@ -3947,6 +4075,7 @@ def run_open_world(screen, settings, *, continue_game=True):
     )
     # --- Time and lighting ---
     game_time = game_save.get("game_time", 480.0) if game_save else 480.0
+    weather = WeatherSystem()
     night_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
     wake_overlay = pygame.Surface(screen.get_size())
     car_sfx = game_audio.car_sounds
@@ -4382,6 +4511,7 @@ def run_open_world(screen, settings, *, continue_game=True):
         game_minute_delta = frame_scale / 60
         game_time = (game_time + game_minute_delta) % 1440
         survival.advance(game_minute_delta, atom)
+        weather.update(frame_scale)
 
         frame_count += frame_scale
         if frame_count >= 60:
@@ -4403,6 +4533,7 @@ def run_open_world(screen, settings, *, continue_game=True):
                 wake_overlay = pygame.Surface(screen.get_size())
                 save_settings(settings)
             if event.type == pygame.QUIT:
+                save_sleep_game()
                 save_last_session_stats()
                 return "EXIT"
             if fridge_menu_open:
@@ -4535,6 +4666,7 @@ def run_open_world(screen, settings, *, continue_game=True):
                     frame_clock.reset()
                     if res in ["MENU", "EXIT"]:
                         radio.stop()
+                        save_sleep_game()
                         save_last_session_stats()
                         return res
                     if radio_was_playing:
@@ -4691,6 +4823,7 @@ def run_open_world(screen, settings, *, continue_game=True):
                     npc_cars,
                     frame_scale,
                     surface_map=world_bg,
+                    weather_grip=weather.grip_multiplier,
                 )
                 atom.pos = pygame.Vector2(car.pos)
                 travelled = previous_car_pos.distance_to(car.pos)
@@ -4737,6 +4870,7 @@ def run_open_world(screen, settings, *, continue_game=True):
                     npc_cars,
                     frame_scale,
                     surface_map=world_bg,
+                    weather_grip=weather.grip_multiplier,
                 )
 
                 # Treasures and secrets.
@@ -4866,6 +5000,7 @@ def run_open_world(screen, settings, *, continue_game=True):
                     screen.blit(night_overlay, (0, 0))
                 if headlights_on:
                     car.draw_headlights(screen, off_x, off_y, col_mask)
+                weather.draw(screen)
 
             def draw_city_ui():
                 if in_car:
@@ -4923,6 +5058,10 @@ def run_open_world(screen, settings, *, continue_game=True):
                         small_font.render(radio_status, True, (255, 255, 255)),
                         (20, 50),
                     )
+                weather_text = small_font.render(
+                    weather.label(current_lang_name), True, (220, 220, 220)
+                )
+                screen.blit(weather_text, (20, 76))
 
             frame_renderer.submit(RenderLayer.BACKGROUND, draw_city_background)
             frame_renderer.submit(RenderLayer.WORLD, draw_city_world)
@@ -5024,5 +5163,6 @@ def run_open_world(screen, settings, *, continue_game=True):
             sleep_requested = False
             wake_fade_started = time.perf_counter()
 
+    save_sleep_game()
     save_last_session_stats()
     return "EXIT"
