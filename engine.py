@@ -4772,8 +4772,6 @@ def run_open_world(screen, settings, *, continue_game=True):
                         if keyboard.matches(event, pygame.K_e):
                             play_car_horn(car_sfx, horn_chan)
                             traffic.respond_to_horn(npc_cars, car.pos)
-                        if keyboard.matches(event, pygame.K_v):
-                            radio.cycle_station(1)
                         if keyboard.matches(event, pygame.K_COMMA):
                             radio.cycle_station(-1)
                         if keyboard.matches(event, pygame.K_PERIOD):
