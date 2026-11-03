@@ -2326,7 +2326,7 @@ def stats_dialog(screen, font, small_font, t, stats=None, controls=None):
     while True:
         screen.fill((14, 14, 20))
         title = font.render(t.get("stats_title", "Stats"), True, (255, 255, 255))
-        screen.blit(title, title.get_rect(center=(width // 2, 125)))
+        screen.blit(title, title.get_rect(center=(width // 2, 95)))
 
         lines = [
             t.get("stats_money", "Money: {money}").format(money=stats.get("money", 0)),
@@ -3713,6 +3713,18 @@ class WeatherSystem:
         self.rng = rng or random.Random()
         self.timer = 0.0
         self.weather = self._choose_weather()
+        self._rain_drops = [
+            {
+                "x": self.rng.uniform(0, WIDTH),
+                "y": self.rng.uniform(0, HEIGHT),
+                "length": self.rng.uniform(10, 24),
+                "speed": self.rng.uniform(520, 820),
+                "alpha": self.rng.randint(70, 145),
+                "width": self.rng.choice((1, 1, 1, 2)),
+            }
+            for _ in range(150)
+        ]
+        self._rain_splashes: list[tuple[float, float, float]] = []
         self._flakes = [
             (self.rng.randrange(WIDTH), self.rng.randrange(HEIGHT), self.rng.randrange(2, 5))
             for _ in range(110)
@@ -3732,7 +3744,26 @@ class WeatherSystem:
         return self.rng.choices(("clear", "rain", "fog"), weights=(5, 3, 2), k=1)[0]
 
     def update(self, frame_scale: float) -> None:
-        self.timer += max(0.0, frame_scale) / 60.0
+        seconds = max(0.0, frame_scale) / 60.0
+        self.timer += seconds
+        if self.weather == "rain":
+            width, height = WIDTH, HEIGHT
+            for drop in self._rain_drops:
+                drop["x"] += 35.0 * seconds
+                drop["y"] += drop["speed"] * seconds
+                if drop["y"] - drop["length"] > height or drop["x"] > width + 30:
+                    drop["x"] = self.rng.uniform(-40, width)
+                    drop["y"] = self.rng.uniform(-height * 0.35, -10)
+            self._rain_splashes = [
+                (x, y + 6.0 * seconds, life - seconds)
+                for x, y, life in self._rain_splashes
+                if life > seconds
+            ]
+            for drop in self._rain_drops:
+                if drop["y"] >= height and self.rng.random() < 0.018:
+                    self._rain_splashes.append(
+                        (drop["x"], height - self.rng.uniform(2, 10), 0.18)
+                    )
         if self.timer >= self.CHANGE_INTERVAL:
             self.timer = 0.0
             self.weather = self._choose_weather()
@@ -3746,10 +3777,26 @@ class WeatherSystem:
         width, height = screen.get_size()
         if self.weather == "rain":
             overlay = pygame.Surface((width, height), pygame.SRCALPHA)
-            for index in range(80):
-                x = (index * 97 + int(self.timer * 300)) % width
-                y = (index * 53 + int(self.timer * 420)) % height
-                pygame.draw.line(overlay, (100, 150, 210, 105), (x, y), (x - 5, y + 16), 1)
+            for drop in self._rain_drops:
+                start = (round(drop["x"]), round(drop["y"]))
+                end = (round(drop["x"] - 8), round(drop["y"] - drop["length"]))
+                pygame.draw.line(
+                    overlay,
+                    (150, 190, 225, drop["alpha"]),
+                    start,
+                    end,
+                    drop["width"],
+                )
+            for x, y, life in self._rain_splashes:
+                radius = max(1, round(5 * (1.0 - life / 0.18)))
+                pygame.draw.arc(
+                    overlay,
+                    (180, 210, 235, round(130 * life / 0.18)),
+                    pygame.Rect(round(x - radius), round(y - radius / 2), radius * 2, radius),
+                    math.pi,
+                    math.tau,
+                    1,
+                )
             screen.blit(overlay, (0, 0))
         elif self.weather == "fog":
             overlay = pygame.Surface((width, height), pygame.SRCALPHA)

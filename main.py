@@ -386,6 +386,17 @@ def get_menu_rects(options):
     return [pygame.Rect(50, first_y + index * step, 700, 70) for index, _ in enumerate(options)]
 
 
+def get_menu_hitboxes(options, layout_rects):
+    """Create click targets around the visible menu labels, not arbitrary rows."""
+    hitboxes = []
+    for option, layout_rect in zip(options, layout_rects):
+        label_rect = menu_font.render(option, True, COLOR_WHITE).get_rect(
+            topleft=(50, layout_rect.y)
+        )
+        hitboxes.append(label_rect.inflate(32, 24))
+    return hitboxes
+
+
 def apply_video_settings():
     global screen, WIDTH, HEIGHT, logo_font, menu_font, settings_font
     screen = engine.apply_video_settings(APP_SETTINGS)
@@ -471,9 +482,10 @@ def main():
             screen.fill(COLOR_BG)
             draw_logo()
             rects = get_menu_rects(options)
+            hitboxes = get_menu_hitboxes(options, rects)
             mouse_pos = pygame.mouse.get_pos()
             hovered_index = next(
-                (index for index, rect in enumerate(rects) if rect.collidepoint(mouse_pos)),
+                (index for index, rect in enumerate(hitboxes) if rect.collidepoint(mouse_pos)),
                 None,
             )
             hover_key = (hovered_index,)
@@ -482,7 +494,7 @@ def main():
             last_hover_key = hover_key
 
             for index, option in enumerate(options):
-                highlighted = rects[index].collidepoint(mouse_pos) or index == selected_index
+                highlighted = hitboxes[index].collidepoint(mouse_pos) or index == selected_index
                 color = COLOR_ORANGE if highlighted else COLOR_WHITE
                 rendered = menu_font.render(option, True, color)
                 screen.blit(rendered, (50, rects[index].y))
@@ -498,7 +510,7 @@ def main():
                     save_settings(APP_SETTINGS)
 
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    for index, rect in enumerate(rects):
+                    for index, rect in enumerate(hitboxes):
                         if rect.collidepoint(event.pos):
                             selected_index = index
                             engine.play_menu_sound("click")
