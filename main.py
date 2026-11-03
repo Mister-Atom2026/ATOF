@@ -393,7 +393,7 @@ def get_menu_hitboxes(options, layout_rects):
         label_rect = menu_font.render(option, True, COLOR_WHITE).get_rect(
             topleft=(50, layout_rect.y)
         )
-        hitboxes.append(label_rect.inflate(32, 24))
+        hitboxes.append(label_rect.inflate(32, 24).move(0, -18))
     return hitboxes
 
 

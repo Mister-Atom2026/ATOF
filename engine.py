@@ -2574,25 +2574,18 @@ def pause_menu(screen, font, small_font, settings, trans_dict, languages, contro
         if index == 0:
             return "CONTINUE"
         if index == 1:
-            if game_state is not None:
-                save_result = save_slot_menu(screen, font, small_font, settings, trans_dict, languages, game_state, controls)
-                if save_result == "EXIT":
-                    return "EXIT"
-                return None
-            return None
-        if index == 2:
             stats_result = stats_dialog(screen, font, small_font, translations, stats, controls)
             return "EXIT" if stats_result == "EXIT" else None
-        if index == 3:
+        if index == 2:
             settings_result = settings_sub_menu(screen, font, settings, trans_dict, languages, controls, on_change)
             return settings_result if settings_result in ("EXIT", "VIDEO_CHANGED") else None
-        elif index == 4 and confirm_dialog(screen, font, small_font, translations, controls):
+        elif index == 3 and confirm_dialog(screen, font, small_font, translations, controls):
             return "MENU"
         return None
 
     while True:
         t = trans_dict[languages[settings['lang_idx']]]
-        options = [t["resume"], "Save Game", t["stats"], t["settings"], t["menu"]]
+        options = [t["resume"], t["stats"], t["settings"], t["menu"]]
 
         screen.fill((0, 0, 0))
         m_pos = pygame.mouse.get_pos()
@@ -4580,7 +4573,6 @@ def run_open_world(screen, settings, *, continue_game=True):
                 wake_overlay = pygame.Surface(screen.get_size())
                 save_settings(settings)
             if event.type == pygame.QUIT:
-                save_sleep_game()
                 save_last_session_stats()
                 return "EXIT"
             if fridge_menu_open:
@@ -4713,7 +4705,6 @@ def run_open_world(screen, settings, *, continue_game=True):
                     frame_clock.reset()
                     if res in ["MENU", "EXIT"]:
                         radio.stop()
-                        save_sleep_game()
                         save_last_session_stats()
                         return res
                     if radio_was_playing:
@@ -5210,6 +5201,5 @@ def run_open_world(screen, settings, *, continue_game=True):
             sleep_requested = False
             wake_fade_started = time.perf_counter()
 
-    save_sleep_game()
     save_last_session_stats()
     return "EXIT"
