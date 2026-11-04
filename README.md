@@ -8,6 +8,7 @@ Game About Mister Atom
 - Rain now significantly reduces grip and makes driving harder.
 - Keeps the player's previous car visible after taking an NPC vehicle.
 - Maintains 22 NPC vehicles and respawns missing traffic every 60 seconds.
+- World map artwork is stored at 4x reduced editable resolution; the engine restores the native 8808x3500 map size at load time. Original map files remain as `*.original.png`.
 
 ## Version 0.8.0 Beta 3 — "Weather, Saves & Packaging"
 
