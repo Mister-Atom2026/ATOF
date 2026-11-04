@@ -3945,6 +3945,26 @@ def apply_car_upgrades(car) -> None:
     car.friction = 0.04 + wheel_level * 0.004
 
 
+def draw_garage(screen, off_x, off_y) -> None:
+    """Draw a top-down garage footprint and parking bays."""
+    x, y = _constants.GARAGE_POS
+    rect = pygame.Rect(round(x + off_x - 145), round(y + off_y - 95), 290, 190)
+    if not screen.get_rect().colliderect(rect):
+        return
+    pygame.draw.rect(screen, (48, 48, 52), rect, border_radius=5)
+    pygame.draw.rect(screen, (18, 19, 22), rect, 4, border_radius=5)
+    for column in range(1, 5):
+        bay_x = rect.left + column * rect.width // 5
+        pygame.draw.line(screen, (125, 125, 105), (bay_x, rect.top + 55), (bay_x, rect.bottom - 12), 2)
+    door = pygame.Rect(rect.left + 18, rect.top + 12, rect.width - 36, 35)
+    pygame.draw.rect(screen, (24, 29, 34), door)
+    for line_x in range(door.left + 10, door.right, 18):
+        pygame.draw.line(screen, (90, 98, 105), (line_x, door.top), (line_x, door.bottom), 2)
+    pygame.draw.rect(screen, (214, 142, 35), (rect.left + 72, rect.bottom - 35, 146, 23), border_radius=4)
+    label = _cached_ui_font(None, 18, bold=True).render("GARAGE", True, (30, 20, 10))
+    screen.blit(label, label.get_rect(center=(rect.centerx, rect.bottom - 23)))
+
+
 # 1. Phone settings storage.
 def get_phone_settings():
     from settings_manager import PHONE_SETTINGS_PATH
@@ -5243,6 +5263,7 @@ def run_open_world(screen, settings, *, continue_game=True):
                 screen.blit(world_bg, (off_x, off_y))
 
             def draw_city_world():
+                draw_garage(screen, off_x, off_y)
                 for parked_car in parked_cars:
                     parked_car.draw(screen, off_x, off_y)
                 car.draw(screen, off_x, off_y)
