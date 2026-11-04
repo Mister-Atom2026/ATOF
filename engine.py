@@ -516,18 +516,11 @@ def load_game_assets(
     """Load and prepare the shared city, house, and character assets."""
     atom = load_image("characters/atom.png", alpha=True)
 
-    def load_map_image(filename: str) -> pygame.Surface:
-        image = load_image(filename)
-        native_size = (_constants.MAP_NATIVE_WIDTH, _constants.MAP_NATIVE_HEIGHT)
-        if image.get_size() != native_size:
-            image = pygame.transform.scale(image, native_size)
-        return image
-
-    original_nav_map = load_map_image("world/Карта Вишневого.png")
-    original_background = load_map_image("world/НОРМ Карта Вишневого.png")
+    original_nav_map = load_image("world/Карта Вишневого.png")
+    original_background = load_image("world/НОРМ Карта Вишневого.png")
     world_background = pygame.transform.scale(original_background, world_size)
     full_map = pygame.transform.scale(original_nav_map, screen_size)
-    collision_source = load_map_image("world/Нізя їздити.png")
+    collision_source = load_image("world/Нізя їздити.png")
     collision_mask = pygame.transform.scale(collision_source, world_size)
     traffic.prepare_collision_mask(collision_mask, collision_source)
 
