@@ -1,6 +1,9 @@
 # constants.py
 WIDTH, HEIGHT = 1280, 720  # Keep the window size fixed.
-WORLD_WIDTH, WORLD_HEIGHT = 1280 * 4, 720 * 4  # Full world-map dimensions.
+MAP_EDIT_SCALE = 4
+MAP_EDIT_WIDTH, MAP_EDIT_HEIGHT = 2202, 875
+MAP_NATIVE_WIDTH, MAP_NATIVE_HEIGHT = 8808, 3500
+WORLD_WIDTH, WORLD_HEIGHT = 1280 * 4, 720 * 4
 FPS = 60
 
 # Collision and navigation mask paths.
