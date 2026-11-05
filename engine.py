@@ -2180,7 +2180,13 @@ def draw_handgun(
     if weapon_texture is not None:
         rotation = math.degrees(math.atan2(-direction.x, -direction.y))
         texture = pygame.transform.rotate(weapon_texture, rotation)
-        screen.blit(texture, texture.get_rect(center=(round(start.x + direction.x * 17), round(start.y + direction.y * 17))))
+        distance = 22 if weapon_type == "shotgun" else 12
+        side = pygame.Vector2(-direction.y, direction.x)
+        weapon_center = start + direction * distance - side * 3
+        screen.blit(
+            texture,
+            texture.get_rect(center=(round(weapon_center.x), round(weapon_center.y))),
+        )
         return
     side = pygame.Vector2(-direction.y, direction.x)
     grip = start + direction * 7
