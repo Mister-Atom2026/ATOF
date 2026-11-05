@@ -5,6 +5,8 @@ Game About Mister Atom
 
 - Adds a garage at the starting vehicle location, opened with E, with up to five stored vehicles.
 - Adds six named engine and wheel upgrade levels with prices and vehicle statistics.
+- Adds a weather app to the phone and weapon-wheel sprites from `weapons/`.
+- The garage interaction point uses a 10-pixel radius; selecting a vehicle places the player inside it.
 - Rain now significantly reduces grip and makes driving harder.
 - Keeps the player's previous car visible after taking an NPC vehicle.
 - Maintains 22 NPC vehicles and respawns missing traffic every 60 seconds.

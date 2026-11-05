@@ -18,8 +18,8 @@ HOUSE_SLEEP_SPOT = (147, 156)
 HOUSE_SLEEP_RADIUS = 24
 HOUSE_ENTRY_SPOT = (300, 70)
 
-# City garage shown near the player's starting vehicle.
-GARAGE_POS = (8013, 2484)
-GARAGE_RADIUS = 150
+# City garage interaction point on the map.
+GARAGE_POS = (7991, 2338)
+GARAGE_RADIUS = 10
 NPC_TRAFFIC_LIMIT = 22
 NPC_RESPAWN_SECONDS = 60.0

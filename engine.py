@@ -74,6 +74,7 @@ _INTERACTION_TEXTS = {
         "enter_car": "Sit in car", "steal_car": "Steal vehicle",
         "exit_car": "Leave vehicle", "enter_house": "Enter house",
         "exit_house": "Leave house", "repair_car": "Repair vehicle",
+        "enter_garage": "Enter garage",
         "sleep": "Sleep and save", "fridge": "Open fridge",
         "fridge_title": "Fridge", "fridge_satiety": "Satiety: {value}%",
         "fridge_apple": "Apple", "fridge_sandwich": "Sandwich",
@@ -84,6 +85,7 @@ _INTERACTION_TEXTS = {
         "enter_car": "Сісти в машину", "steal_car": "Викрасти машину",
         "exit_car": "Вийти з машини", "enter_house": "Увійти в дім",
         "exit_house": "Вийти з дому", "repair_car": "Відремонтувати",
+        "enter_garage": "Увійти в гараж",
         "sleep": "Заснути й зберегтися", "fridge": "Відкрити холодильник",
         "fridge_title": "Холодильник", "fridge_satiety": "Ситість: {value}%",
         "fridge_apple": "Яблуко", "fridge_sandwich": "Бутерброд",
@@ -94,6 +96,7 @@ _INTERACTION_TEXTS = {
         "enter_car": "Сесть в машину", "steal_car": "Угнать машину",
         "exit_car": "Выйти из машины", "enter_house": "Войти в дом",
         "exit_house": "Выйти из дома", "repair_car": "Починить машину",
+        "enter_garage": "Войти в гараж",
         "sleep": "Спать и сохранить игру", "fridge": "Открыть холодильник",
         "fridge_title": "Холодильник", "fridge_satiety": "Сытость: {value}%",
         "fridge_apple": "Яблоко", "fridge_sandwich": "Бутерброд",
@@ -104,6 +107,7 @@ _INTERACTION_TEXTS = {
         "enter_car": "Subir al coche", "steal_car": "Robar vehículo",
         "exit_car": "Salir del coche", "enter_house": "Entrar en casa",
         "exit_house": "Salir de casa", "repair_car": "Reparar vehículo",
+        "enter_garage": "Entrar al garaje",
         "sleep": "Dormir y guardar", "fridge": "Abrir nevera",
         "fridge_title": "Nevera", "fridge_satiety": "Saciedad: {value}%",
         "fridge_apple": "Manzana", "fridge_sandwich": "Bocadillo",
@@ -114,6 +118,7 @@ _INTERACTION_TEXTS = {
         "enter_car": "Ins Auto steigen", "steal_car": "Auto stehlen",
         "exit_car": "Auto verlassen", "enter_house": "Haus betreten",
         "exit_house": "Haus verlassen", "repair_car": "Auto reparieren",
+        "enter_garage": "Garage betreten",
         "sleep": "Schlafen und speichern", "fridge": "Kühlschrank öffnen",
         "fridge_title": "Kühlschrank", "fridge_satiety": "Sättigung: {value}%",
         "fridge_apple": "Apfel", "fridge_sandwich": "Sandwich",
@@ -124,6 +129,7 @@ _INTERACTION_TEXTS = {
         "enter_car": "Monter en voiture", "steal_car": "Voler le véhicule",
         "exit_car": "Sortir de voiture", "enter_house": "Entrer dans la maison",
         "exit_house": "Sortir de la maison", "repair_car": "Réparer le véhicule",
+        "enter_garage": "Entrer dans le garage",
         "sleep": "Dormir et sauvegarder", "fridge": "Ouvrir le réfrigérateur",
         "fridge_title": "Réfrigérateur", "fridge_satiety": "Satiété : {value}%",
         "fridge_apple": "Pomme", "fridge_sandwich": "Sandwich",
@@ -1168,13 +1174,22 @@ class WeaponWheel:
         self.reload_start_time = 0.0
         self.reload_end_time = 0.0
 
-        # Texture slots for weapon sprites (to be filled later)
-        self.weapon_textures = {
-            "pistol": None,  # Mathew 37 texture
-            "shotgun": None,  # Svityaz 111 texture
-            "rifle": None,    # Goida G-2 texture
-            "smg": None,      # WR Mini .45 texture
+        self.weapon_textures = {}
+        texture_paths = {
+            "pistol": "weapons/mathew37.png",
+            "shotgun": "weapons/svityaz111.png",
+            "rifle": "weapons/308win.png",
         }
+        for weapon, relative_path in texture_paths.items():
+            path = _ASSET_ROOT / relative_path
+            if path.exists():
+                texture = load_image(relative_path, alpha=True)
+                if weapon == "rifle":
+                    texture = pygame.transform.smoothscale(
+                        texture,
+                        (max(1, texture.get_width() // 4), max(1, texture.get_height() // 4)),
+                    )
+                self.weapon_textures[weapon] = texture
 
     @property
     def ammo(self) -> int:
@@ -1351,8 +1366,28 @@ class WeaponWheel:
                 position,
                 48,
             )
+            texture = self.weapon_textures.get(weapon)
+            if texture is not None:
+                icon = texture
+                if max(icon.get_size()) < 36:
+                    scale = 3
+                    icon = pygame.transform.scale(
+                        icon, (icon.get_width() * scale, icon.get_height() * scale)
+                    )
+                if max(icon.get_size()) > 42:
+                    scale = 42 / max(icon.get_size())
+                    icon = pygame.transform.smoothscale(
+                        icon,
+                        (
+                            max(1, round(icon.get_width() * scale)),
+                            max(1, round(icon.get_height() * scale)),
+                        ),
+                    )
+                icon = icon.copy()
+                icon_rect = icon.get_rect(center=(int(position.x), int(position.y - 8)))
+                screen.blit(icon, icon_rect)
             label = font.render(labels.get(weapon, weapon.title()), True, (255, 255, 255))
-            screen.blit(label, label.get_rect(center=position))
+            screen.blit(label, label.get_rect(center=(int(position.x), int(position.y + 28))))
 
 
 class FleeingDriver:
@@ -3938,26 +3973,6 @@ def apply_car_upgrades(car) -> None:
     car.friction = 0.04 + wheel_level * 0.004
 
 
-def draw_garage(screen, off_x, off_y) -> None:
-    """Draw a top-down garage footprint and parking bays."""
-    x, y = _constants.GARAGE_POS
-    rect = pygame.Rect(round(x + off_x - 145), round(y + off_y - 95), 290, 190)
-    if not screen.get_rect().colliderect(rect):
-        return
-    pygame.draw.rect(screen, (48, 48, 52), rect, border_radius=5)
-    pygame.draw.rect(screen, (18, 19, 22), rect, 4, border_radius=5)
-    for column in range(1, 5):
-        bay_x = rect.left + column * rect.width // 5
-        pygame.draw.line(screen, (125, 125, 105), (bay_x, rect.top + 55), (bay_x, rect.bottom - 12), 2)
-    door = pygame.Rect(rect.left + 18, rect.top + 12, rect.width - 36, 35)
-    pygame.draw.rect(screen, (24, 29, 34), door)
-    for line_x in range(door.left + 10, door.right, 18):
-        pygame.draw.line(screen, (90, 98, 105), (line_x, door.top), (line_x, door.bottom), 2)
-    pygame.draw.rect(screen, (214, 142, 35), (rect.left + 72, rect.bottom - 35, 146, 23), border_radius=4)
-    label = _cached_ui_font(None, 18, bold=True).render("GARAGE", True, (30, 20, 10))
-    screen.blit(label, label.get_rect(center=(rect.centerx, rect.bottom - 23)))
-
-
 # 1. Phone settings storage.
 def get_phone_settings():
     from settings_manager import PHONE_SETTINGS_PATH
@@ -4028,49 +4043,56 @@ PHONE_TRANSLATIONS = {
         "bank": "Triple1 Bank", "history": "Recent transactions:",
         "start": "Starting balance", "guard": "By the guard", "bridge": "By the bridge",
         "repair": "Repair", "nightstand": "Nightstand", "sofa": "On the sofa",
-        "settings_app": "Settings", "phone_settings": "Phone settings", "phone_color": "Phone color",
+        "settings_app": "Settings", "weather_app": "Weather", "weather_unknown": "No data",
+        "phone_settings": "Phone settings", "phone_color": "Phone color",
         "choose_color": "Press 1–5 to choose", "colors": ["Black", "Silver", "Blue", "Gold", "Pink"],
     },
     "Українська": {
         "bank": "Банк Triple1", "history": "Останні транзакції:",
         "start": "Стартовий баланс", "guard": "Біля охоронця", "bridge": "Коло мосту",
         "repair": "Ремонт", "nightstand": "Тумбочка", "sofa": "На дивані",
-        "settings_app": "Налаштування", "phone_settings": "Налаштування телефона", "phone_color": "Колір телефона",
+        "settings_app": "Налаштування", "weather_app": "Погода", "weather_unknown": "Немає даних",
+        "phone_settings": "Налаштування телефона", "phone_color": "Колір телефона",
         "choose_color": "Натисни 1–5, щоб вибрати", "colors": ["Чорний", "Сріблястий", "Синій", "Золотий", "Рожевий"],
     },
     "Русский": {
         "bank": "Банк Triple1", "history": "Последние транзакции:",
         "start": "Стартовый баланс", "guard": "У охранника", "bridge": "У моста",
         "repair": "Ремонт", "nightstand": "Тумбочка", "sofa": "На диване",
-        "settings_app": "Настройки", "phone_settings": "Настройки телефона", "phone_color": "Цвет телефона",
+        "settings_app": "Настройки", "weather_app": "Погода", "weather_unknown": "Нет данных",
+        "phone_settings": "Настройки телефона", "phone_color": "Цвет телефона",
         "choose_color": "Нажми 1–5 для выбора", "colors": ["Чёрный", "Серебристый", "Синий", "Золотой", "Розовый"],
     },
     "Español": {
         "bank": "Banco Triple1", "history": "Transacciones recientes:",
         "start": "Saldo inicial", "guard": "Junto al guardia", "bridge": "Junto al puente",
         "repair": "Reparación", "nightstand": "Mesita de noche", "sofa": "En el sofá",
-        "settings_app": "Ajustes", "phone_settings": "Ajustes del teléfono", "phone_color": "Color del teléfono",
+        "settings_app": "Ajustes", "weather_app": "Clima", "weather_unknown": "Sin datos",
+        "phone_settings": "Ajustes del teléfono", "phone_color": "Color del teléfono",
         "choose_color": "Pulsa 1–5 para elegir", "colors": ["Negro", "Plateado", "Azul", "Dorado", "Rosa"],
     },
     "Deutsch": {
         "bank": "Triple1 Bank", "history": "Letzte Transaktionen:",
         "start": "Anfangsguthaben", "guard": "Beim Wachmann", "bridge": "Bei der Brücke",
         "repair": "Reparatur", "nightstand": "Nachttisch", "sofa": "Auf dem Sofa",
-        "settings_app": "Einstellungen", "phone_settings": "Telefoneinstellungen", "phone_color": "Telefonfarbe",
+        "settings_app": "Einstellungen", "weather_app": "Wetter", "weather_unknown": "Keine Daten",
+        "phone_settings": "Telefoneinstellungen", "phone_color": "Telefonfarbe",
         "choose_color": "1–5 zum Auswählen", "colors": ["Schwarz", "Silber", "Blau", "Gold", "Pink"],
     },
     "Français": {
         "bank": "Banque Triple1", "history": "Transactions récentes :",
         "start": "Solde initial", "guard": "Près du garde", "bridge": "Près du pont",
         "repair": "Réparation", "nightstand": "Table de chevet", "sofa": "Sur le canapé",
-        "settings_app": "Réglages", "phone_settings": "Réglages du téléphone", "phone_color": "Couleur du téléphone",
+        "settings_app": "Réglages", "weather_app": "Météo", "weather_unknown": "Aucune donnée",
+        "phone_settings": "Réglages du téléphone", "phone_color": "Couleur du téléphone",
         "choose_color": "Appuie sur 1–5", "colors": ["Noir", "Argent", "Bleu", "Or", "Rose"],
     },
 }
 
 
 def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_settings,
-                      phone_y_offset, money_history, language="English"):
+                      phone_y_offset, money_history, language="English",
+                      weather_label=""):
     width, height = screen.get_size()
     labels = PHONE_TRANSLATIONS.get(language, PHONE_TRANSLATIONS["English"])
     p_w, p_h = 220, 400
@@ -4115,6 +4137,15 @@ def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_s
             labels["settings_app"], True, (220, 220, 220)
         )
         screen.blit(settings_name, (settings_x, icon_y + 50))
+
+        weather_x = display_rect.x + 20
+        weather_y = icon_y + 95
+        pygame.draw.rect(screen, (45, 115, 165), (weather_x, weather_y, 45, 45), border_radius=10)
+        screen.blit(font_small.render("3", True, (255, 255, 255)), (weather_x + 15, weather_y + 10))
+        weather_name = _cached_ui_font(None, 11, bold=True).render(
+            labels["weather_app"], True, (220, 220, 220)
+        )
+        screen.blit(weather_name, (weather_x, weather_y + 50))
 
     elif current_app == 1:
         # Position all text relative to display_rect.y.
@@ -4162,6 +4193,16 @@ def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_s
             labels["colors"][selected_idx], True, (255, 255, 255)
         )
         screen.blit(selected_name, (display_rect.x + 15, display_rect.y + 175))
+
+    elif current_app == 3:
+        title = _cached_ui_font(None, 16, bold=True).render(
+            labels["weather_app"], True, (135, 205, 255)
+        )
+        screen.blit(title, (display_rect.x + 15, display_rect.y + 45))
+        weather_text = _cached_ui_font(None, 15, bold=True).render(
+            weather_label or labels["weather_unknown"], True, (240, 240, 240)
+        )
+        screen.blit(weather_text, (display_rect.x + 15, display_rect.y + 95))
 
 def run_open_world(screen, settings, *, continue_game=True):
     """Run ATOF's continuous open-world game session."""
@@ -4260,7 +4301,7 @@ def run_open_world(screen, settings, *, continue_game=True):
 
     # GAME OBJECTS
     atom = Player(7738, 2330)
-    car = Car(7985, 2383)
+    car = Car(_constants.GARAGE_POS[0], 2344)
     car.angle = 270
     if game_save:
         player_data = game_save.get("player", {})
@@ -4268,7 +4309,7 @@ def run_open_world(screen, settings, *, continue_game=True):
         atom.angle = player_data.get("angle", 0)
         atom.health = game_save.get("hero_health", atom.max_health)
         car_data = game_save.get("car", {})
-        car.pos.update(car_data.get("x", 7985), car_data.get("y", 2383))
+        car.pos.update(car_data.get("x", _constants.GARAGE_POS[0]), car_data.get("y", 2344))
         car.angle = car_data.get("angle", 270)
         car.speed = car_data.get("speed", 0)
         car.motion_velocity = pygame.Vector2(car.speed, 0).rotate(-car.angle + 180)
@@ -4645,8 +4686,19 @@ def run_open_world(screen, settings, *, continue_game=True):
             "is_broken": bool(getattr(vehicle, "is_broken", False)),
         }
 
-    def garage_menu():
+    def garage_menu(park_current=False):
         nonlocal car, in_car, money, total_spent
+        if park_current and len(garage_cars) < 5:
+            current_record = car_record(car, "Current vehicle")
+            if (
+                len(garage_cars) == 1
+                and garage_cars[0].get("vehicle_class") == current_record["vehicle_class"]
+                and garage_cars[0].get("name") == "Special Tornado"
+            ):
+                garage_cars[0] = current_record
+            else:
+                garage_cars.append(current_record)
+            in_car = False
         selected = 0
         clock = pygame.time.Clock()
         engine_names = ("Factory", "Street Torque", "Sport Cam", "Turbo V6", "Twin Turbo", "Racing Spec")
@@ -4656,24 +4708,21 @@ def run_open_world(screen, settings, *, continue_game=True):
         wheel_prices = (180, 400, 750, 1200, 1800)
         while True:
             screen.fill((20, 18, 16))
-            title = game_font.render("GARAGE", True, (238, 164, 47))
-            screen.blit(title, title.get_rect(center=(screen.get_width() // 2, 55)))
-            cards = []
-            for index, stored in enumerate(garage_cars):
-                rect = pygame.Rect(60, 110 + index * 64, 500, 52)
-                cards.append(rect)
-                color = (110, 67, 25) if index == selected else (48, 42, 38)
-                pygame.draw.rect(screen, color, rect, border_radius=5)
-                label = (
-                    f"{stored.get('name', 'Vehicle')}  |  "
-                    f"engine {int(stored.get('engine_upgrade', 0)) + 1}/6  |  "
-                    f"wheels {int(stored.get('wheel_upgrade', 0)) + 1}/6"
-                )
-                screen.blit(small_font.render(label, True, (255, 255, 255)), (rect.x + 14, rect.y + 15))
-
             selected_car = garage_cars[selected]
+            title = game_font.render(
+                selected_car.get("name", "Vehicle"), True, (238, 164, 47)
+            )
+            screen.blit(title, title.get_rect(center=(screen.get_width() // 2, 55)))
             engine_level = max(0, min(5, int(selected_car.get("engine_upgrade", 0))))
             wheel_level = max(0, min(5, int(selected_car.get("wheel_upgrade", 0))))
+            preview = pygame.Surface((440, 300), pygame.SRCALPHA)
+            preview.fill((34, 34, 39))
+            preview_image = traffic.get_police_car_image() if selected_car.get("vehicle_class") == "stolen-police" else (
+                traffic.get_traffic_car_image() if selected_car.get("vehicle_class") == "stolen-sedan" else car.image
+            )
+            preview_image = pygame.transform.smoothscale(preview_image, (384, 192))
+            preview.blit(preview_image, preview_image.get_rect(center=preview.get_rect().center))
+            screen.blit(preview, (55, 130))
             specs = [
                 f"Vehicle: {selected_car.get('name', 'Vehicle')}",
                 f"Engine: {engine_names[engine_level]}",
@@ -4685,13 +4734,13 @@ def run_open_world(screen, settings, *, continue_game=True):
                 f"Money: {money} UAH",
             ]
             for index, text in enumerate(specs):
-                screen.blit(small_font.render(text, True, (230, 230, 230)), (650, 125 + index * 32))
+                screen.blit(small_font.render(text, True, (230, 230, 230)), (550, 125 + index * 32))
 
             buttons = [
-                pygame.Rect(650, 305, 230, 42),
-                pygame.Rect(650, 355, 230, 42),
-                pygame.Rect(650, 415, 230, 42),
-                pygame.Rect(650, 465, 230, 42),
+                pygame.Rect(550, 390, 300, 42),
+                pygame.Rect(550, 440, 300, 42),
+                pygame.Rect(550, 490, 300, 42),
+                pygame.Rect(550, 540, 300, 42),
             ]
             levels = (
                 engine_level,
@@ -4707,8 +4756,8 @@ def run_open_world(screen, settings, *, continue_game=True):
                 pygame.draw.rect(screen, (76, 52, 31), rect, border_radius=5)
                 screen.blit(small_font.render(label, True, (255, 255, 255)), (rect.x + 12, rect.y + 11))
             screen.blit(
-                small_font.render("Up/Down or click a car. Enter: take it. Esc: leave.", True, (180, 180, 180)),
-                (60, screen.get_height() - 42),
+                small_font.render("Left/Right: choose car | E: take it | Esc: leave", True, (180, 180, 180)),
+                (55, screen.get_height() - 42),
             )
             pygame.display.flip()
 
@@ -4718,9 +4767,9 @@ def run_open_world(screen, settings, *, continue_game=True):
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         return "CONTINUE"
-                    if event.key in (pygame.K_UP, pygame.K_DOWN):
-                        selected = (selected + (1 if event.key == pygame.K_DOWN else -1)) % len(garage_cars)
-                    elif event.key == pygame.K_RETURN:
+                    if event.key in (pygame.K_LEFT, pygame.K_RIGHT):
+                        selected = (selected + (1 if event.key == pygame.K_RIGHT else -1)) % len(garage_cars)
+                    elif event.key in (pygame.K_e, pygame.K_RETURN):
                         previous = car_record(car, "Current vehicle")
                         stored = garage_cars[selected]
                         car.vehicle_class = stored.get("vehicle_class", "sport")
@@ -4730,7 +4779,9 @@ def run_open_world(screen, settings, *, continue_game=True):
                         car.is_broken = bool(stored.get("is_broken", False))
                         apply_car_upgrades(car)
                         garage_cars[selected] = previous
-                        in_car = False
+                        car.pos.update(_constants.GARAGE_POS[0], 2344)
+                        atom.pos.update(_constants.GARAGE_POS[0], 2410)
+                        in_car = True
                         return "CONTINUE"
                     elif event.key == pygame.K_s and len(garage_cars) < 5:
                         garage_cars.append(car_record(car, "Stored vehicle"))
@@ -4747,9 +4798,6 @@ def run_open_world(screen, settings, *, continue_game=True):
                             total_spent += wheel_prices[level]
                             selected_car["wheel_upgrade"] = level + 1
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    for index, rect in enumerate(cards):
-                        if rect.collidepoint(event.pos):
-                            selected = index
                     for button_index, rect in enumerate(buttons):
                         if rect.collidepoint(event.pos):
                             if button_index == 0:
@@ -4910,6 +4958,9 @@ def run_open_world(screen, settings, *, continue_game=True):
                         elif keyboard.matches(event, pygame.K_2) or event.key == pygame.K_KP2:
                             current_app = 2
                             phone_click_sfx.play()
+                        elif keyboard.matches(event, pygame.K_3) or event.key == pygame.K_KP3:
+                            current_app = 3
+                            phone_click_sfx.play()
                     elif current_app == 2:
                         # Number keys select one of the available phone case colors.
                         phone_color_keys = {
@@ -4996,8 +5047,11 @@ def run_open_world(screen, settings, *, continue_game=True):
                         if keyboard.matches(event, pygame.K_h):
                             manual_headlights = not manual_headlights
                         if keyboard.matches(event, pygame.K_e):
-                            play_car_horn(car_sfx, horn_chan)
-                            traffic.respond_to_horn(npc_cars, car.pos)
+                            if car.pos.distance_to(pygame.Vector2(_constants.GARAGE_POS)) < _constants.GARAGE_RADIUS:
+                                garage_menu(park_current=True)
+                            else:
+                                play_car_horn(car_sfx, horn_chan)
+                                traffic.respond_to_horn(npc_cars, car.pos)
                         if keyboard.matches(event, pygame.K_COMMA):
                             radio.cycle_station(-1)
                         if keyboard.matches(event, pygame.K_PERIOD):
@@ -5005,7 +5059,13 @@ def run_open_world(screen, settings, *, continue_game=True):
                     elif not phone_active and keyboard.matches(event, pygame.K_e):
                         old_in_car = in_car
                         if atom.pos.distance_to(pygame.Vector2(_constants.GARAGE_POS)) < _constants.GARAGE_RADIUS:
-                            garage_menu()
+                            nearby_car = nearby_traffic_car(atom.pos)
+                            if nearby_car is not None:
+                                hijack_traffic_car(nearby_car)
+                            elif atom.pos.distance_to(car.pos) < 100 and not car.is_broken:
+                                in_car = handle_car_logic(atom, car, in_car)
+                            else:
+                                garage_menu()
                         else:
                             nearby_car = nearby_traffic_car(atom.pos)
                             if nearby_car is not None:
@@ -5256,7 +5316,6 @@ def run_open_world(screen, settings, *, continue_game=True):
                 screen.blit(world_bg, (off_x, off_y))
 
             def draw_city_world():
-                draw_garage(screen, off_x, off_y)
                 for parked_car in parked_cars:
                     parked_car.draw(screen, off_x, off_y)
                 car.draw(screen, off_x, off_y)
@@ -5335,26 +5394,36 @@ def run_open_world(screen, settings, *, continue_game=True):
                     health=atom.health,
                 )
                 if not phone_active and phone_y_offset >= 449.0 and not weapons.wheel_open:
+                    interactions = []
+                    garage_nearby = (
+                        (in_car and car.pos.distance_to(pygame.Vector2(_constants.GARAGE_POS)) < _constants.GARAGE_RADIUS)
+                        or (
+                            not in_car
+                            and atom.pos.distance_to(pygame.Vector2(_constants.GARAGE_POS)) < _constants.GARAGE_RADIUS
+                        )
+                    )
                     if in_car:
-                        interaction = ("F", "exit_car")
+                        interactions.append(("F", "exit_car"))
                     else:
                         nearby_car = nearby_traffic_car(atom.pos)
                         if nearby_car is not None:
-                            interaction = ("E", "steal_car")
+                            interactions.append(("E", "steal_car"))
                         elif car.is_broken and atom.pos.distance_to(car.pos) < 100:
-                            interaction = ("R", "repair_car") if money >= 50 else None
+                            if money >= 50:
+                                interactions.append(("R", "repair_car"))
                         elif atom.pos.distance_to(car.pos) < 100 and not car.is_broken:
-                            interaction = ("E", "enter_car")
+                            interactions.append(("E", "enter_car"))
                         elif atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
-                            interaction = ("E", "enter_house")
-                        else:
-                            interaction = None
-                    if interaction is not None:
+                            interactions.append(("E", "enter_house"))
+                    if garage_nearby:
+                        interactions.append(("E", "enter_garage"))
+                    for prompt_index, interaction in enumerate(interactions):
                         draw_interaction_prompt(
                             screen,
                             interaction[0],
                             _interaction_text(current_lang_name, interaction[1]),
                             left_margin=250,
+                            bottom_margin=65 + prompt_index * 58,
                         )
                 if in_car:
                     radio_label = t["radio_on"] if radio.is_on else t["radio_off"]
@@ -5441,7 +5510,7 @@ def run_open_world(screen, settings, *, continue_game=True):
         if phone_y_offset < 449.0:
             draw_mobile_phone(screen, money, game_time, small_font,
                                      current_app, phone_settings, phone_y_offset, money_history,
-                                     current_lang_name)
+                                     current_lang_name, weather.label(current_lang_name))
 
         if wake_fade_started is not None:
             fade_progress = (time.perf_counter() - wake_fade_started) / 1.2
