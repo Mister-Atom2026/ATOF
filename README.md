@@ -1,6 +1,12 @@
 # ATOF
 Game About Mister Atom
 
+## Version 0.8.0 RC 1 — "Weapon Textures & Garage"
+
+- Uses the supplied weapon textures in the player's hands.
+- Uses the supplied reduced ammunition texture for pistol, shotgun, and SMG projectiles.
+- Keeps Goida G-2 projectiles as plain rounds without the ammunition texture.
+
 ## Version 0.8.0 Beta 4 — "Garage, Traffic & Rain"
 
 - Adds a garage at the starting vehicle location, opened with E, with up to five stored vehicles.

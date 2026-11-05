@@ -1003,6 +1003,7 @@ class Projectile:
     damage: float = 18.0
     remaining_range: float = 900.0
     radius: int = 4
+    texture: Optional[pygame.Surface] = None
 
     def update(self, frame_scale: float) -> bool:
         displacement = self.velocity * frame_scale
@@ -1017,16 +1018,32 @@ class Projectile:
         return self.remaining_range > 0
 
     def draw(self, screen, offset_x: float, offset_y: float) -> None:
+        screen_position = pygame.Vector2(
+            self.position.x + offset_x, self.position.y + offset_y
+        )
+        if self.texture is not None and self.velocity.length_squared():
+            angle = math.degrees(math.atan2(-self.velocity.y, self.velocity.x))
+            rotated = pygame.transform.rotate(self.texture, angle)
+            screen.blit(rotated, rotated.get_rect(center=screen_position))
+            return
         color = (255, 221, 125) if self.owner == "player" else (255, 80, 65)
         pygame.draw.circle(
             screen,
             color,
-            (round(self.position.x + offset_x), round(self.position.y + offset_y)),
+            (round(screen_position.x), round(screen_position.y)),
             self.radius,
         )
 
 
-def create_projectile(start, target, owner: str, *, speed: float, damage: float) -> Projectile | None:
+def create_projectile(
+    start,
+    target,
+    owner: str,
+    *,
+    speed: float,
+    damage: float,
+    texture: Optional[pygame.Surface] = None,
+) -> Projectile | None:
     direction = pygame.Vector2(target) - pygame.Vector2(start)
     if direction.length_squared() == 0:
         return None
@@ -1035,6 +1052,7 @@ def create_projectile(start, target, owner: str, *, speed: float, damage: float)
         direction.normalize() * speed,
         owner,
         damage=damage,
+        texture=texture,
     )
 
 
@@ -1178,18 +1196,23 @@ class WeaponWheel:
         texture_paths = {
             "pistol": "weapons/mathew37.png",
             "shotgun": "weapons/svityaz111.png",
-            "rifle": "weapons/308win.png",
         }
         for weapon, relative_path in texture_paths.items():
             path = _ASSET_ROOT / relative_path
             if path.exists():
                 texture = load_image(relative_path, alpha=True)
-                if weapon == "rifle":
-                    texture = pygame.transform.smoothscale(
-                        texture,
-                        (max(1, texture.get_width() // 4), max(1, texture.get_height() // 4)),
-                    )
                 self.weapon_textures[weapon] = texture
+        self.projectile_texture = None
+        projectile_path = _ASSET_ROOT / "weapons/308win.png"
+        if projectile_path.exists():
+            raw_projectile = load_image("weapons/308win.png", alpha=True)
+            self.projectile_texture = pygame.transform.smoothscale(
+                raw_projectile,
+                (
+                    max(1, raw_projectile.get_width() // 4),
+                    max(1, raw_projectile.get_height() // 4),
+                ),
+            )
 
     @property
     def ammo(self) -> int:
@@ -1329,6 +1352,7 @@ class WeaponWheel:
                 "player",
                 speed=stats["projectile_speed"],
                 damage=stats["damage"],
+                texture=self.projectile_texture if self.selected != "rifle" else None,
             )
             if projectile is not None:
                 projectile.velocity.rotate_ip(angle)
@@ -2129,6 +2153,7 @@ def draw_handgun(
     offset_y,
     player_angle=None,
     weapon_type="pistol",
+    weapon_texture=None,
 ):
     start = pygame.Vector2(player_position) + pygame.Vector2(offset_x, offset_y)
     direction = pygame.Vector2(target_position) - pygame.Vector2(player_position)
@@ -2142,6 +2167,11 @@ def draw_handgun(
         angle_radians = math.radians(limited_angle)
         direction = pygame.Vector2(-math.sin(angle_radians), math.cos(angle_radians))
     direction = direction.normalize()
+    if weapon_texture is not None:
+        angle = math.degrees(math.atan2(-direction.y, direction.x))
+        texture = pygame.transform.rotate(weapon_texture, angle)
+        screen.blit(texture, texture.get_rect(center=(round(start.x + direction.x * 17), round(start.y + direction.y * 17))))
+        return
     side = pygame.Vector2(-direction.y, direction.x)
     grip = start + direction * 7
     barrel_base = start + direction * (weapon_length - 5)
@@ -5348,6 +5378,7 @@ def run_open_world(screen, settings, *, continue_game=True):
                         off_y,
                         atom.angle,
                         weapons.selected,
+                        weapons.weapon_textures.get(weapons.selected),
                     )
                 if car.is_broken and atom.pos.distance_to(car.pos) < 100:
                     if car.repair_progress > 0:
