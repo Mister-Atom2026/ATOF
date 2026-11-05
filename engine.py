@@ -1022,8 +1022,8 @@ class Projectile:
             self.position.x + offset_x, self.position.y + offset_y
         )
         if self.texture is not None and self.velocity.length_squared():
-            angle = math.degrees(math.atan2(-self.velocity.y, self.velocity.x))
-            rotated = pygame.transform.rotate(self.texture, angle)
+            rotation = math.degrees(math.atan2(-self.velocity.x, -self.velocity.y))
+            rotated = pygame.transform.rotate(self.texture, rotation)
             screen.blit(rotated, rotated.get_rect(center=screen_position))
             return
         color = (255, 221, 125) if self.owner == "player" else (255, 80, 65)
@@ -1197,10 +1197,22 @@ class WeaponWheel:
             "pistol": "weapons/mathew37.png",
             "shotgun": "weapons/svityaz111.png",
         }
+        texture_scales = {
+            "pistol": 0.5,
+            "shotgun": 0.25,
+        }
         for weapon, relative_path in texture_paths.items():
             path = _ASSET_ROOT / relative_path
             if path.exists():
                 texture = load_image(relative_path, alpha=True)
+                scale = texture_scales[weapon]
+                texture = pygame.transform.smoothscale(
+                    texture,
+                    (
+                        max(1, round(texture.get_width() * scale)),
+                        max(1, round(texture.get_height() * scale)),
+                    ),
+                )
                 self.weapon_textures[weapon] = texture
         self.projectile_texture = None
         projectile_path = _ASSET_ROOT / "weapons/308win.png"
@@ -1500,7 +1512,7 @@ class Player:
     def __init__(self, x, y):
         self.pos = pygame.Vector2(x, y)
         self.speed = 2
-        self.angle = 0  # 0 degrees points south (down) by default.
+        self.angle = 180  # 180 degrees points north (up) by default.
         self.is_moving = False
         self.health = 100.0
         self.max_health = 100.0
@@ -2156,20 +2168,18 @@ def draw_handgun(
     weapon_texture=None,
 ):
     start = pygame.Vector2(player_position) + pygame.Vector2(offset_x, offset_y)
-    direction = pygame.Vector2(target_position) - pygame.Vector2(player_position)
-    if direction.length_squared() == 0:
-        return
-    weapon_length = 35 if weapon_type in ("shotgun", "rifle") else 25
     if player_angle is not None:
-        desired_angle = -math.degrees(math.atan2(direction.x, direction.y))
-        angle_delta = (desired_angle - player_angle + 180) % 360 - 180
-        limited_angle = player_angle + max(-45, min(45, angle_delta))
-        angle_radians = math.radians(limited_angle)
+        angle_radians = math.radians(player_angle)
         direction = pygame.Vector2(-math.sin(angle_radians), math.cos(angle_radians))
-    direction = direction.normalize()
+    else:
+        direction = pygame.Vector2(target_position) - pygame.Vector2(player_position)
+        if direction.length_squared() == 0:
+            return
+        direction = direction.normalize()
+    weapon_length = 35 if weapon_type in ("shotgun", "rifle") else 25
     if weapon_texture is not None:
-        angle = math.degrees(math.atan2(-direction.y, direction.x))
-        texture = pygame.transform.rotate(weapon_texture, angle)
+        rotation = math.degrees(math.atan2(-direction.x, -direction.y))
+        texture = pygame.transform.rotate(weapon_texture, rotation)
         screen.blit(texture, texture.get_rect(center=(round(start.x + direction.x * 17), round(start.y + direction.y * 17))))
         return
     side = pygame.Vector2(-direction.y, direction.x)
@@ -5142,7 +5152,10 @@ def run_open_world(screen, settings, *, continue_game=True):
                 and not phone_active
                 and not weapons.wheel_open
             ):
-                target_position = camera.screen_to_world(event.pos)
+                facing_radians = math.radians(atom.angle)
+                target_position = atom.pos + pygame.Vector2(
+                    -math.sin(facing_radians), math.cos(facing_radians)
+                ) * 1000
                 if weapons.selected == "knife":
                     hit = weapons.melee_target(
                         atom.pos,
@@ -5169,7 +5182,10 @@ def run_open_world(screen, settings, *, continue_game=True):
             and not fridge_menu_open
             and not weapons.wheel_open
         ):
-            target_position = camera.screen_to_world(pygame.mouse.get_pos())
+            facing_radians = math.radians(atom.angle)
+            target_position = atom.pos + pygame.Vector2(
+                -math.sin(facing_radians), math.cos(facing_radians)
+            ) * 1000
             projectiles.extend(
                 weapons.fire_if_held(atom.pos, target_position, game_audio)
             )
@@ -5471,11 +5487,6 @@ def run_open_world(screen, settings, *, continue_game=True):
                         small_font.render(radio_status, True, (255, 255, 255)),
                         (20, 50),
                     )
-                weather_text = small_font.render(
-                    weather.label(current_lang_name), True, (220, 220, 220)
-                )
-                screen.blit(weather_text, (20, 76))
-
             frame_renderer.submit(RenderLayer.BACKGROUND, draw_city_background)
             frame_renderer.submit(RenderLayer.WORLD, draw_city_world)
             frame_renderer.submit(RenderLayer.LIGHTING, draw_city_lighting)
