@@ -4301,7 +4301,9 @@ def run_open_world(screen, settings, *, continue_game=True):
 
     # GAME OBJECTS
     atom = Player(7738, 2330)
-    car = Car(_constants.GARAGE_POS[0], 2344)
+    # The starter vehicle is stored in the garage until the player takes it.
+    # Keep the runtime vehicle object off the map while it is not deployed.
+    car = Car(-1000, -1000)
     car.angle = 270
     if game_save:
         player_data = game_save.get("player", {})
@@ -4317,6 +4319,8 @@ def run_open_world(screen, settings, *, continue_game=True):
         car.is_broken = car_data.get("is_broken", False)
         car.engine_upgrade = int(car_data.get("engine_upgrade", 0))
         car.wheel_upgrade = int(car_data.get("wheel_upgrade", 0))
+    else:
+        car.pos.update(-1000, -1000)
     apply_car_upgrades(car)
     garage_cars = list(game_save.get("garage_cars", []))[:5] if game_save else []
     parked_cars = []
