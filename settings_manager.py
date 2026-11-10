@@ -57,6 +57,7 @@ _WEAPON_RESERVE_CAPACITIES = {
     "rifle": 150,
     "smg": 80,
 }
+_VEHICLE_CLASSES = {"sport", "stolen-sedan", "stolen-police"}
 
 
 def _bounded_int(value, default, minimum, maximum):
@@ -85,6 +86,30 @@ def _normalize_weapon_ammo(values, field, capacities):
         for weapon, capacity in capacities.items()
         if weapon in raw
     }
+
+
+def _normalize_garage_cars(values):
+    raw_cars = values.get("garage_cars")
+    if not isinstance(raw_cars, list):
+        return None
+
+    cars = []
+    for raw_car in raw_cars[:6]:
+        if not isinstance(raw_car, dict):
+            continue
+        vehicle_class = raw_car.get("vehicle_class")
+        if vehicle_class not in _VEHICLE_CLASSES:
+            vehicle_class = "sport"
+        name = raw_car.get("name")
+        cars.append({
+            "name": name if isinstance(name, str) else vehicle_class.replace("-", " ").title(),
+            "vehicle_class": vehicle_class,
+            "engine_upgrade": _bounded_int(raw_car.get("engine_upgrade"), 0, 0, 5),
+            "wheel_upgrade": _bounded_int(raw_car.get("wheel_upgrade"), 0, 0, 5),
+            "health": _finite_number(raw_car.get("health"), default=200.0, maximum=200.0),
+            "is_broken": bool(raw_car.get("is_broken", False)),
+        })
+    return cars
 
 
 def _normalize_statistics(values: dict) -> dict[str, int | float | str]:
@@ -187,7 +212,13 @@ def load_game_save():
             "speed": _finite_number(car.get("speed"), minimum=-15.0, maximum=15.0),
             "health": _finite_number(car.get("health"), default=200.0, maximum=200.0),
             "is_broken": bool(car.get("is_broken", False)),
+            "vehicle_class": car.get("vehicle_class")
+            if car.get("vehicle_class") in _VEHICLE_CLASSES
+            else "sport",
+            "engine_upgrade": _bounded_int(car.get("engine_upgrade"), 0, 0, 5),
+            "wheel_upgrade": _bounded_int(car.get("wheel_upgrade"), 0, 0, 5),
         },
+        "garage_cars": _normalize_garage_cars(values),
         "house_player": {
             "x": house_x,
             "y": house_y,

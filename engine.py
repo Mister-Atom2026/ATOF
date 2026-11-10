@@ -74,7 +74,7 @@ _INTERACTION_TEXTS = {
         "enter_car": "Sit in car", "steal_car": "Steal vehicle",
         "exit_car": "Leave vehicle", "enter_house": "Enter house",
         "exit_house": "Leave house", "repair_car": "Repair vehicle",
-        "enter_garage": "Enter garage",
+        "enter_garage": "Use garage",
         "sleep": "Sleep and save", "fridge": "Open fridge",
         "fridge_title": "Fridge", "fridge_satiety": "Satiety: {value}%",
         "fridge_apple": "Apple", "fridge_sandwich": "Sandwich",
@@ -85,7 +85,7 @@ _INTERACTION_TEXTS = {
         "enter_car": "Сісти в машину", "steal_car": "Викрасти машину",
         "exit_car": "Вийти з машини", "enter_house": "Увійти в дім",
         "exit_house": "Вийти з дому", "repair_car": "Відремонтувати",
-        "enter_garage": "Увійти в гараж",
+        "enter_garage": "Скористатися гаражем",
         "sleep": "Заснути й зберегтися", "fridge": "Відкрити холодильник",
         "fridge_title": "Холодильник", "fridge_satiety": "Ситість: {value}%",
         "fridge_apple": "Яблуко", "fridge_sandwich": "Бутерброд",
@@ -96,7 +96,7 @@ _INTERACTION_TEXTS = {
         "enter_car": "Сесть в машину", "steal_car": "Угнать машину",
         "exit_car": "Выйти из машины", "enter_house": "Войти в дом",
         "exit_house": "Выйти из дома", "repair_car": "Починить машину",
-        "enter_garage": "Войти в гараж",
+        "enter_garage": "Использовать гараж",
         "sleep": "Спать и сохранить игру", "fridge": "Открыть холодильник",
         "fridge_title": "Холодильник", "fridge_satiety": "Сытость: {value}%",
         "fridge_apple": "Яблоко", "fridge_sandwich": "Бутерброд",
@@ -107,7 +107,7 @@ _INTERACTION_TEXTS = {
         "enter_car": "Subir al coche", "steal_car": "Robar vehículo",
         "exit_car": "Salir del coche", "enter_house": "Entrar en casa",
         "exit_house": "Salir de casa", "repair_car": "Reparar vehículo",
-        "enter_garage": "Entrar al garaje",
+        "enter_garage": "Usar el garaje",
         "sleep": "Dormir y guardar", "fridge": "Abrir nevera",
         "fridge_title": "Nevera", "fridge_satiety": "Saciedad: {value}%",
         "fridge_apple": "Manzana", "fridge_sandwich": "Bocadillo",
@@ -118,7 +118,7 @@ _INTERACTION_TEXTS = {
         "enter_car": "Ins Auto steigen", "steal_car": "Auto stehlen",
         "exit_car": "Auto verlassen", "enter_house": "Haus betreten",
         "exit_house": "Haus verlassen", "repair_car": "Auto reparieren",
-        "enter_garage": "Garage betreten",
+        "enter_garage": "Garage nutzen",
         "sleep": "Schlafen und speichern", "fridge": "Kühlschrank öffnen",
         "fridge_title": "Kühlschrank", "fridge_satiety": "Sättigung: {value}%",
         "fridge_apple": "Apfel", "fridge_sandwich": "Sandwich",
@@ -129,7 +129,7 @@ _INTERACTION_TEXTS = {
         "enter_car": "Monter en voiture", "steal_car": "Voler le véhicule",
         "exit_car": "Sortir de voiture", "enter_house": "Entrer dans la maison",
         "exit_house": "Sortir de la maison", "repair_car": "Réparer le véhicule",
-        "enter_garage": "Entrer dans le garage",
+        "enter_garage": "Utiliser le garage",
         "sleep": "Dormir et sauvegarder", "fridge": "Ouvrir le réfrigérateur",
         "fridge_title": "Réfrigérateur", "fridge_satiety": "Satiété : {value}%",
         "fridge_apple": "Pomme", "fridge_sandwich": "Sandwich",
@@ -1084,8 +1084,31 @@ def _play_shot_sound(sound):
             pass
 
 
+def _weapon_geometry(start, direction, weapon_type, weapon_texture=None):
+    start = pygame.Vector2(start)
+    direction = pygame.Vector2(direction)
+    side = pygame.Vector2(-direction.y, direction.x)
+    if weapon_texture is not None:
+        distance = 17 if weapon_type == "shotgun" else 7
+        center = start + direction * distance + side * 3
+        bounds = weapon_texture.get_bounding_rect()
+        if bounds.width and bounds.height:
+            muzzle_offset = (
+                side * (bounds.left + bounds.width / 2 - weapon_texture.get_width() / 2)
+                + direction * (weapon_texture.get_height() / 2 - bounds.top)
+            )
+        else:
+            muzzle_offset = direction * (weapon_texture.get_height() / 2)
+        return center, center + muzzle_offset
+
+    weapon_length = 35 if weapon_type in ("shotgun", "rifle") else 25
+    return None, start + direction * weapon_length
+
+
 class WeaponWheel:
     WEAPONS = ("none", "pistol", "shotgun", "rifle", "smg")
+    STARTING_AMMO = {"pistol": 7, "shotgun": 0, "rifle": 0, "smg": 0}
+    STARTING_RESERVE_AMMO = {"pistol": 0, "shotgun": 0, "rifle": 0, "smg": 0}
 
     # Weapon stats: (damage, fire_delay, reload_time, mag_size, reserve_max, spread_count, spread_angles, projectile_speed, range)
     WEAPON_STATS = {
@@ -1226,6 +1249,15 @@ class WeaponWheel:
                 ),
             )
 
+    @classmethod
+    def new_game(cls):
+        return cls(
+            ammo=7,
+            reserve_ammo=0,
+            ammo_by_weapon=cls.STARTING_AMMO,
+            reserve_ammo_by_weapon=cls.STARTING_RESERVE_AMMO,
+        )
+
     @property
     def ammo(self) -> int:
         return self.ammo_by_weapon.get(self.selected, 0)
@@ -1353,13 +1385,22 @@ class WeaponWheel:
         if current_time - self.last_fire_time < stats["fire_delay"]:
             return []
 
+        direction = pygame.Vector2(target) - pygame.Vector2(origin)
+        if direction.length_squared() == 0:
+            return []
+        direction.normalize_ip()
         self.ammo -= 1
         self.last_fire_time = current_time
+
+        texture = self.weapon_textures.get(self.selected)
+        _, muzzle_position = _weapon_geometry(
+            origin, direction, self.selected, texture
+        )
 
         projectiles = []
         for angle in stats["spread_angles"]:
             projectile = create_projectile(
-                origin,
+                muzzle_position,
                 target,
                 "player",
                 speed=stats["projectile_speed"],
@@ -1676,6 +1717,10 @@ class SurvivalNeeds:
                     player.health + self.REGEN_PER_HOUR,
                 )
         return crossed_hours
+
+    def sleep(self, game_minutes: float, player: Player) -> None:
+        self.advance(game_minutes, player)
+        self.hunger = 70.0
 
 
 def _get_surface_grip(col_mask, surface_map, position, angle):
@@ -2177,12 +2222,12 @@ def draw_handgun(
             return
         direction = direction.normalize()
     weapon_length = 35 if weapon_type in ("shotgun", "rifle") else 25
+    weapon_center, muzzle = _weapon_geometry(
+        start, direction, weapon_type, weapon_texture
+    )
     if weapon_texture is not None:
         rotation = math.degrees(math.atan2(-direction.x, -direction.y))
         texture = pygame.transform.rotate(weapon_texture, rotation)
-        distance = 17 if weapon_type == "shotgun" else 7
-        side = pygame.Vector2(-direction.y, direction.x)
-        weapon_center = start + direction * distance + side * 3
         screen.blit(
             texture,
             texture.get_rect(center=(round(weapon_center.x), round(weapon_center.y))),
@@ -2191,7 +2236,6 @@ def draw_handgun(
     side = pygame.Vector2(-direction.y, direction.x)
     grip = start + direction * 7
     barrel_base = start + direction * (weapon_length - 5)
-    muzzle = barrel_base + direction * 5
     points = (
         grip + side * 3,
         grip - side * 3,
@@ -3764,10 +3808,11 @@ def build_game_state_data(game_state, atom, atom_h, car, weapons, wanted,
             "speed": car.speed,
             "health": car.health,
             "is_broken": car.is_broken,
+            "vehicle_class": getattr(car, "vehicle_class", "sport"),
             "engine_upgrade": int(getattr(car, "engine_upgrade", 0)),
             "wheel_upgrade": int(getattr(car, "wheel_upgrade", 0)),
         },
-        "garage_cars": list(garage_cars or [])[:5],
+        "garage_cars": list(garage_cars or []),
         "money": money,
         "earned": total_earned,
         "spent": total_spent,
@@ -4294,12 +4339,16 @@ def run_open_world(screen, settings, *, continue_game=True):
     fridge_selection = 0
     fridge_stock = list(FRIDGE_STARTING_STOCK)
     phone_settings = get_phone_settings()
-    weapons = WeaponWheel(
-        game_save.get("ammo", 7) if game_save else 7,
-        game_save.get("reserve_ammo", 49) if game_save else 49,
-        game_save.get("weapon", "pistol") if game_save else "pistol",
-        game_save.get("ammo_by_weapon") if game_save else None,
-        game_save.get("reserve_ammo_by_weapon") if game_save else None,
+    weapons = (
+        WeaponWheel(
+            game_save.get("ammo", 7),
+            game_save.get("reserve_ammo", 49),
+            game_save.get("weapon", "pistol"),
+            game_save.get("ammo_by_weapon"),
+            game_save.get("reserve_ammo_by_weapon"),
+        )
+        if game_save
+        else WeaponWheel.new_game()
     )
     wanted = WantedLevel(
         game_save.get("wanted_level", 0) if game_save else 0,
@@ -4363,14 +4412,21 @@ def run_open_world(screen, settings, *, continue_game=True):
         car.motion_velocity = pygame.Vector2(car.speed, 0).rotate(-car.angle + 180)
         car.health = min(car_data.get("health", car.max_health), car.max_health)
         car.is_broken = car_data.get("is_broken", False)
+        car.vehicle_class = car_data.get("vehicle_class", "sport")
+        car.is_police = car.vehicle_class == "stolen-police"
+        if car.is_police:
+            car.image = traffic.get_police_car_image()
+        elif car.vehicle_class == "stolen-sedan":
+            car.image = traffic.get_traffic_car_image()
         car.engine_upgrade = int(car_data.get("engine_upgrade", 0))
         car.wheel_upgrade = int(car_data.get("wheel_upgrade", 0))
     else:
         car.pos.update(-1000, -1000)
     apply_car_upgrades(car)
-    garage_cars = list(game_save.get("garage_cars", []))[:5] if game_save else []
+    saved_garage_cars = game_save.get("garage_cars") if game_save else None
+    garage_cars = list(saved_garage_cars or [])
     parked_cars = []
-    if not garage_cars:
+    if not game_save or saved_garage_cars is None:
         garage_cars = [{
             "name": "Special Tornado",
             "vehicle_class": "sport",
@@ -4379,6 +4435,17 @@ def run_open_world(screen, settings, *, continue_game=True):
             "health": car.health,
             "is_broken": car.is_broken,
         }]
+        car.pos.update(-1000, -1000)
+    elif car.pos.distance_to(pygame.Vector2(_constants.GARAGE_POS)) < _constants.GARAGE_RADIUS:
+        garage_cars.append({
+            "name": getattr(car, "vehicle_class", "sport").replace("-", " ").title(),
+            "vehicle_class": getattr(car, "vehicle_class", "sport"),
+            "engine_upgrade": car.engine_upgrade,
+            "wheel_upgrade": car.wheel_upgrade,
+            "health": car.health,
+            "is_broken": car.is_broken,
+        })
+        car.pos.update(-1000, -1000)
     survival = SurvivalNeeds(
         game_save.get("hunger", 100.0) if game_save else 100.0,
         game_save.get("survival_minute_progress", game_time % 60) if game_save else game_time % 60,
@@ -4738,18 +4805,17 @@ def run_open_world(screen, settings, *, continue_game=True):
 
     def garage_menu(park_current=False):
         nonlocal car, in_car, money, total_spent
-        if park_current and len(garage_cars) < 5:
+        if park_current:
+            if len(garage_cars) >= 5:
+                return "FULL"
             current_record = car_record(car, "Current vehicle")
-            if (
-                len(garage_cars) == 1
-                and garage_cars[0].get("vehicle_class") == current_record["vehicle_class"]
-                and garage_cars[0].get("name") == "Special Tornado"
-            ):
-                garage_cars[0] = current_record
-            else:
-                garage_cars.append(current_record)
+            garage_cars.append(current_record)
             in_car = False
-        selected = 0
+            car.pos.update(-1000, -1000)
+            car.speed = 0
+            car.motion_velocity.update(0, 0)
+            atom.pos.update(_constants.GARAGE_POS[0], 2410)
+        selected = len(garage_cars) - 1 if park_current else 0
         clock = pygame.time.Clock()
         engine_names = ("Factory", "Street Torque", "Sport Cam", "Turbo V6", "Twin Turbo", "Racing Spec")
         wheel_names = ("Factory", "Rain Grip", "Road Sport", "Track Soft", "Semi Slick", "All Weather")
@@ -4758,31 +4824,38 @@ def run_open_world(screen, settings, *, continue_game=True):
         wheel_prices = (180, 400, 750, 1200, 1800)
         while True:
             screen.fill((20, 18, 16))
-            selected_car = garage_cars[selected]
+            selected_car = garage_cars[selected] if garage_cars else None
             title = game_font.render(
-                selected_car.get("name", "Vehicle"), True, (238, 164, 47)
+                selected_car.get("name", "Vehicle") if selected_car else "Garage empty",
+                True,
+                (238, 164, 47),
             )
             screen.blit(title, title.get_rect(center=(screen.get_width() // 2, 55)))
-            engine_level = max(0, min(5, int(selected_car.get("engine_upgrade", 0))))
-            wheel_level = max(0, min(5, int(selected_car.get("wheel_upgrade", 0))))
+            engine_level = max(0, min(5, int(selected_car.get("engine_upgrade", 0)))) if selected_car else 0
+            wheel_level = max(0, min(5, int(selected_car.get("wheel_upgrade", 0)))) if selected_car else 0
             preview = pygame.Surface((440, 300), pygame.SRCALPHA)
             preview.fill((34, 34, 39))
-            preview_image = traffic.get_police_car_image() if selected_car.get("vehicle_class") == "stolen-police" else (
-                traffic.get_traffic_car_image() if selected_car.get("vehicle_class") == "stolen-sedan" else car.image
-            )
-            preview_image = pygame.transform.smoothscale(preview_image, (384, 192))
-            preview.blit(preview_image, preview_image.get_rect(center=preview.get_rect().center))
+            if selected_car:
+                preview_image = traffic.get_police_car_image() if selected_car.get("vehicle_class") == "stolen-police" else (
+                    traffic.get_traffic_car_image() if selected_car.get("vehicle_class") == "stolen-sedan" else car.image
+                )
+                preview_image = pygame.transform.smoothscale(preview_image, (384, 192))
+                preview.blit(preview_image, preview_image.get_rect(center=preview.get_rect().center))
             screen.blit(preview, (55, 130))
-            specs = [
-                f"Vehicle: {selected_car.get('name', 'Vehicle')}",
-                f"Engine: {engine_names[engine_level]}",
-                f"Wheels: {wheel_names[wheel_level]}",
-                f"Weight: {vehicle_weights.get(selected_car.get('vehicle_class'), 1600)} kg",
-                f"Max speed: {16.25 + engine_level * 0.8:.1f}",
-                f"Handling: {0.82 + wheel_level * 0.025:.2f}",
-                f"Health: {int(selected_car.get('health', 180))}",
-                f"Money: {money} UAH",
-            ]
+            specs = (
+                [
+                    f"Vehicle: {selected_car.get('name', 'Vehicle')}",
+                    f"Engine: {engine_names[engine_level]}",
+                    f"Wheels: {wheel_names[wheel_level]}",
+                    f"Weight: {vehicle_weights.get(selected_car.get('vehicle_class'), 1600)} kg",
+                    f"Max speed: {16.25 + engine_level * 0.8:.1f}",
+                    f"Handling: {0.82 + wheel_level * 0.025:.2f}",
+                    f"Health: {int(selected_car.get('health', 180))}",
+                    f"Money: {money} UAH",
+                ]
+                if selected_car
+                else ["No vehicles stored.", "Press Esc to leave the garage."]
+            )
             for index, text in enumerate(specs):
                 screen.blit(small_font.render(text, True, (230, 230, 230)), (550, 125 + index * 32))
 
@@ -4799,12 +4872,13 @@ def run_open_world(screen, settings, *, continue_game=True):
             labels = (
                 f"Engine: {engine_names[min(levels[0] + 1, 5)]} ({engine_prices[levels[0]] if levels[0] < 5 else 'MAX'} UAH)",
                 f"Wheels: {wheel_names[min(levels[1] + 1, 5)]} ({wheel_prices[levels[1]] if levels[1] < 5 else 'MAX'} UAH)",
-                "Store current car",
+                "Take vehicle",
                 "Leave garage",
             )
-            for rect, label in zip(buttons, labels):
-                pygame.draw.rect(screen, (76, 52, 31), rect, border_radius=5)
-                screen.blit(small_font.render(label, True, (255, 255, 255)), (rect.x + 12, rect.y + 11))
+            for button_index, (rect, label) in enumerate(zip(buttons, labels)):
+                if selected_car or button_index == 3:
+                    pygame.draw.rect(screen, (76, 52, 31), rect, border_radius=5)
+                    screen.blit(small_font.render(label, True, (255, 255, 255)), (rect.x + 12, rect.y + 11))
             screen.blit(
                 small_font.render("Left/Right: choose car | E: take it | Esc: leave", True, (180, 180, 180)),
                 (55, screen.get_height() - 42),
@@ -4817,31 +4891,38 @@ def run_open_world(screen, settings, *, continue_game=True):
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         return "CONTINUE"
-                    if event.key in (pygame.K_LEFT, pygame.K_RIGHT):
+                    if garage_cars and event.key in (pygame.K_LEFT, pygame.K_RIGHT):
                         selected = (selected + (1 if event.key == pygame.K_RIGHT else -1)) % len(garage_cars)
-                    elif event.key in (pygame.K_e, pygame.K_RETURN):
-                        previous = car_record(car, "Current vehicle")
-                        stored = garage_cars[selected]
+                    elif event.key in (pygame.K_e, pygame.K_RETURN) and selected_car:
+                        stored = garage_cars.pop(selected)
                         car.vehicle_class = stored.get("vehicle_class", "sport")
+                        car.is_police = car.vehicle_class == "stolen-police"
+                        car.image = (
+                            traffic.get_police_car_image()
+                            if car.is_police
+                            else traffic.get_traffic_car_image()
+                            if car.vehicle_class == "stolen-sedan"
+                            else car.original_image
+                        )
                         car.engine_upgrade = int(stored.get("engine_upgrade", 0))
                         car.wheel_upgrade = int(stored.get("wheel_upgrade", 0))
                         car.health = min(float(stored.get("health", car.max_health)), car.max_health)
                         car.is_broken = bool(stored.get("is_broken", False))
                         apply_car_upgrades(car)
-                        garage_cars[selected] = previous
                         car.pos.update(_constants.GARAGE_POS[0], 2344)
+                        car.angle = 270
+                        car.speed = 0
+                        car.motion_velocity.update(0, 0)
                         atom.pos.update(_constants.GARAGE_POS[0], 2410)
                         in_car = True
                         return "CONTINUE"
-                    elif event.key == pygame.K_s and len(garage_cars) < 5:
-                        garage_cars.append(car_record(car, "Stored vehicle"))
-                    elif event.key in (pygame.K_u, pygame.K_w):
+                    elif selected_car and event.key in (pygame.K_u, pygame.K_w):
                         level = int(selected_car.get("engine_upgrade", 0))
                         if level < 5 and money >= engine_prices[level]:
                             money -= engine_prices[level]
                             total_spent += engine_prices[level]
                             selected_car["engine_upgrade"] = level + 1
-                    elif event.key in (pygame.K_i, pygame.K_r):
+                    elif selected_car and event.key in (pygame.K_i, pygame.K_r):
                         level = int(selected_car.get("wheel_upgrade", 0))
                         if level < 5 and money >= wheel_prices[level]:
                             money -= wheel_prices[level]
@@ -4862,8 +4943,29 @@ def run_open_world(screen, settings, *, continue_game=True):
                                     money -= wheel_prices[level]
                                     total_spent += wheel_prices[level]
                                     selected_car["wheel_upgrade"] = level + 1
-                            elif button_index == 2 and len(garage_cars) < 5:
-                                garage_cars.append(car_record(car, "Stored vehicle"))
+                            elif button_index == 2 and selected_car:
+                                stored = garage_cars.pop(selected)
+                                car.vehicle_class = stored.get("vehicle_class", "sport")
+                                car.is_police = car.vehicle_class == "stolen-police"
+                                car.image = (
+                                    traffic.get_police_car_image()
+                                    if car.is_police
+                                    else traffic.get_traffic_car_image()
+                                    if car.vehicle_class == "stolen-sedan"
+                                    else car.original_image
+                                )
+                                car.engine_upgrade = int(stored.get("engine_upgrade", 0))
+                                car.wheel_upgrade = int(stored.get("wheel_upgrade", 0))
+                                car.health = min(float(stored.get("health", car.max_health)), car.max_health)
+                                car.is_broken = bool(stored.get("is_broken", False))
+                                apply_car_upgrades(car)
+                                car.pos.update(_constants.GARAGE_POS[0], 2344)
+                                car.angle = 270
+                                car.speed = 0
+                                car.motion_velocity.update(0, 0)
+                                atom.pos.update(_constants.GARAGE_POS[0], 2410)
+                                in_car = True
+                                return "CONTINUE"
                             elif button_index == 3:
                                 return "CONTINUE"
             clock.tick(FPS)
@@ -5108,14 +5210,11 @@ def run_open_world(screen, settings, *, continue_game=True):
                             radio.cycle_station(1)
                     elif not phone_active and keyboard.matches(event, pygame.K_e):
                         old_in_car = in_car
-                        if atom.pos.distance_to(pygame.Vector2(_constants.GARAGE_POS)) < _constants.GARAGE_RADIUS:
-                            nearby_car = nearby_traffic_car(atom.pos)
-                            if nearby_car is not None:
-                                hijack_traffic_car(nearby_car)
-                            elif atom.pos.distance_to(car.pos) < 100 and not car.is_broken:
-                                in_car = handle_car_logic(atom, car, in_car)
-                            else:
-                                garage_menu()
+                        if (
+                            atom.pos.distance_to(pygame.Vector2(_constants.GARAGE_POS))
+                            < _constants.GARAGE_RADIUS
+                        ):
+                            garage_menu()
                         else:
                             nearby_car = nearby_traffic_car(atom.pos)
                             if nearby_car is not None:
@@ -5461,6 +5560,10 @@ def run_open_world(screen, settings, *, continue_game=True):
                     )
                     if in_car:
                         interactions.append(("F", "exit_car"))
+                        if garage_nearby:
+                            interactions.append(("E", "enter_garage"))
+                    elif garage_nearby:
+                        interactions.append(("E", "enter_garage"))
                     else:
                         nearby_car = nearby_traffic_car(atom.pos)
                         if nearby_car is not None:
@@ -5472,8 +5575,6 @@ def run_open_world(screen, settings, *, continue_game=True):
                             interactions.append(("E", "enter_car"))
                         elif atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
                             interactions.append(("E", "enter_house"))
-                    if garage_nearby:
-                        interactions.append(("E", "enter_garage"))
                     for prompt_index, interaction in enumerate(interactions):
                         draw_interaction_prompt(
                             screen,
@@ -5584,7 +5685,7 @@ def run_open_world(screen, settings, *, continue_game=True):
         if sleep_requested:
             fade_screen(screen, True)
             game_time = (game_time + 540) % 1440
-            survival.advance(540, atom)
+            survival.sleep(540, atom)
             fridge_stock[:] = FRIDGE_STARTING_STOCK
             if atom.health <= 0:
                 atom.health = atom.max_health

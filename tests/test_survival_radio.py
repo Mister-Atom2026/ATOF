@@ -56,6 +56,15 @@ class SurvivalAndRadioTests(unittest.TestCase):
         self.assertEqual(needs.hunger, 95)
         self.assertEqual(player.health, 85)
 
+    def test_sleep_sets_hunger_to_seventy_percent_from_any_starting_value(self):
+        for hunger in (100, 70, 25, 0):
+            with self.subTest(hunger=hunger):
+                needs = engine.SurvivalNeeds(hunger=hunger, minutes_into_hour=12)
+                needs.sleep(540, FakePlayer())
+
+                self.assertEqual(needs.hunger, 70)
+                self.assertEqual(needs.minutes_into_hour, 12)
+
     def test_regeneration_applies_for_an_hour_started_above_seventy_hunger(self):
         needs = engine.SurvivalNeeds(hunger=75)
         player = FakePlayer(health=80)

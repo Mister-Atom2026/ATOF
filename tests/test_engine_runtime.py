@@ -18,6 +18,22 @@ import settings_manager
 
 
 class EngineRuntimeTests(unittest.TestCase):
+    def test_new_game_starts_with_only_a_full_mathew_37_magazine(self):
+        weapons = engine.WeaponWheel.new_game()
+
+        self.assertEqual(weapons.ammo_by_weapon, {
+            "pistol": 7,
+            "shotgun": 0,
+            "rifle": 0,
+            "smg": 0,
+        })
+        self.assertEqual(weapons.reserve_ammo_by_weapon, {
+            "pistol": 0,
+            "shotgun": 0,
+            "rifle": 0,
+            "smg": 0,
+        })
+
     def test_camera_follow_and_coordinate_conversion(self):
         camera = engine.Camera2D((100, 80), (500, 400))
 
@@ -277,7 +293,7 @@ class EngineRuntimeTests(unittest.TestCase):
         with patch("engine.time.perf_counter", return_value=10.0):
             self.assertEqual(weapons.fire_if_held((0, 0), (100, 0)), [])
 
-    def test_per_weapon_ammo_survives_a_save_round_trip(self):
+    def test_game_state_survives_a_save_round_trip(self):
         weapons = engine.WeaponWheel(ammo=4, reserve_ammo=12, selected="pistol")
         weapons.ammo_by_weapon["shotgun"] = 2
         weapons.reserve_ammo_by_weapon["shotgun"] = 9
@@ -289,7 +305,18 @@ class EngineRuntimeTests(unittest.TestCase):
             speed=0,
             health=200,
             is_broken=False,
+            vehicle_class="stolen-sedan",
+            engine_upgrade=2,
+            wheel_upgrade=3,
         )
+        garage_cars = [{
+            "name": "Special Tornado",
+            "vehicle_class": "sport",
+            "engine_upgrade": 1,
+            "wheel_upgrade": 2,
+            "health": 180,
+            "is_broken": False,
+        }]
 
         state = engine.build_game_state_data(
             "CITY",
@@ -306,6 +333,8 @@ class EngineRuntimeTests(unittest.TestCase):
             set(),
             0,
             0,
+            None,
+            garage_cars,
         )
         with tempfile.TemporaryDirectory() as directory:
             save_path = Path(directory) / "savegame.json"
@@ -322,6 +351,10 @@ class EngineRuntimeTests(unittest.TestCase):
         )
         restored.selected = "shotgun"
         self.assertEqual((restored.ammo, restored.reserve_ammo), (2, 9))
+        self.assertEqual(saved["car"]["vehicle_class"], "stolen-sedan")
+        self.assertEqual(saved["car"]["engine_upgrade"], 2)
+        self.assertEqual(saved["car"]["wheel_upgrade"], 3)
+        self.assertEqual(saved["garage_cars"], garage_cars)
 
     def test_weapon_wheel_fires_pistol_and_spread_shotgun(self):
         weapons = engine.WeaponWheel(ammo=2, reserve_ammo=5, selected="pistol")
@@ -344,6 +377,26 @@ class EngineRuntimeTests(unittest.TestCase):
         self.assertEqual(weapons.reserve_ammo, 24)
         weapons.selected = "pistol"
         self.assertEqual((weapons.ammo, weapons.reserve_ammo), (1, 5))
+
+    def test_projectiles_start_at_the_top_of_the_selected_weapon(self):
+        weapons = engine.WeaponWheel(ammo=7, reserve_ammo=0)
+        weapons.weapon_textures["pistol"] = pygame.Surface((6, 12), pygame.SRCALPHA)
+        pygame.draw.rect(
+            weapons.weapon_textures["pistol"], (255, 255, 255, 255), (2, 1, 2, 10)
+        )
+        weapons.weapon_textures["shotgun"] = pygame.Surface((2, 22), pygame.SRCALPHA)
+        weapons.weapon_textures["shotgun"].fill((255, 255, 255, 255))
+
+        with patch("engine.time.perf_counter", side_effect=(1.1, 3.2, 4.0)):
+            pistol_projectile = weapons.fire((100, 100), (200, 100))[0]
+            weapons.selected = "shotgun"
+            shotgun_projectile = weapons.fire((100, 100), (200, 100))[0]
+            weapons.selected = "rifle"
+            rifle_projectile = weapons.fire((100, 100), (200, 100))[0]
+
+        self.assertEqual(pistol_projectile.position, pygame.Vector2(112, 103))
+        self.assertEqual(shotgun_projectile.position, pygame.Vector2(128, 103))
+        self.assertEqual(rifle_projectile.position, pygame.Vector2(135, 100))
 
     def test_unarmed_selection_does_not_consume_ammo(self):
         weapons = engine.WeaponWheel(ammo=3, selected="none")

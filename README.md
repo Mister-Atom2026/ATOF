@@ -1,9 +1,14 @@
 # ATOF
 Game About Mister Atom
 
-## Version 0.8.0 RC 1 — "Weapon Textures & Garage"
+## Version 0.8.0 — "Full Release"
 
 - Uses the supplied weapon textures in the player's hands.
+- Starts new games with a full Mathew 37 magazine and no other ammunition.
+- Spawns player projectiles from the visible weapon muzzle.
+- Sets hunger to 70% after sleeping, regardless of its previous level.
+- Keeps the starter vehicle in the garage until selected with E; pressing E at the garage stores the current vehicle.
+- Persists stored vehicles and their classes and upgrades across saves.
 - Uses the supplied reduced ammunition texture for pistol, shotgun, and SMG projectiles.
 - Keeps Goida G-2 projectiles as plain rounds without the ammunition texture.
 
