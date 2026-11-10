@@ -6,7 +6,6 @@ FPS = 60
 # Collision and navigation mask paths.
 MAP_MINI = "Карта Вишневого.png"
 MAP_COLLISION = "Нізя їздити.png"
-MAP_NAV = "мона їздити.png"
 
 # Colors used by the game logic.
 C_WALL = (136, 0, 21)   # Red represents a wall.

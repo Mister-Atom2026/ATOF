@@ -5023,7 +5023,7 @@ def run_open_world(screen, settings, *, continue_game=True):
             return "FULL"
         fade_screen(screen, True, duration=0.35)
         current_record = car_record(
-            car, _garage_texts_for(current_lang_name)["current_vehicle"]
+            car, _garage_texts_for(languages[settings['lang_idx']])["current_vehicle"]
         )
         garage_cars.append(current_record)
         in_car = False
@@ -5031,7 +5031,6 @@ def run_open_world(screen, settings, *, continue_game=True):
         car.speed = 0
         car.motion_velocity.update(0, 0)
         atom.pos.update(_constants.GARAGE_POS[0], 2410)
-        atom.move_vector.update(0, 0)
         interaction_prompt_alphas.clear()
         _render_city_snapshot_for_fade()
         fade_screen(screen, False, duration=0.35)
@@ -5039,111 +5038,140 @@ def run_open_world(screen, settings, *, continue_game=True):
         pygame.event.clear([pygame.KEYDOWN, pygame.KEYUP])
         return "CONTINUE"
 
+    def _take_vehicle_from_garage(stored):
+        nonlocal car, in_car
+        car.vehicle_class = stored.get("vehicle_class", "sport")
+        car.is_police = car.vehicle_class == "stolen-police"
+        car.image = (
+            traffic.get_police_car_image()
+            if car.is_police
+            else traffic.get_traffic_car_image()
+            if car.vehicle_class == "stolen-sedan"
+            else car.original_image
+        )
+        car.engine_upgrade = int(stored.get("engine_upgrade", 0))
+        car.wheel_upgrade = int(stored.get("wheel_upgrade", 0))
+        car.health = min(float(stored.get("health", car.max_health)), car.max_health)
+        car.is_broken = bool(stored.get("is_broken", False))
+        apply_car_upgrades(car)
+        car.pos.update(_constants.GARAGE_POS[0], 2344)
+        car.angle = 270
+        car.speed = 0
+        car.motion_velocity.update(0, 0)
+        atom.pos.update(_constants.GARAGE_POS[0], 2410)
+        in_car = True
+
+    def _draw_garage_menu_frame(selected_index):
+        gt = _garage_texts_for(languages[settings['lang_idx']])
+        engine_names = gt["engine_tiers"]
+        wheel_names = gt["wheel_tiers"]
+        vehicle_weights = {"sport": 1600, "stolen-sedan": 1030, "stolen-police": 1420}
+        engine_prices = (250, 500, 900, 1400, 2100)
+        wheel_prices = (180, 400, 750, 1200, 1800)
+        screen.fill((20, 18, 16))
+        selected_car = (
+            garage_cars[selected_index]
+            if garage_cars and 0 <= selected_index < len(garage_cars)
+            else None
+        )
+        title_text = selected_car.get("name", gt["vehicle"]) if selected_car else gt["empty"]
+        title = game_font.render(title_text, True, (238, 164, 47))
+        screen.blit(title, title.get_rect(center=(screen.get_width() // 2, 55)))
+        engine_level = max(0, min(5, int(selected_car.get("engine_upgrade", 0)))) if selected_car else 0
+        wheel_level = max(0, min(5, int(selected_car.get("wheel_upgrade", 0)))) if selected_car else 0
+        preview = pygame.Surface((440, 300), pygame.SRCALPHA)
+        preview.fill((34, 34, 39))
+        if selected_car:
+            preview_image = (
+                traffic.get_police_car_image()
+                if selected_car.get("vehicle_class") == "stolen-police"
+                else traffic.get_traffic_car_image()
+                if selected_car.get("vehicle_class") == "stolen-sedan"
+                else car.image
+            )
+            preview_image = pygame.transform.smoothscale(preview_image, (384, 192))
+            preview.blit(preview_image, preview_image.get_rect(center=preview.get_rect().center))
+        screen.blit(preview, (55, 130))
+        specs = (
+            [
+                f"{gt['vehicle']}: {selected_car.get('name', gt['vehicle'])}",
+                f"{gt['engine']}: {engine_names[engine_level]}",
+                f"{gt['wheels']}: {wheel_names[wheel_level]}",
+                f"{gt['weight']}: {vehicle_weights.get(selected_car.get('vehicle_class'), 1600)} {gt['kg']}",
+                f"{gt['max_speed']}: {16.25 + engine_level * 0.8:.1f}",
+                f"{gt['handling']}: {0.82 + wheel_level * 0.025:.2f}",
+                f"{gt['health']}: {int(selected_car.get('health', 180))}",
+                f"{gt['money']}: {money} {gt['uah']}",
+            ]
+            if selected_car
+            else [gt["no_vehicles"], gt["leave_hint"]]
+        )
+        for index, text in enumerate(specs):
+            screen.blit(small_font.render(text, True, (230, 230, 230)), (550, 125 + index * 32))
+
+        buttons = [
+            pygame.Rect(550, 390, 300, 42),
+            pygame.Rect(550, 440, 300, 42),
+            pygame.Rect(550, 490, 300, 42),
+            pygame.Rect(550, 540, 300, 42),
+        ]
+        levels = (engine_level, wheel_level)
+        eng_cost = engine_prices[levels[0]] if levels[0] < 5 else gt["max"]
+        wheel_cost = wheel_prices[levels[1]] if levels[1] < 5 else gt["max"]
+        eng_next = engine_names[min(levels[0] + 1, 5)]
+        wheel_next = wheel_names[min(levels[1] + 1, 5)]
+        labels = (
+            f"{gt['engine']}: {eng_next} ({eng_cost} {gt['uah']})",
+            f"{gt['wheels']}: {wheel_next} ({wheel_cost} {gt['uah']})",
+            gt["take"],
+            gt["leave"],
+        )
+        for button_index, (rect, label) in enumerate(zip(buttons, labels)):
+            if selected_car or button_index == 3:
+                pygame.draw.rect(screen, (76, 52, 31), rect, border_radius=5)
+                screen.blit(small_font.render(label, True, (255, 255, 255)), (rect.x + 12, rect.y + 11))
+        screen.blit(
+            small_font.render(gt["controls"], True, (180, 180, 180)),
+            (55, screen.get_height() - 42),
+        )
+        return selected_car, buttons, engine_prices, wheel_prices
+
     def garage_menu(park_current=False):
         nonlocal car, in_car, money, total_spent
         if park_current:
             return park_vehicle_with_fade()
         selected = len(garage_cars) - 1 if garage_cars else 0
         menu_clock = pygame.time.Clock()
-        vehicle_weights = {"sport": 1600, "stolen-sedan": 1030, "stolen-police": 1420}
-        engine_prices = (250, 500, 900, 1400, 2100)
-        wheel_prices = (180, 400, 750, 1200, 1800)
+        fade_screen(screen, True, duration=0.25)
+        first_frame = True
         while True:
-            gt = _garage_texts_for(current_lang_name)
-            engine_names = gt["engine_tiers"]
-            wheel_names = gt["wheel_tiers"]
-            screen.fill((20, 18, 16))
-            selected_car = garage_cars[selected] if garage_cars and 0 <= selected < len(garage_cars) else None
-            title_text = selected_car.get("name", gt["vehicle"]) if selected_car else gt["empty"]
-            title = game_font.render(title_text, True, (238, 164, 47))
-            screen.blit(title, title.get_rect(center=(screen.get_width() // 2, 55)))
-            engine_level = max(0, min(5, int(selected_car.get("engine_upgrade", 0)))) if selected_car else 0
-            wheel_level = max(0, min(5, int(selected_car.get("wheel_upgrade", 0)))) if selected_car else 0
-            preview = pygame.Surface((440, 300), pygame.SRCALPHA)
-            preview.fill((34, 34, 39))
-            if selected_car:
-                preview_image = traffic.get_police_car_image() if selected_car.get("vehicle_class") == "stolen-police" else (
-                    traffic.get_traffic_car_image() if selected_car.get("vehicle_class") == "stolen-sedan" else car.image
-                )
-                preview_image = pygame.transform.smoothscale(preview_image, (384, 192))
-                preview.blit(preview_image, preview_image.get_rect(center=preview.get_rect().center))
-            screen.blit(preview, (55, 130))
-            specs = (
-                [
-                    f"{gt['vehicle']}: {selected_car.get('name', gt['vehicle'])}",
-                    f"{gt['engine']}: {engine_names[engine_level]}",
-                    f"{gt['wheels']}: {wheel_names[wheel_level]}",
-                    f"{gt['weight']}: {vehicle_weights.get(selected_car.get('vehicle_class'), 1600)} {gt['kg']}",
-                    f"{gt['max_speed']}: {16.25 + engine_level * 0.8:.1f}",
-                    f"{gt['handling']}: {0.82 + wheel_level * 0.025:.2f}",
-                    f"{gt['health']}: {int(selected_car.get('health', 180))}",
-                    f"{gt['money']}: {money} {gt['uah']}",
-                ]
-                if selected_car
-                else [gt["no_vehicles"], gt["leave_hint"]]
-            )
-            for index, text in enumerate(specs):
-                screen.blit(small_font.render(text, True, (230, 230, 230)), (550, 125 + index * 32))
-
-            buttons = [
-                pygame.Rect(550, 390, 300, 42),
-                pygame.Rect(550, 440, 300, 42),
-                pygame.Rect(550, 490, 300, 42),
-                pygame.Rect(550, 540, 300, 42),
-            ]
-            levels = (engine_level, wheel_level)
-            eng_cost = engine_prices[levels[0]] if levels[0] < 5 else gt["max"]
-            wheel_cost = wheel_prices[levels[1]] if levels[1] < 5 else gt["max"]
-            eng_next = engine_names[min(levels[0] + 1, 5)]
-            wheel_next = wheel_names[min(levels[1] + 1, 5)]
-            labels = (
-                f"{gt['engine']}: {eng_next} ({eng_cost} {gt['uah']})",
-                f"{gt['wheels']}: {wheel_next} ({wheel_cost} {gt['uah']})",
-                gt["take"],
-                gt["leave"],
-            )
-            for button_index, (rect, label) in enumerate(zip(buttons, labels)):
-                if selected_car or button_index == 3:
-                    pygame.draw.rect(screen, (76, 52, 31), rect, border_radius=5)
-                    screen.blit(small_font.render(label, True, (255, 255, 255)), (rect.x + 12, rect.y + 11))
-            screen.blit(
-                small_font.render(gt["controls"], True, (180, 180, 180)),
-                (55, screen.get_height() - 42),
-            )
+            selected_car, buttons, engine_prices, wheel_prices = _draw_garage_menu_frame(selected)
             pygame.display.flip()
+            if first_frame:
+                fade_screen(screen, False, duration=0.25)
+                first_frame = False
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return "EXIT"
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
+                        fade_screen(screen, True, duration=0.2)
+                        _render_city_snapshot_for_fade()
+                        fade_screen(screen, False, duration=0.25)
+                        interaction_prompt_alphas.clear()
                         keyboard._pressed_scancodes.clear()
                         pygame.event.clear([pygame.KEYDOWN, pygame.KEYUP])
                         return "CONTINUE"
                     if garage_cars and event.key in (pygame.K_LEFT, pygame.K_RIGHT):
                         selected = (selected + (1 if event.key == pygame.K_RIGHT else -1)) % len(garage_cars)
-                    elif event.key in (pygame.K_e, pygame.K_RETURN) and selected_car:
+                    elif (keyboard.matches(event, pygame.K_e) or event.key in (pygame.K_RETURN, pygame.K_KP_ENTER)) and selected_car:
                         stored = garage_cars.pop(selected)
-                        car.vehicle_class = stored.get("vehicle_class", "sport")
-                        car.is_police = car.vehicle_class == "stolen-police"
-                        car.image = (
-                            traffic.get_police_car_image()
-                            if car.is_police
-                            else traffic.get_traffic_car_image()
-                            if car.vehicle_class == "stolen-sedan"
-                            else car.original_image
-                        )
-                        car.engine_upgrade = int(stored.get("engine_upgrade", 0))
-                        car.wheel_upgrade = int(stored.get("wheel_upgrade", 0))
-                        car.health = min(float(stored.get("health", car.max_health)), car.max_health)
-                        car.is_broken = bool(stored.get("is_broken", False))
-                        apply_car_upgrades(car)
-                        car.pos.update(_constants.GARAGE_POS[0], 2344)
-                        car.angle = 270
-                        car.speed = 0
-                        car.motion_velocity.update(0, 0)
-                        atom.pos.update(_constants.GARAGE_POS[0], 2410)
-                        in_car = True
+                        _take_vehicle_from_garage(stored)
+                        fade_screen(screen, True, duration=0.2)
+                        _render_city_snapshot_for_fade()
+                        fade_screen(screen, False, duration=0.25)
+                        interaction_prompt_alphas.clear()
                         keyboard._pressed_scancodes.clear()
                         pygame.event.clear([pygame.KEYDOWN, pygame.KEYUP])
                         return "CONTINUE"
@@ -5176,30 +5204,19 @@ def run_open_world(screen, settings, *, continue_game=True):
                                     selected_car["wheel_upgrade"] = level + 1
                             elif button_index == 2 and selected_car:
                                 stored = garage_cars.pop(selected)
-                                car.vehicle_class = stored.get("vehicle_class", "sport")
-                                car.is_police = car.vehicle_class == "stolen-police"
-                                car.image = (
-                                    traffic.get_police_car_image()
-                                    if car.is_police
-                                    else traffic.get_traffic_car_image()
-                                    if car.vehicle_class == "stolen-sedan"
-                                    else car.original_image
-                                )
-                                car.engine_upgrade = int(stored.get("engine_upgrade", 0))
-                                car.wheel_upgrade = int(stored.get("wheel_upgrade", 0))
-                                car.health = min(float(stored.get("health", car.max_health)), car.max_health)
-                                car.is_broken = bool(stored.get("is_broken", False))
-                                apply_car_upgrades(car)
-                                car.pos.update(_constants.GARAGE_POS[0], 2344)
-                                car.angle = 270
-                                car.speed = 0
-                                car.motion_velocity.update(0, 0)
-                                atom.pos.update(_constants.GARAGE_POS[0], 2410)
-                                in_car = True
+                                _take_vehicle_from_garage(stored)
+                                fade_screen(screen, True, duration=0.2)
+                                _render_city_snapshot_for_fade()
+                                fade_screen(screen, False, duration=0.25)
+                                interaction_prompt_alphas.clear()
                                 keyboard._pressed_scancodes.clear()
                                 pygame.event.clear([pygame.KEYDOWN, pygame.KEYUP])
                                 return "CONTINUE"
                             elif button_index == 3:
+                                fade_screen(screen, True, duration=0.2)
+                                _render_city_snapshot_for_fade()
+                                fade_screen(screen, False, duration=0.25)
+                                interaction_prompt_alphas.clear()
                                 keyboard._pressed_scancodes.clear()
                                 pygame.event.clear([pygame.KEYDOWN, pygame.KEYUP])
                                 return "CONTINUE"
