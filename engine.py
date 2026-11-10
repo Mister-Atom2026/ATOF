@@ -56,6 +56,148 @@ def _cached_ui_font(name: str | None, size: int, bold: bool = False):
     return font
 
 
+
+_GARAGE_TEXTS = {
+    "English": {
+        "title": "Garage",
+        "empty": "Garage empty",
+        "no_vehicles": "No vehicles stored.",
+        "leave_hint": "Press Esc to leave the garage.",
+        "vehicle": "Vehicle",
+        "engine": "Engine",
+        "wheels": "Wheels",
+        "weight": "Weight",
+        "max_speed": "Max speed",
+        "handling": "Handling",
+        "health": "Health",
+        "money": "Money",
+        "take": "Take vehicle",
+        "leave": "Leave garage",
+        "controls": "Left/Right: choose car | E: take it | Esc: leave",
+        "max": "MAX",
+        "kg": "kg",
+        "uah": "UAH",
+        "current_vehicle": "Current vehicle",
+        "engine_tiers": ["Factory", "Street Torque", "Sport Cam", "Turbo V6", "Twin Turbo", "Racing Spec"],
+        "wheel_tiers": ["Factory", "Rain Grip", "Road Sport", "Track Soft", "Semi Slick", "All Weather"],
+    },
+    "Українська": {
+        "title": "Гараж",
+        "empty": "Гараж порожній",
+        "no_vehicles": "У гаражі немає машин.",
+        "leave_hint": "Натисніть Esc, щоб вийти з гаража.",
+        "vehicle": "Машина",
+        "engine": "Двигун",
+        "wheels": "Колеса",
+        "weight": "Вага",
+        "max_speed": "Макс. швидкість",
+        "handling": "Керованість",
+        "health": "Міцність",
+        "money": "Гроші",
+        "take": "Забрати машину",
+        "leave": "Вийти з гаража",
+        "controls": "←/→: вибір машини | E: забрати | Esc: вийти",
+        "max": "МАКС",
+        "kg": "кг",
+        "uah": "грн",
+        "current_vehicle": "Поточна машина",
+        "engine_tiers": ["Заводський", "Вуличний", "Спорт-вал", "Турбо V6", "Подвійне турбо", "Гоночний"],
+        "wheel_tiers": ["Заводські", "Дощовий хват", "Дорожні спорт", "Трекові м’які", "Напівслік", "Всепогодні"],
+    },
+    "Русский": {
+        "title": "Гараж",
+        "empty": "Гараж пуст",
+        "no_vehicles": "В гараже нет машин.",
+        "leave_hint": "Нажмите Esc, чтобы выйти из гаража.",
+        "vehicle": "Машина",
+        "engine": "Двигатель",
+        "wheels": "Колёса",
+        "weight": "Вес",
+        "max_speed": "Макс. скорость",
+        "handling": "Управляемость",
+        "health": "Прочность",
+        "money": "Деньги",
+        "take": "Забрать машину",
+        "leave": "Выйти из гаража",
+        "controls": "←/→: выбор машины | E: забрать | Esc: выйти",
+        "max": "МАКС",
+        "kg": "кг",
+        "uah": "грн",
+        "current_vehicle": "Текущая машина",
+        "engine_tiers": ["Заводской", "Уличный", "Спорт-вал", "Турбо V6", "Двойное турбо", "Гоночный"],
+        "wheel_tiers": ["Заводские", "Дождевой хват", "Дорожные спорт", "Трековые мягкие", "Полуслик", "Всепогодные"],
+    },
+    "Español": {
+        "title": "Garaje",
+        "empty": "Garaje vacío",
+        "no_vehicles": "No hay vehículos guardados.",
+        "leave_hint": "Pulsa Esc para salir del garaje.",
+        "vehicle": "Vehículo",
+        "engine": "Motor",
+        "wheels": "Ruedas",
+        "weight": "Peso",
+        "max_speed": "Vel. máx.",
+        "handling": "Manejo",
+        "health": "Salud",
+        "money": "Dinero",
+        "take": "Tomar vehículo",
+        "leave": "Salir del garaje",
+        "controls": "←/→: elegir coche | E: tomar | Esc: salir",
+        "max": "MÁX",
+        "kg": "kg",
+        "uah": "UAH",
+        "current_vehicle": "Vehículo actual",
+        "engine_tiers": ["Fábrica", "Calle", "Leva sport", "Turbo V6", "Biturbo", "Competición"],
+        "wheel_tiers": ["Fábrica", "Agarre lluvia", "Sport ruta", "Pista blanda", "Semislick", "Todo clima"],
+    },
+    "Deutsch": {
+        "title": "Garage",
+        "empty": "Garage leer",
+        "no_vehicles": "Keine Fahrzeuge abgestellt.",
+        "leave_hint": "Esc drücken, um die Garage zu verlassen.",
+        "vehicle": "Fahrzeug",
+        "engine": "Motor",
+        "wheels": "Reifen",
+        "weight": "Gewicht",
+        "max_speed": "Höchstgeschw.",
+        "handling": "Handling",
+        "health": "Zustand",
+        "money": "Geld",
+        "take": "Fahrzeug nehmen",
+        "leave": "Garage verlassen",
+        "controls": "←/→: Fahrzeug wählen | E: nehmen | Esc: verlassen",
+        "max": "MAX",
+        "kg": "kg",
+        "uah": "UAH",
+        "current_vehicle": "Aktuelles Fahrzeug",
+        "engine_tiers": ["Serie", "Straße", "Sportnocken", "Turbo V6", "Biturbo", "Rennspec"],
+        "wheel_tiers": ["Serie", "Regen-Grip", "Straßen-Sport", "Track weich", "Semi-Slick", "Allwetter"],
+    },
+    "Français": {
+        "title": "Garage",
+        "empty": "Garage vide",
+        "no_vehicles": "Aucun véhicule rangé.",
+        "leave_hint": "Appuyez sur Échap pour quitter le garage.",
+        "vehicle": "Véhicule",
+        "engine": "Moteur",
+        "wheels": "Roues",
+        "weight": "Poids",
+        "max_speed": "Vitesse max",
+        "handling": "Maniabilité",
+        "health": "État",
+        "money": "Argent",
+        "take": "Prendre le véhicule",
+        "leave": "Quitter le garage",
+        "controls": "←/→ : choisir | E : prendre | Échap : quitter",
+        "max": "MAX",
+        "kg": "kg",
+        "uah": "UAH",
+        "current_vehicle": "Véhicule actuel",
+        "engine_tiers": ["Usine", "Rue", "Arbre sport", "Turbo V6", "Biturbo", "Spéc. course"],
+        "wheel_tiers": ["Usine", "Adhérence pluie", "Route sport", "Piste tendre", "Semi-slick", "Toutes saisons"],
+    },
+}
+
 _MINIMAP_BACKGROUND_CACHE: dict[
     tuple[int, tuple[int, int]], tuple[pygame.Surface, pygame.Surface]
 ] = {}
@@ -75,6 +217,7 @@ _INTERACTION_TEXTS = {
         "exit_car": "Leave vehicle", "enter_house": "Enter house",
         "exit_house": "Leave house", "repair_car": "Repair vehicle",
         "enter_garage": "Use garage",
+        "store_car": "Store vehicle",
         "sleep": "Sleep and save", "fridge": "Open fridge",
         "fridge_title": "Fridge", "fridge_satiety": "Satiety: {value}%",
         "fridge_apple": "Apple", "fridge_sandwich": "Sandwich",
@@ -86,6 +229,7 @@ _INTERACTION_TEXTS = {
         "exit_car": "Вийти з машини", "enter_house": "Увійти в дім",
         "exit_house": "Вийти з дому", "repair_car": "Відремонтувати",
         "enter_garage": "Скористатися гаражем",
+        "store_car": "Заховати машину в гараж",
         "sleep": "Заснути й зберегтися", "fridge": "Відкрити холодильник",
         "fridge_title": "Холодильник", "fridge_satiety": "Ситість: {value}%",
         "fridge_apple": "Яблуко", "fridge_sandwich": "Бутерброд",
@@ -97,6 +241,7 @@ _INTERACTION_TEXTS = {
         "exit_car": "Выйти из машины", "enter_house": "Войти в дом",
         "exit_house": "Выйти из дома", "repair_car": "Починить машину",
         "enter_garage": "Использовать гараж",
+        "store_car": "Убрать машину в гараж",
         "sleep": "Спать и сохранить игру", "fridge": "Открыть холодильник",
         "fridge_title": "Холодильник", "fridge_satiety": "Сытость: {value}%",
         "fridge_apple": "Яблоко", "fridge_sandwich": "Бутерброд",
@@ -108,6 +253,7 @@ _INTERACTION_TEXTS = {
         "exit_car": "Salir del coche", "enter_house": "Entrar en casa",
         "exit_house": "Salir de casa", "repair_car": "Reparar vehículo",
         "enter_garage": "Usar el garaje",
+        "store_car": "Guardar vehículo",
         "sleep": "Dormir y guardar", "fridge": "Abrir nevera",
         "fridge_title": "Nevera", "fridge_satiety": "Saciedad: {value}%",
         "fridge_apple": "Manzana", "fridge_sandwich": "Bocadillo",
@@ -119,6 +265,7 @@ _INTERACTION_TEXTS = {
         "exit_car": "Auto verlassen", "enter_house": "Haus betreten",
         "exit_house": "Haus verlassen", "repair_car": "Auto reparieren",
         "enter_garage": "Garage nutzen",
+        "store_car": "Fahrzeug einparken",
         "sleep": "Schlafen und speichern", "fridge": "Kühlschrank öffnen",
         "fridge_title": "Kühlschrank", "fridge_satiety": "Sättigung: {value}%",
         "fridge_apple": "Apfel", "fridge_sandwich": "Sandwich",
@@ -130,6 +277,7 @@ _INTERACTION_TEXTS = {
         "exit_car": "Sortir de voiture", "enter_house": "Entrer dans la maison",
         "exit_house": "Sortir de la maison", "repair_car": "Réparer le véhicule",
         "enter_garage": "Utiliser le garage",
+        "store_car": "Ranger le véhicule",
         "sleep": "Dormir et sauvegarder", "fridge": "Ouvrir le réfrigérateur",
         "fridge_title": "Réfrigérateur", "fridge_satiety": "Satiété : {value}%",
         "fridge_apple": "Pomme", "fridge_sandwich": "Sandwich",
@@ -1864,6 +2012,7 @@ class Car:
         except (pygame.error, OSError):
             self.image = pygame.Surface((96, 48))
             self.image.fill((0, 0, 255))
+        self.original_image = self.image.copy()
 
     def _accelerate_forward(self, frame_scale, traction=1.0):
         remaining_frames = frame_scale
@@ -3438,8 +3587,13 @@ def _interaction_text(language, key):
     return labels[key]
 
 
-def draw_interaction_prompt(screen, key, label, left_margin=20, bottom_margin=65):
+def draw_interaction_prompt(
+    screen, key, label, left_margin=20, bottom_margin=65, alpha=255
+):
     """Show one warm-toned contextual action on the lower-left side."""
+    alpha = max(0, min(255, int(alpha)))
+    if alpha <= 0:
+        return None
     font = _cached_ui_font(None, 23)
     key_font = _cached_ui_font(None, 22, bold=True)
     label_surface = font.render(label, True, (250, 237, 220))
@@ -3453,17 +3607,32 @@ def draw_interaction_prompt(screen, key, label, left_margin=20, bottom_margin=65
         panel_width,
         panel_height,
     )
-    pygame.draw.rect(screen, (22, 15, 10), panel, border_radius=12)
-    pygame.draw.rect(screen, (145, 84, 42), panel, 1, border_radius=12)
+    target = screen
+    offset_x = offset_y = 0
+    if alpha < 255:
+        target = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
+        panel = panel.copy()
+        offset_x, offset_y = panel.x, panel.y
+        panel.topleft = (0, 0)
+
+    pygame.draw.rect(target, (22, 15, 10), panel, border_radius=12)
+    pygame.draw.rect(target, (145, 84, 42), panel, 1, border_radius=12)
     key_rect = pygame.Rect(panel.x + 10, panel.centery - key_size // 2, key_size, key_size)
-    pygame.draw.rect(screen, (228, 119, 31), key_rect, border_radius=8)
-    pygame.draw.rect(screen, (255, 174, 75), key_rect, 1, border_radius=8)
-    screen.blit(
+    pygame.draw.rect(target, (228, 119, 31), key_rect, border_radius=8)
+    pygame.draw.rect(target, (255, 174, 75), key_rect, 1, border_radius=8)
+    target.blit(
         key_surface,
         key_surface.get_rect(center=(key_rect.centerx, key_rect.centery + 1)),
     )
     label_rect = label_surface.get_rect(midleft=(key_rect.right + 12, panel.centery))
-    screen.blit(label_surface, label_rect)
+    target.blit(label_surface, label_rect)
+
+    if alpha < 255:
+        target.set_alpha(alpha)
+        screen.blit(target, (offset_x, offset_y))
+        panel.move_ip(offset_x, offset_y)
+        key_rect.move_ip(offset_x, offset_y)
+        label_rect.move_ip(offset_x, offset_y)
     return panel, key_rect, label_rect
 
 
@@ -4803,33 +4972,90 @@ def run_open_world(screen, settings, *, continue_game=True):
             "is_broken": bool(getattr(vehicle, "is_broken", False)),
         }
 
+    def _garage_texts_for(language):
+        return _GARAGE_TEXTS.get(language, _GARAGE_TEXTS["English"])
+
+    def _render_city_snapshot_for_fade():
+        nonlocal off_x, off_y
+        off_x, off_y = camera.follow((car if in_car else atom).pos)
+        frame_renderer.begin_frame()
+
+        def draw_city_background():
+            screen.fill((30, 30, 30))
+            screen.blit(world_bg, (off_x, off_y))
+
+        def draw_city_world():
+            for parked_car in parked_cars:
+                parked_car.draw(screen, off_x, off_y)
+            car.draw(screen, off_x, off_y)
+            draw_car_smoke(screen, car, off_x, off_y)
+            for npc in npc_cars:
+                npc.draw(screen, off_x, off_y)
+            for driver in fleeing_drivers:
+                driver.draw(screen, off_x, off_y)
+            for officer in hostile_officers:
+                officer.draw(screen, off_x, off_y)
+            for projectile in projectiles:
+                projectile.draw(screen, off_x, off_y)
+            if in_car:
+                return
+            screen_position = camera.world_to_screen(atom.pos)
+            draw_atom_character(
+                screen, screen_position.x, screen_position.y, atom_img, atom.angle
+            )
+
+        def draw_city_lighting():
+            ambient = get_ambient_color(game_time)
+            if ambient[3] > 0:
+                night_overlay.fill(ambient)
+                screen.blit(night_overlay, (0, 0))
+            weather.draw(screen)
+
+        frame_renderer.submit(RenderLayer.BACKGROUND, draw_city_background)
+        frame_renderer.submit(RenderLayer.WORLD, draw_city_world)
+        frame_renderer.submit(RenderLayer.LIGHTING, draw_city_lighting)
+        frame_renderer.render()
+        pygame.display.flip()
+
+    def park_vehicle_with_fade():
+        nonlocal car, in_car
+        if len(garage_cars) >= 5:
+            return "FULL"
+        fade_screen(screen, True, duration=0.35)
+        current_record = car_record(
+            car, _garage_texts_for(current_lang_name)["current_vehicle"]
+        )
+        garage_cars.append(current_record)
+        in_car = False
+        car.pos.update(-1000, -1000)
+        car.speed = 0
+        car.motion_velocity.update(0, 0)
+        atom.pos.update(_constants.GARAGE_POS[0], 2410)
+        atom.move_vector.update(0, 0)
+        interaction_prompt_alphas.clear()
+        _render_city_snapshot_for_fade()
+        fade_screen(screen, False, duration=0.35)
+        keyboard._pressed_scancodes.clear()
+        pygame.event.clear([pygame.KEYDOWN, pygame.KEYUP])
+        return "CONTINUE"
+
     def garage_menu(park_current=False):
         nonlocal car, in_car, money, total_spent
         if park_current:
-            if len(garage_cars) >= 5:
-                return "FULL"
-            current_record = car_record(car, "Current vehicle")
-            garage_cars.append(current_record)
-            in_car = False
-            car.pos.update(-1000, -1000)
-            car.speed = 0
-            car.motion_velocity.update(0, 0)
-            atom.pos.update(_constants.GARAGE_POS[0], 2410)
-        selected = len(garage_cars) - 1 if park_current else 0
-        clock = pygame.time.Clock()
-        engine_names = ("Factory", "Street Torque", "Sport Cam", "Turbo V6", "Twin Turbo", "Racing Spec")
-        wheel_names = ("Factory", "Rain Grip", "Road Sport", "Track Soft", "Semi Slick", "All Weather")
+            return park_vehicle_with_fade()
+        selected = len(garage_cars) - 1 if garage_cars else 0
+        menu_clock = pygame.time.Clock()
         vehicle_weights = {"sport": 1600, "stolen-sedan": 1030, "stolen-police": 1420}
         engine_prices = (250, 500, 900, 1400, 2100)
         wheel_prices = (180, 400, 750, 1200, 1800)
         while True:
+            gt = _garage_texts_for(current_lang_name)
+            engine_names = gt["engine_tiers"]
+            wheel_names = gt["wheel_tiers"]
             screen.fill((20, 18, 16))
-            selected_car = garage_cars[selected] if garage_cars else None
-            title = game_font.render(
-                selected_car.get("name", "Vehicle") if selected_car else "Garage empty",
-                True,
-                (238, 164, 47),
-            )
+            selected_car = garage_cars[selected] if garage_cars and 0 <= selected < len(garage_cars) else None
+            title_text = selected_car.get("name", gt["vehicle"]) if selected_car else gt["empty"]
+            title = game_font.render(title_text, True, (238, 164, 47))
             screen.blit(title, title.get_rect(center=(screen.get_width() // 2, 55)))
             engine_level = max(0, min(5, int(selected_car.get("engine_upgrade", 0)))) if selected_car else 0
             wheel_level = max(0, min(5, int(selected_car.get("wheel_upgrade", 0)))) if selected_car else 0
@@ -4844,17 +5070,17 @@ def run_open_world(screen, settings, *, continue_game=True):
             screen.blit(preview, (55, 130))
             specs = (
                 [
-                    f"Vehicle: {selected_car.get('name', 'Vehicle')}",
-                    f"Engine: {engine_names[engine_level]}",
-                    f"Wheels: {wheel_names[wheel_level]}",
-                    f"Weight: {vehicle_weights.get(selected_car.get('vehicle_class'), 1600)} kg",
-                    f"Max speed: {16.25 + engine_level * 0.8:.1f}",
-                    f"Handling: {0.82 + wheel_level * 0.025:.2f}",
-                    f"Health: {int(selected_car.get('health', 180))}",
-                    f"Money: {money} UAH",
+                    f"{gt['vehicle']}: {selected_car.get('name', gt['vehicle'])}",
+                    f"{gt['engine']}: {engine_names[engine_level]}",
+                    f"{gt['wheels']}: {wheel_names[wheel_level]}",
+                    f"{gt['weight']}: {vehicle_weights.get(selected_car.get('vehicle_class'), 1600)} {gt['kg']}",
+                    f"{gt['max_speed']}: {16.25 + engine_level * 0.8:.1f}",
+                    f"{gt['handling']}: {0.82 + wheel_level * 0.025:.2f}",
+                    f"{gt['health']}: {int(selected_car.get('health', 180))}",
+                    f"{gt['money']}: {money} {gt['uah']}",
                 ]
                 if selected_car
-                else ["No vehicles stored.", "Press Esc to leave the garage."]
+                else [gt["no_vehicles"], gt["leave_hint"]]
             )
             for index, text in enumerate(specs):
                 screen.blit(small_font.render(text, True, (230, 230, 230)), (550, 125 + index * 32))
@@ -4865,22 +5091,23 @@ def run_open_world(screen, settings, *, continue_game=True):
                 pygame.Rect(550, 490, 300, 42),
                 pygame.Rect(550, 540, 300, 42),
             ]
-            levels = (
-                engine_level,
-                wheel_level,
-            )
+            levels = (engine_level, wheel_level)
+            eng_cost = engine_prices[levels[0]] if levels[0] < 5 else gt["max"]
+            wheel_cost = wheel_prices[levels[1]] if levels[1] < 5 else gt["max"]
+            eng_next = engine_names[min(levels[0] + 1, 5)]
+            wheel_next = wheel_names[min(levels[1] + 1, 5)]
             labels = (
-                f"Engine: {engine_names[min(levels[0] + 1, 5)]} ({engine_prices[levels[0]] if levels[0] < 5 else 'MAX'} UAH)",
-                f"Wheels: {wheel_names[min(levels[1] + 1, 5)]} ({wheel_prices[levels[1]] if levels[1] < 5 else 'MAX'} UAH)",
-                "Take vehicle",
-                "Leave garage",
+                f"{gt['engine']}: {eng_next} ({eng_cost} {gt['uah']})",
+                f"{gt['wheels']}: {wheel_next} ({wheel_cost} {gt['uah']})",
+                gt["take"],
+                gt["leave"],
             )
             for button_index, (rect, label) in enumerate(zip(buttons, labels)):
                 if selected_car or button_index == 3:
                     pygame.draw.rect(screen, (76, 52, 31), rect, border_radius=5)
                     screen.blit(small_font.render(label, True, (255, 255, 255)), (rect.x + 12, rect.y + 11))
             screen.blit(
-                small_font.render("Left/Right: choose car | E: take it | Esc: leave", True, (180, 180, 180)),
+                small_font.render(gt["controls"], True, (180, 180, 180)),
                 (55, screen.get_height() - 42),
             )
             pygame.display.flip()
@@ -4890,6 +5117,8 @@ def run_open_world(screen, settings, *, continue_game=True):
                     return "EXIT"
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
+                        keyboard._pressed_scancodes.clear()
+                        pygame.event.clear([pygame.KEYDOWN, pygame.KEYUP])
                         return "CONTINUE"
                     if garage_cars and event.key in (pygame.K_LEFT, pygame.K_RIGHT):
                         selected = (selected + (1 if event.key == pygame.K_RIGHT else -1)) % len(garage_cars)
@@ -4915,6 +5144,8 @@ def run_open_world(screen, settings, *, continue_game=True):
                         car.motion_velocity.update(0, 0)
                         atom.pos.update(_constants.GARAGE_POS[0], 2410)
                         in_car = True
+                        keyboard._pressed_scancodes.clear()
+                        pygame.event.clear([pygame.KEYDOWN, pygame.KEYUP])
                         return "CONTINUE"
                     elif selected_car and event.key in (pygame.K_u, pygame.K_w):
                         level = int(selected_car.get("engine_upgrade", 0))
@@ -4931,13 +5162,13 @@ def run_open_world(screen, settings, *, continue_game=True):
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     for button_index, rect in enumerate(buttons):
                         if rect.collidepoint(event.pos):
-                            if button_index == 0:
+                            if button_index == 0 and selected_car:
                                 level = int(selected_car.get("engine_upgrade", 0))
                                 if level < 5 and money >= engine_prices[level]:
                                     money -= engine_prices[level]
                                     total_spent += engine_prices[level]
                                     selected_car["engine_upgrade"] = level + 1
-                            elif button_index == 1:
+                            elif button_index == 1 and selected_car:
                                 level = int(selected_car.get("wheel_upgrade", 0))
                                 if level < 5 and money >= wheel_prices[level]:
                                     money -= wheel_prices[level]
@@ -4965,10 +5196,14 @@ def run_open_world(screen, settings, *, continue_game=True):
                                 car.motion_velocity.update(0, 0)
                                 atom.pos.update(_constants.GARAGE_POS[0], 2410)
                                 in_car = True
+                                keyboard._pressed_scancodes.clear()
+                                pygame.event.clear([pygame.KEYDOWN, pygame.KEYUP])
                                 return "CONTINUE"
                             elif button_index == 3:
+                                keyboard._pressed_scancodes.clear()
+                                pygame.event.clear([pygame.KEYDOWN, pygame.KEYUP])
                                 return "CONTINUE"
-            clock.tick(FPS)
+            menu_clock.tick(FPS)
 
     def get_current_game_state():
         return build_game_state_data(
@@ -4991,6 +5226,8 @@ def run_open_world(screen, settings, *, continue_game=True):
 
     running = True
     frame_clock.reset()
+    interaction_prompt_alphas: dict[str, dict] = {}
+    PROMPT_FADE_SPEED = 10.0  # alpha units per frame_scale tick (~0.25s fade)
     while running:
         frame_scale = frame_clock.tick(clock, FPS)
         target = car if in_car else atom
@@ -5171,15 +5408,27 @@ def run_open_world(screen, settings, *, continue_game=True):
                     if radio_was_playing:
                         radio.resume()
                 if (
-                    keyboard.matches(event, pygame.K_f)
+                    event.type == pygame.KEYDOWN
+                    and not getattr(event, "repeat", False)
+                    and keyboard.matches(event, pygame.K_f)
                     and game_state == "CITY"
                     and not scene_transition.active
-                    and in_car
                     and not phone_active
                 ):
-                    in_car = handle_car_logic(atom, car, in_car)
-                    car_sfx['door_close'].play()
-                    radio.pause()
+                    old_in_car = in_car
+                    if in_car:
+                        in_car = handle_car_logic(atom, car, in_car)
+                        car_sfx['door_close'].play()
+                        radio.pause()
+                    else:
+                        nearby_car = nearby_traffic_car(atom.pos)
+                        if nearby_car is not None:
+                            hijack_traffic_car(nearby_car)
+                        elif atom.pos.distance_to(car.pos) < 100 and not car.is_broken:
+                            in_car = handle_car_logic(atom, car, in_car)
+                        if in_car != old_in_car:
+                            car_sfx['door_open'].play()
+                            radio.resume()
                 if (
                     event.type == pygame.KEYDOWN
                     and game_state == "CITY"
@@ -5209,25 +5458,16 @@ def run_open_world(screen, settings, *, continue_game=True):
                         if keyboard.matches(event, pygame.K_PERIOD):
                             radio.cycle_station(1)
                     elif not phone_active and keyboard.matches(event, pygame.K_e):
-                        old_in_car = in_car
                         if (
                             atom.pos.distance_to(pygame.Vector2(_constants.GARAGE_POS))
                             < _constants.GARAGE_RADIUS
                         ):
                             garage_menu()
-                        else:
-                            nearby_car = nearby_traffic_car(atom.pos)
-                            if nearby_car is not None:
-                                hijack_traffic_car(nearby_car)
-                            elif atom.pos.distance_to(car.pos) < 100:
-                                if not car.is_broken:
-                                    in_car = handle_car_logic(atom, car, in_car)
-                            elif atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
-                                scene_transition.begin("HOUSE", time.perf_counter())
-                                entered_house_this_event = True
-                        if in_car != old_in_car:
-                            car_sfx['door_open'].play()
-                            radio.resume()
+                            keyboard._pressed_scancodes.clear()
+                            pygame.event.clear([pygame.KEYDOWN, pygame.KEYUP])
+                        elif atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
+                            scene_transition.begin("HOUSE", time.perf_counter())
+                            entered_house_this_event = True
 
                 if (
                     game_state == "HOUSE"
@@ -5561,27 +5801,53 @@ def run_open_world(screen, settings, *, continue_game=True):
                     if in_car:
                         interactions.append(("F", "exit_car"))
                         if garage_nearby:
-                            interactions.append(("E", "enter_garage"))
+                            interactions.append(("E", "store_car"))
                     elif garage_nearby:
                         interactions.append(("E", "enter_garage"))
                     else:
                         nearby_car = nearby_traffic_car(atom.pos)
                         if nearby_car is not None:
-                            interactions.append(("E", "steal_car"))
+                            interactions.append(("F", "steal_car"))
                         elif car.is_broken and atom.pos.distance_to(car.pos) < 100:
                             if money >= 50:
                                 interactions.append(("R", "repair_car"))
                         elif atom.pos.distance_to(car.pos) < 100 and not car.is_broken:
-                            interactions.append(("E", "enter_car"))
+                            interactions.append(("F", "enter_car"))
                         elif atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
                             interactions.append(("E", "enter_house"))
+                    active_prompt_ids = {interaction[1] for interaction in interactions}
                     for prompt_index, interaction in enumerate(interactions):
+                        prompt_id = interaction[1]
+                        state = interaction_prompt_alphas.setdefault(
+                            prompt_id,
+                            {"alpha": 0.0, "key": interaction[0], "label": "", "left": 250, "bottom": 65},
+                        )
+                        state["key"] = interaction[0]
+                        state["label"] = _interaction_text(current_lang_name, interaction[1])
+                        state["left"] = 250
+                        state["bottom"] = 65 + prompt_index * 58
+                        state["active"] = True
+                    for prompt_id, state in list(interaction_prompt_alphas.items()):
+                        if prompt_id not in active_prompt_ids:
+                            state["active"] = False
+                    for prompt_id, state in list(interaction_prompt_alphas.items()):
+                        target_alpha = 255.0 if state.get("active") else 0.0
+                        alpha = float(state.get("alpha", 0.0))
+                        if alpha < target_alpha:
+                            alpha = min(target_alpha, alpha + PROMPT_FADE_SPEED * frame_scale)
+                        elif alpha > target_alpha:
+                            alpha = max(target_alpha, alpha - PROMPT_FADE_SPEED * frame_scale)
+                        state["alpha"] = alpha
+                        if not state.get("active") and alpha <= 0.0:
+                            interaction_prompt_alphas.pop(prompt_id, None)
+                            continue
                         draw_interaction_prompt(
                             screen,
-                            interaction[0],
-                            _interaction_text(current_lang_name, interaction[1]),
-                            left_margin=250,
-                            bottom_margin=65 + prompt_index * 58,
+                            state["key"],
+                            state["label"],
+                            left_margin=state["left"],
+                            bottom_margin=state["bottom"],
+                            alpha=alpha,
                         )
                 if in_car:
                     radio_label = t["radio_on"] if radio.is_on else t["radio_off"]
@@ -5619,6 +5885,13 @@ def run_open_world(screen, settings, *, continue_game=True):
                     zoom=1.0,
                 )
                 if phone_active or phone_y_offset < 449.0 or fridge_menu_open:
+                    for prompt_id, state in list(interaction_prompt_alphas.items()):
+                        state["active"] = False
+                    for prompt_id, state in list(interaction_prompt_alphas.items()):
+                        alpha = max(0.0, float(state.get("alpha", 0.0)) - PROMPT_FADE_SPEED * frame_scale)
+                        state["alpha"] = alpha
+                        if alpha <= 0.0:
+                            interaction_prompt_alphas.pop(prompt_id, None)
                     return
                 if atom_h.pos.distance_to(HOUSE_FRIDGE_POS) < HOUSE_FRIDGE_RADIUS:
                     prompt = ("E", "fridge")
@@ -5628,11 +5901,39 @@ def run_open_world(screen, settings, *, continue_game=True):
                     prompt = ("E", "exit_house")
                 else:
                     prompt = None
+                active_prompt_ids = {prompt[1]} if prompt is not None else set()
                 if prompt is not None:
+                    prompt_id = prompt[1]
+                    state = interaction_prompt_alphas.setdefault(
+                        prompt_id,
+                        {"alpha": 0.0, "key": prompt[0], "label": "", "left": 20, "bottom": 65},
+                    )
+                    state["key"] = prompt[0]
+                    state["label"] = _interaction_text(current_lang_name, prompt[1])
+                    state["left"] = 20
+                    state["bottom"] = 65
+                    state["active"] = True
+                for prompt_id, state in list(interaction_prompt_alphas.items()):
+                    if prompt_id not in active_prompt_ids:
+                        state["active"] = False
+                for prompt_id, state in list(interaction_prompt_alphas.items()):
+                    target_alpha = 255.0 if state.get("active") else 0.0
+                    alpha = float(state.get("alpha", 0.0))
+                    if alpha < target_alpha:
+                        alpha = min(target_alpha, alpha + PROMPT_FADE_SPEED * frame_scale)
+                    elif alpha > target_alpha:
+                        alpha = max(target_alpha, alpha - PROMPT_FADE_SPEED * frame_scale)
+                    state["alpha"] = alpha
+                    if not state.get("active") and alpha <= 0.0:
+                        interaction_prompt_alphas.pop(prompt_id, None)
+                        continue
                     draw_interaction_prompt(
                         screen,
-                        prompt[0],
-                        _interaction_text(current_lang_name, prompt[1]),
+                        state["key"],
+                        state["label"],
+                        left_margin=state["left"],
+                        bottom_margin=state["bottom"],
+                        alpha=alpha,
                     )
 
             frame_renderer.submit(RenderLayer.BACKGROUND, draw_house_background)

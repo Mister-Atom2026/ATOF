@@ -1,6 +1,14 @@
 # ATOF
 Game About Mister Atom
 
+## Version 0.9.0 Alpha 1 — "Pre-release"
+
+- Smooth fade-in and fade-out for interaction button hints.
+- Increased garage interaction radius from 10 to 100 pixels for more reliable parking and access.
+- Storing a vehicle in the garage now uses a smooth fade transition (fade out, store vehicle, spawn player near garage, fade in) instead of opening the garage menu.
+- Localized garage interface text for all supported languages.
+- Fixed a stuck-movement bug after entering/leaving/taking a vehicle in the garage (including when pressing movement and E together).
+
 ## Version 0.8.0 — "Full Release"
 
 - Uses the supplied weapon textures in the player's hands.
@@ -17,7 +25,7 @@ Game About Mister Atom
 - Adds a garage at the starting vehicle location, opened with E, with up to five stored vehicles.
 - Adds six named engine and wheel upgrade levels with prices and vehicle statistics.
 - Adds a weather app to the phone and weapon-wheel sprites from `weapons/`.
-- The garage interaction point uses a 10-pixel radius; selecting a vehicle places the player inside it.
+- The garage interaction point uses a 100-pixel radius; selecting a vehicle places the player inside it.
 - Rain now significantly reduces grip and makes driving harder.
 - Keeps the player's previous car visible after taking an NPC vehicle.
 - Maintains 22 NPC vehicles and respawns missing traffic every 60 seconds.
