@@ -1,8 +1,0 @@
-#!/bin/sh
-set -eu
-
-SCRIPT_PATH=$(readlink -f -- "$0")
-PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)
-cd "$PROJECT_DIR"
-
-exec python3 main.py "$@"
