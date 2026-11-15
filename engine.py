@@ -4886,50 +4886,50 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
         lang = SUPPORTED_LANGUAGES[settings.get("lang_idx", 1)]
         tut_steps = {
             "English": [
-                ("Move around", "Walk around the real city to get familiar with movement.", "Use W/A/S/D or arrows. Hold Shift to sprint. Move a bit to continue."),
-                ("Enter your car", "Find the car nearby and get in.", "Press F near the car to enter/exit."),
-                ("Drive", "Drive the car and try braking/reverse.", "W/S gas/brake, A/D steer, Space handbrake."),
-                ("Visit locations", "Go to the house or gun shop and interact.", "Press E near doors/points of interest (house, gun shop, garage)."),
+                ("Get outside", "Leave the house and explore the city.", "Move with W/A/S/D or arrows. Press E at the door to exit the house."),
+                ("Get in a car", "Take a car from the garage or enter any car.", "Go to the garage and press E to take a car, or press F near a car."),
+                ("Drive", "Drive and try braking/reverse, then get out.", "W/S accelerate/brake, A/D steer, Space handbrake. F to exit."),
+                ("Visit & interact", "Visit a location and interact with it.", "Try the house, gun shop, or garage and press E where prompted."),
                 ("Combat basics", "Open weapon wheel, fire and reload.", "Middle mouse: weapon wheel. LMB: fire. R: reload."),
-                ("Complete", "Tutorial complete! Explore the city freely.", "Press Enter to finish, or Tab to skip steps, Esc for menu."),
+                ("Complete", "Tutorial complete! Explore freely.", "Press Enter to finish, or Tab to skip steps, Esc for menu."),
             ],
             "Українська": [
-                ("Пересування", "Прогуляйтесь містом, щоб звикнути до керування.", "W/A/S/D або стрілки. Shift — біг. Рухайтесь, щоб продовжити."),
-                ("Сядьте в авто", "Знайдіть авто поруч і сядьте в нього.", "Натисніть F біля авто, щоб сісти/вийти."),
-                ("Керування авто", "Проїдьте та спробуйте гальмування/задній хід.", "W/S — газ/гальмо, A/D — кермо, Space — ручник."),
-                ("Локації та взаємодія", "Зайдіть у будинок або магазин зброї.", "Натисніть E біля дверей/точок інтересу (дім, магазин, гараж)."),
+                ("Вийдіть надвір", "Вийдіть із дому та огляньте місто.", "Рухайтесь W/A/S/D або стрілками. Натисніть E біля виходу з дому."),
+                ("Сядьте в авто", "Візьміть авто з гаража або сядьте в будь-яке авто.", "Підійдіть до гаража й натисніть E або натисніть F біля авто."),
+                ("Поїздка", "Проїдьте, спробуйте гальмування/задній хід і вийдіть.", "W/S — газ/гальмо, A/D — кермо, Space — ручник, F — вийти."),
+                ("Локації та взаємодія", "Зайдіть у локацію та взаємодійте з нею.", "Спробуйте дім, збройовий магазин або гараж і натисніть E за підказкою."),
                 ("Бій", "Відкрийте колесо зброї, зробіть постріл і перезарядіться.", "Середня кнопка миші — колесо, ЛКМ — вогонь, R — перезарядка."),
-                ("Завершено", "Навчання завершено! Можете вільно досліджувати місто.", "Enter — завершити, Tab — пропустити крок, Esc — меню."),
+                ("Завершено", "Навчання завершено! Можете досліджувати місто.", "Enter — завершити, Tab — пропустити крок, Esc — меню."),
             ],
             "Русский": [
-                ("Передвижение", "Прогуляйтесь по городу, чтобы освоить управление.", "W/A/S/D или стрелки. Shift — бег."),
-                ("Сядьте в авто", "Найдите авто рядом и сядьте в него.", "Нажмите F рядом с авто."),
-                ("Управление авто", "Проедьте и попробуйте торможение/задний ход.", "W/S — газ/тормоз, A/D — руль, Space — ручник."),
-                ("Локации", "Зайдите в дом или оружейный магазин.", "Нажмите E у дверей/точек интереса."),
-                ("Бой", "Откройте колесо оружия, выстрелите и перезарядитесь.", "Средняя кнопка мыши — колесо, ЛКМ — огонь, R — перезарядка."),
+                ("Выйдите на улицу", "Выйдите из дома и осмотритесь в городе.", "Двигайтесь W/A/S/D или стрелками. E у выхода из дома."),
+                ("Сядьте в авто", "Возьмите авто из гаража или сядьте в любое авто.", "Подойдите к гаражу и нажмите E или F рядом с авто."),
+                ("Поездка", "Проедьте, попробуйте торможение/задний ход и выйдите.", "W/S — газ/тормоз, A/D — руль, Space — ручник, F — выйти."),
+                ("Локации", "Зайдите в локацию и взаимодействуйте.", "Попробуйте дом, оружейный магазин или гараж (E)."),
+                ("Бой", "Откройте колесо оружия, выстрелите и перезарядитесь.", "Средняя кнопка мыши, ЛКМ, R."),
                 ("Готово", "Обучение завершено!", "Enter — завершить, Tab — пропустить, Esc — меню."),
             ],
             "Español": [
-                ("Movimiento", "Muévete por la ciudad real.", "W/A/S/D o flechas. Shift para correr."),
-                ("Entra al coche", "Encuentra el coche cercano y entra.", "Pulsa F cerca del coche."),
-                ("Conduce", "Conduce y prueba frenos/marcha atrás.", "W/S acelerar/frenar, A/D girar, Espacio freno de mano."),
-                ("Lugares", "Visita la casa o la armería.", "Pulsa E cerca de puertas/puntos de interés."),
+                ("Sal de casa", "Sal de la casa y explora la ciudad.", "Muévete con W/A/S/D o flechas. Pulsa E en la puerta para salir."),
+                ("Entra en un coche", "Saca un coche del garaje o entra en cualquiera.", "Ve al garaje y pulsa E, o pulsa F cerca de un coche."),
+                ("Conduce", "Conduce, prueba frenos/marcha atrás y sal.", "W/S acelerar/frenar, A/D girar, Espacio freno de mano, F salir."),
+                ("Visita e interactúa", "Visita un lugar e interactúa.", "Prueba la casa, la armería o el garaje y pulsa E."),
                 ("Combate", "Abre la rueda, dispara y recarga.", "Botón central, clic izquierdo, R."),
                 ("Listo", "¡Tutorial completado!", "Enter para terminar, Tab para saltar, Esc para menú."),
             ],
             "Deutsch": [
-                ("Bewegung", "Bewege dich durch die echte Stadt.", "W/A/S/D oder Pfeile. Shift sprinten."),
-                ("Ins Auto steigen", "Finde das Auto und steige ein.", "F nahe dem Auto drücken."),
-                ("Fahren", "Fahre und teste Bremsen/Rückwärtsgang.", "W/S Gas/Bremse, A/D lenken, Leertaste Handbremse."),
-                ("Orte", "Besuche Haus oder Waffenladen.", "E an Türen/Punkten drücken."),
+                ("Nach draußen", "Verlasse das Haus und erkunde die Stadt.", "Bewege dich mit W/A/S/D oder Pfeilen. E an der Tür zum Verlassen."),
+                ("Ins Auto", "Nimm ein Auto aus der Garage oder steig in eines ein.", "Zur Garage gehen und E drücken oder F nahe einem Auto."),
+                ("Fahren", "Fahre, teste Bremsen/Rückwärtsgang und steig aus.", "W/S Gas/Bremse, A/D lenken, Leertaste Handbremse, F aussteigen."),
+                ("Orte & Interaktion", "Besuche einen Ort und interagiere.", "Haus, Waffenladen oder Garage ausprobieren (E)."),
                 ("Kampf", "Waffenrad öffnen, schießen, nachladen.", "Mittlere Maustaste, Linksklick, R."),
                 ("Fertig", "Tutorial abgeschlossen!", "Enter beenden, Tab überspringen, Esc Menü."),
             ],
             "Français": [
-                ("Déplacement", "Déplacez-vous dans la vraie ville.", "W/A/S/D ou flèches. Maj pour sprinter."),
-                ("Entrer en voiture", "Trouvez la voiture proche et montez.", "F près de la voiture."),
-                ("Conduire", "Conduisez et testez frein/marche arrière.", "W/S accélérer/freiner, A/D tourner, Espace frein à main."),
-                ("Lieux", "Visitez la maison ou l'armurerie.", "E près des portes/points d'intérêt."),
+                ("Sortir", "Sortez de la maison et explorez la ville.", "Déplacez-vous avec W/A/S/D ou les flèches. E à la porte pour sortir."),
+                ("Monter en voiture", "Prenez une voiture au garage ou montez dans une voiture.", "Allez au garage et appuyez sur E, ou F près d'une voiture."),
+                ("Conduire", "Conduisez, testez frein/marche arrière puis descendez.", "W/S accélérer/freiner, A/D tourner, Espace frein à main, F sortir."),
+                ("Lieux et interaction", "Visitez un lieu et interagissez.", "Essayez la maison, l'armurerie ou le garage (E)."),
                 ("Combat", "Ouvrez la roue, tirez et rechargez.", "Bouton central, clic gauche, R."),
                 ("Terminé", "Tutoriel terminé !", "Entrée terminer, Tab passer, Échap menu."),
             ],
@@ -4947,6 +4947,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "opened_wheel": False,
             "fired": False,
             "reloaded": False,
+            "left_house": False,
             "last_pos": None,
             "completed": False,
         }
@@ -5080,25 +5081,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
     manual_headlights = False
     radio = GameRadio(settings)
 
-    if tutorial_mode:
-        game_state = "CITY"
-        scene_manager = SceneManager("CITY")
-        scene_manager.register("CITY")
-        scene_manager.register("HOUSE")
-        scene_manager.register("GUNSHOP")
-        in_car = False
-        # place player and a car near garage for easy tutorial tasks
-        atom.pos.update(_constants.GARAGE_POS[0] - 120, 2410)
-        car.pos.update(_constants.GARAGE_POS[0] - 40, 2344)
-        car.angle = 270
-        car.speed = 0
-        car.motion_velocity.update(0, 0)
-        car.health = car.max_health
-        car.is_broken = False
-        garage_cars = []
-        money = 500
-        weapons = WeaponWheel.new_game()
-        wanted.clear()
+    # tutorial uses normal new-game spawn/state (in house), no forced overrides
 
     game_font, small_font = resources.game_font, resources.small_font
 
@@ -5493,17 +5476,17 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             return True
         i = tutorial["index"]
         if i == 0:
-            return tutorial["moved"] > 250
+            return bool(tutorial.get("left_house")) or tutorial.get("moved", 0) > 350
         if i == 1:
-            return tutorial["entered_car"]
+            return bool(tutorial.get("entered_car"))
         if i == 2:
-            return tutorial["drove"] and tutorial["exited_car"]
+            return bool(tutorial.get("drove")) and bool(tutorial.get("exited_car"))
         if i == 3:
-            return tutorial["visited_place"]
+            return bool(tutorial.get("visited_target"))
         if i == 4:
-            return tutorial["opened_wheel"] and tutorial["fired"] and tutorial["reloaded"]
+            return bool(tutorial.get("opened_wheel")) and bool(tutorial.get("fired")) and bool(tutorial.get("reloaded"))
         if i == 5:
-            return tutorial.get("completed", False)
+            return bool(tutorial.get("completed", False))
         return False
 
     def _draw_tutorial_overlay():
@@ -7009,16 +6992,39 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
         # Tutorial tracking and overlay (real open world)
         if tutorial and tutorial.get("active"):
             if tutorial.get("last_pos") is None:
-                tutorial["last_pos"] = pygame.Vector2(atom.pos)
+                if game_state == "HOUSE":
+                    tutorial["last_pos"] = pygame.Vector2(atom_h.pos)
+                elif game_state == "GUNSHOP":
+                    tutorial["last_pos"] = pygame.Vector2(atom_g.pos)
+                else:
+                    tutorial["last_pos"] = pygame.Vector2(atom.pos)
                 tutorial["was_in_car"] = in_car
                 tutorial["prev_wheel_open"] = weapons.wheel_open
                 tutorial["prev_ammo"] = weapons.ammo
                 tutorial["prev_reserve"] = weapons.reserve_ammo
                 tutorial["prev_game_state"] = game_state
-            # movement on foot
-            if not in_car and game_state == "CITY":
+                # starting in house means not "left" yet
+                if game_state == "CITY":
+                    tutorial["left_house"] = True
+            # movement tracking
+            if game_state == "HOUSE":
+                tutorial["moved"] += atom_h.pos.distance_to(tutorial["last_pos"])
+                tutorial["last_pos"].update(atom_h.pos)
+            elif game_state == "GUNSHOP":
+                tutorial["moved"] += atom_g.pos.distance_to(tutorial["last_pos"])
+                tutorial["last_pos"].update(atom_g.pos)
+            elif not in_car and game_state == "CITY":
                 tutorial["moved"] += atom.pos.distance_to(tutorial["last_pos"])
-            tutorial["last_pos"].update(atom.pos)
+                tutorial["last_pos"].update(atom.pos)
+            else:
+                tutorial["last_pos"].update(atom.pos)
+            # left house / visited targets
+            if game_state == "CITY":
+                tutorial["left_house"] = True
+            if tutorial.get("left_house") and game_state in ("HOUSE", "GUNSHOP"):
+                # counts as visiting/interacting with a location after going outside
+                if tutorial["index"] >= 3:
+                    tutorial["visited_target"] = True
             # car transitions
             if in_car and not tutorial.get("was_in_car", False):
                 tutorial["entered_car"] = True
@@ -7027,17 +7033,13 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             tutorial["was_in_car"] = in_car
             if in_car and abs(getattr(car, "speed", 0)) > 1.0:
                 tutorial["drove"] = True
-            # visited house/gunshop
-            if game_state in ("HOUSE", "GUNSHOP"):
-                tutorial["visited_place"] = True
             # wheel/fire/reload
             if weapons.wheel_open:
                 tutorial["opened_wheel"] = True
             if weapons.ammo < tutorial.get("prev_ammo", weapons.ammo):
                 tutorial["fired"] = True
             if weapons.reserve_ammo < tutorial.get("prev_reserve", weapons.reserve_ammo) or weapons.is_reloading:
-                if tutorial.get("prev_reserve", weapons.reserve_ammo) != weapons.reserve_ammo or weapons.is_reloading:
-                    tutorial["reloaded"] = True
+                tutorial["reloaded"] = True
             tutorial["prev_ammo"] = weapons.ammo
             tutorial["prev_reserve"] = weapons.reserve_ammo
             tutorial["prev_wheel_open"] = weapons.wheel_open
