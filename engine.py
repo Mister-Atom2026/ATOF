@@ -2823,78 +2823,120 @@ def draw_gta_minimap(
         screen.blit(rendered_distance, (x, y - rendered_distance.get_height() - 8))
 
 def tutorial_menu(screen, font, settings, trans_dict, languages, fade_in=False):
+    """Interactive tutorial in a small practice scene (modern-style guided tasks)."""
     needs_fade_in = fade_in
     clock = pygame.time.Clock()
-    steps_by_lang = {
+    lang = languages[settings["lang_idx"]]
+
+    steps = {
         "English": [
-            ("Movement", "Use W/A/S/D or arrow keys to move.\nPress any movement key to continue."),
-            ("Interaction", "Press E near doors, shops, garage, or objects to interact.\nPress E to continue."),
-            ("Sprint & Combat", "Hold Left Shift to sprint (if not hungry).\nLeft click to attack/shoot, R to reload.\nPress R to continue."),
-            ("Weapons", "Press middle mouse button to open weapon wheel and choose weapon.\nYou can carry up to 2 firearms and 1 knife.\nPress middle mouse button or Enter to continue."),
-            ("Vehicles", "Press F near a car to enter/exit. Use W/S to drive, A/D steer, Space handbrake.\nPress F to continue."),
-            ("Tutorial complete", "Check phone with P, map with Tab, pause with Esc.\nPress Esc or Enter to return to menu."),
+            {"title": "Movement", "task": "Move to the highlighted marker.", "hint": "Use W/A/S/D or arrow keys. Hold Shift to sprint."},
+            {"title": "Interaction", "task": "Approach the door marker and press E.", "hint": "E is used to interact with objects, shops, garage, etc."},
+            {"title": "Shooting & Reload", "task": "Shoot the target, then reload.", "hint": "Left mouse button: fire. R: reload. You can't shoot while transporting items."},
+            {"title": "Weapon wheel", "task": "Open the weapon wheel and switch weapon.", "hint": "Hold/release middle mouse button to choose (2 firearms, 1 knife, unarmed)."},
+            {"title": "Vehicles", "task": "Get in the car, drive a bit, then get out.", "hint": "F: enter/exit. W/S: accelerate/brake. A/D: steer. Space: handbrake."},
+            {"title": "Done", "task": "Tutorial complete!", "hint": "Phone: P, Map: Tab, Pause: Esc. Press Enter to return."},
         ],
         "Українська": [
-            ("Пересування", "Використовуйте W/A/S/D або стрілки для руху.\nНатисніть будь-яку клавішу руху, щоб продовжити."),
-            ("Взаємодія", "Натисніть E біля дверей, магазинів, гаража чи об'єктів.\nНатисніть E, щоб продовжити."),
-            ("Біг і бій", "Утримуйте лівий Shift для бігу (якщо не голодні).\nЛКМ — атака/постріл, R — перезарядка.\nНатисніть R, щоб продовжити."),
-            ("Зброя", "Натисніть середню кнопку миші для колеса зброї.\nМожна носити до 2 одиниць вогнепальної зброї та 1 ніж.\nНатисніть Enter, щоб продовжити."),
-            ("Автомобілі", "Натисніть F біля авто, щоб сісти/вийти. W/S — газ/гальмо, A/D — кермо, Space — ручник.\nНатисніть F, щоб продовжити."),
-            ("Навчання завершено", "Телефон — P, карта — Tab, пауза — Esc.\nНатисніть Esc або Enter, щоб повернутися в меню."),
+            {"title": "Пересування", "task": "Дійдіть до підсвіченої позначки.", "hint": "W/A/S/D або стрілки. Shift — біг."},
+            {"title": "Взаємодія", "task": "Підійдіть до позначки дверей і натисніть E.", "hint": "E — взаємодія з об’єктами, магазинами, гаражем тощо."},
+            {"title": "Стрільба та перезарядка", "task": "Вистріліть у ціль, потім перезарядіться.", "hint": "ЛКМ — постріл. R — перезарядка. Під час перенесення зброї стріляти не можна."},
+            {"title": "Колесо зброї", "task": "Відкрийте колесо зброї та змініть зброю.", "hint": "Середня кнопка миші — вибір (2 вогнепальні, 1 ніж, без зброї)."},
+            {"title": "Автомобілі", "task": "Сядьте в авто, проїдьте трохи та вийдіть.", "hint": "F — сісти/вийти. W/S — газ/гальмо. A/D — кермо. Space — ручник."},
+            {"title": "Готово", "task": "Навчання завершено!", "hint": "Телефон: P, Карта: Tab, Пауза: Esc. Enter — повернутися."},
         ],
         "Русский": [
-            ("Передвижение", "Используйте W/A/S/D или стрелки для движения.\nНажмите любую клавишу движения, чтобы продолжить."),
-            ("Взаимодействие", "Нажмите E рядом с дверями, магазинами, гаражом или объектами.\nНажмите E, чтобы продолжить."),
-            ("Бег и бой", "Удерживайте левый Shift для бега.\nЛКМ — атака/выстрел, R — перезарядка.\nНажмите R, чтобы продолжить."),
-            ("Оружие", "Нажмите среднюю кнопку мыши для колеса оружия.\nМожно носить до 2 единиц огнестрельного оружия и 1 нож.\nНажмите Enter, чтобы продолжить."),
-            ("Автомобили", "Нажмите F рядом с авто, чтобы сесть/выйти. W/S — газ/тормоз, A/D — руль, Space — ручник.\nНажмите F, чтобы продолжить."),
-            ("Обучение завершено", "Телефон — P, карта — Tab, пауза — Esc.\nНажмите Esc или Enter, чтобы вернуться в меню."),
+            {"title": "Передвижение", "task": "Дойдите до отмеченной точки.", "hint": "W/A/S/D или стрелки. Shift — бег."},
+            {"title": "Взаимодействие", "task": "Подойдите к отметке двери и нажмите E.", "hint": "E — взаимодействие с объектами, магазинами, гаражом и т.д."},
+            {"title": "Стрельба и перезарядка", "task": "Выстрелите в цель, затем перезарядитесь.", "hint": "ЛКМ — выстрел. R — перезарядка."},
+            {"title": "Колесо оружия", "task": "Откройте колесо оружия и смените оружие.", "hint": "Средняя кнопка мыши — выбор (2 огнестрельных, 1 нож, без оружия)."},
+            {"title": "Автомобили", "task": "Сядьте в авто, проедьте немного и выйдите.", "hint": "F — сесть/выйти. W/S — газ/тормоз. A/D — руль. Space — ручник."},
+            {"title": "Готово", "task": "Обучение завершено!", "hint": "Телефон: P, Карта: Tab, Пауза: Esc. Enter — вернуться."},
         ],
         "Español": [
-            ("Movimiento", "Usa W/A/S/D o las flechas para moverte.\nPulsa una tecla de movimiento para continuar."),
-            ("Interacción", "Pulsa E cerca de puertas, tiendas, garaje u objetos.\nPulsa E para continuar."),
-            ("Correr y combate", "Mantén Shift izquierdo para correr.\nClic izquierdo para atacar/disparar, R para recargar.\nPulsa R para continuar."),
-            ("Armas", "Pulsa el botón central del ratón para abrir la rueda de armas.\nPuedes llevar hasta 2 armas de fuego y 1 cuchillo.\nPulsa Enter para continuar."),
-            ("Vehículos", "Pulsa F cerca de un coche para entrar/salir. W/S conducir, A/D girar, Espacio freno de mano.\nPulsa F para continuar."),
-            ("Tutorial completado", "Teléfono P, mapa Tab, pausa Esc.\nPulsa Esc o Enter para volver al menú."),
+            {"title": "Movimiento", "task": "Llega al marcador resaltado.", "hint": "Usa W/A/S/D o flechas. Shift para correr."},
+            {"title": "Interacción", "task": "Acércate al marcador y pulsa E.", "hint": "E sirve para interactuar con objetos, tiendas, garaje, etc."},
+            {"title": "Disparo y recarga", "task": "Dispara al objetivo y recarga.", "hint": "Clic izquierdo: disparar. R: recargar."},
+            {"title": "Rueda de armas", "task": "Abre la rueda de armas y cambia de arma.", "hint": "Botón central: elegir (2 armas de fuego, 1 cuchillo, desarmado)."},
+            {"title": "Vehículos", "task": "Entra al coche, conduce un poco y sal.", "hint": "F: entrar/salir. W/S: acelerar/frenar. A/D: girar. Espacio: freno de mano."},
+            {"title": "Listo", "task": "¡Tutorial completado!", "hint": "Teléfono: P, Mapa: Tab, Pausa: Esc. Enter para volver."},
         ],
         "Deutsch": [
-            ("Bewegung", "Nutze W/A/S/D oder Pfeiltasten zum Bewegen.\nDrücke eine Bewegungstaste, um fortzufahren."),
-            ("Interaktion", "Drücke E in der Nähe von Türen, Läden, Garage oder Objekten.\nDrücke E, um fortzufahren."),
-            ("Sprint & Kampf", "Halte linke Umschalttaste zum Sprinten.\nLinksklick zum Angriff/Schuss, R zum Nachladen.\nDrücke R, um fortzufahren."),
-            ("Waffen", "Mittlere Maustaste öffnet das Waffenrad.\nDu kannst bis zu 2 Schusswaffen und 1 Messer tragen.\nDrücke Enter, um fortzufahren."),
-            ("Fahrzeuge", "Drücke F nahe eines Autos zum Ein-/Aussteigen. W/S fahren, A/D lenken, Leertaste Handbremse.\nDrücke F, um fortzufahren."),
-            ("Tutorial abgeschlossen", "Telefon P, Karte Tab, Pause Esc.\nDrücke Esc oder Enter, um zum Menü zurückzukehren."),
+            {"title": "Bewegung", "task": "Bewege dich zur markierten Stelle.", "hint": "W/A/S/D oder Pfeile. Shift zum Sprinten."},
+            {"title": "Interaktion", "task": "Gehe zur Markierung und drücke E.", "hint": "E dient zur Interaktion mit Objekten, Läden, Garage usw."},
+            {"title": "Schießen & Nachladen", "task": "Schieße auf das Ziel und lade nach.", "hint": "Linksklick: schießen. R: nachladen."},
+            {"title": "Waffenrad", "task": "Öffne das Waffenrad und wechsle die Waffe.", "hint": "Mittlere Maustaste: wählen (2 Schusswaffen, 1 Messer, unbewaffnet)."},
+            {"title": "Fahrzeuge", "task": "Steig ins Auto, fahre kurz und steig aus.", "hint": "F: ein-/aussteigen. W/S: Gas/Bremse. A/D: lenken. Leertaste: Handbremse."},
+            {"title": "Fertig", "task": "Tutorial abgeschlossen!", "hint": "Telefon: P, Karte: Tab, Pause: Esc. Enter zum Zurückkehren."},
         ],
         "Français": [
-            ("Déplacement", "Utilisez W/A/S/D ou les flèches pour vous déplacer.\nAppuyez sur une touche de déplacement pour continuer."),
-            ("Interaction", "Appuyez sur E près des portes, magasins, garage ou objets.\nAppuyez sur E pour continuer."),
-            ("Sprint et combat", "Maintenez Maj gauche pour sprinter.\nClic gauche pour attaquer/tirer, R pour recharger.\nAppuyez sur R pour continuer."),
-            ("Armes", "Bouton central de la souris pour la roue des armes.\nVous pouvez porter jusqu'à 2 armes à feu et 1 couteau.\nAppuyez sur Entrée pour continuer."),
-            ("Véhicules", "Appuyez sur F près d'une voiture pour entrer/sortir. W/S conduire, A/D tourner, Espace frein à main.\nAppuyez sur F pour continuer."),
-            ("Tutoriel terminé", "Téléphone P, carte Tab, pause Échap.\nAppuyez sur Échap ou Entrée pour revenir au menu."),
+            {"title": "Déplacement", "task": "Allez jusqu'au marqueur en surbrillance.", "hint": "W/A/S/D ou flèches. Maj pour sprinter."},
+            {"title": "Interaction", "task": "Approchez-vous du marqueur et appuyez sur E.", "hint": "E permet d'interagir avec les objets, magasins, garage, etc."},
+            {"title": "Tir et rechargement", "task": "Tirez sur la cible puis rechargez.", "hint": "Clic gauche : tirer. R : recharger."},
+            {"title": "Roue des armes", "task": "Ouvrez la roue des armes et changez d'arme.", "hint": "Bouton central : choisir (2 armes à feu, 1 couteau, sans arme)."},
+            {"title": "Véhicules", "task": "Montez dans la voiture, roulez un peu, puis descendez.", "hint": "F : entrer/sortir. W/S : accélérer/freiner. A/D : tourner. Espace : frein à main."},
+            {"title": "Terminé", "task": "Tutoriel terminé !", "hint": "Téléphone : P, Carte : Tab, Pause : Échap. Entrée pour revenir."},
         ],
     }
-    lang = languages[settings["lang_idx"]]
-    steps = steps_by_lang.get(lang, steps_by_lang["English"])
-    step = 0
+    texts = steps.get(lang, steps["English"])
+    ui = {
+        "English": {"skip": "Tab: Skip step", "back": "Esc: Back to menu", "completed": "Step completed!"},
+        "Українська": {"skip": "Tab: Пропустити крок", "back": "Esc: В меню", "completed": "Крок виконано!"},
+        "Русский": {"skip": "Tab: Пропустить шаг", "back": "Esc: В меню", "completed": "Шаг выполнен!"},
+        "Español": {"skip": "Tab: Saltar paso", "back": "Esc: Volver al menú", "completed": "¡Paso completado!"},
+        "Deutsch": {"skip": "Tab: Schritt überspringen", "back": "Esc: Zum Menü", "completed": "Schritt abgeschlossen!"},
+        "Français": {"skip": "Tab : Passer l'étape", "back": "Échap : Retour au menu", "completed": "Étape terminée !"},
+    }.get(lang, {"skip": "Tab: Skip step", "back": "Esc: Back to menu", "completed": "Step completed!"})
+
+    player_pos = pygame.Vector2(180, 360)
+    player_angle = 0.0
+    in_car = False
+    car_pos = pygame.Vector2(700, 360)
+    car_angle = -90.0
+    car_speed = 0.0
+    marker_move = pygame.Vector2(420, 250)
+    marker_interact = pygame.Vector2(420, 430)
+    target_pos = pygame.Vector2(900, 260)
+    target_alive = True
+    moved_to_marker = False
+    interacted = False
+    shot_done = False
+    reloaded = False
+    wheel_used = False
+    entered_car = False
+    drove_car = False
+    exited_car = False
+    ammo = 3
+    reserve = 2
+    step_idx = 0
+    step_done_timer = 0.0
+    fire_cooldown = 0.0
+
+    # simple weapon wheel state for tutorial
+    wheel_open = False
+    wheel_selected = 0
+    wheel_names = ["Pistol", "Shotgun", "Knife", "Unarmed"]
+
+    def draw_panel(completed=False):
+        panel = pygame.Surface((screen.get_width() - 40, 150), pygame.SRCALPHA)
+        panel.fill((20, 16, 12, 230))
+        screen.blit(panel, (20, 20))
+        pygame.draw.rect(screen, (212, 91, 18), (20, 20, screen.get_width() - 40, 150), 2, border_radius=10)
+        t = texts[step_idx]
+        title_s = font.render(f"{step_idx+1}/{len(texts)}  {t['title']}", True, (238,164,47))
+        screen.blit(title_s, (36, 32))
+        task_s = _cached_ui_font(None, 30).render(t["task"], True, (255,255,255))
+        screen.blit(task_s, (36, 78))
+        hint_s = _cached_ui_font(None, 24).render(t["hint"], True, (210,210,210))
+        screen.blit(hint_s, (36, 112))
+        foot = _cached_ui_font(None, 22).render(f"{ui['skip']}    {ui['back']}", True, (170,170,170))
+        screen.blit(foot, (36, 142))
+        if completed:
+            done_s = _cached_ui_font(None, 28).render(ui["completed"], True, (120, 230, 140))
+            screen.blit(done_s, done_s.get_rect(topright=(screen.get_width()-40, 30)))
+
     while True:
-        screen.fill((12, 12, 12))
-        title_txt, body_txt = steps[step]
-        title = font.render(title_txt, True, (238, 164, 47))
-        screen.blit(title, title.get_rect(center=(screen.get_width()//2, 90)))
-        y = 170
-        for line in body_txt.split("\n"):
-            rendered = _cached_ui_font(None, 28).render(line, True, (240,240,240))
-            screen.blit(rendered, (60, y))
-            y += 40
-        progress = _cached_ui_font(None, 22).render(f"{step+1}/{len(steps)}", True, (180,180,180))
-        screen.blit(progress, (60, screen.get_height()-50))
-        if needs_fade_in:
-            fade_menu_in(screen)
-            needs_fade_in = False
-        else:
-            pygame.display.flip()
+        dt = clock.tick(FPS) / 1000.0
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return "EXIT"
@@ -2902,22 +2944,178 @@ def tutorial_menu(screen, font, settings, trans_dict, languages, fade_in=False):
                 if event.key == pygame.K_ESCAPE:
                     fade_menu_out(screen)
                     return "BACK"
-                if step == 0 and event.key in (pygame.K_w, pygame.K_a, pygame.K_s, pygame.K_d, pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT):
-                    step += 1
-                elif step == 1 and event.key == pygame.K_e:
-                    step += 1
-                elif step == 2 and event.key == pygame.K_r:
-                    step += 1
-                elif step == 3 and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
-                    step += 1
-                elif step == 4 and event.key == pygame.K_f:
-                    step += 1
-                elif step == 5 and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE):
+                if event.key == pygame.K_TAB and step_idx < len(texts) - 1 and step_done_timer <= 0:
+                    # skip step
+                    if step_idx == 0: moved_to_marker = True
+                    elif step_idx == 1: interacted = True
+                    elif step_idx == 2: shot_done = True; reloaded = True
+                    elif step_idx == 3: wheel_used = True
+                    elif step_idx == 4: entered_car = True; drove_car = True; exited_car = True
+                    step_done_timer = 0.5
+                if step_idx == 1 and event.key == pygame.K_e and not in_car and player_pos.distance_to(marker_interact) < 55:
+                    interacted = True
+                if step_idx == 2 and event.key == pygame.K_r and not in_car:
+                    if ammo < 3 and reserve > 0:
+                        take = min(3-ammo, reserve)
+                        ammo += take; reserve -= take
+                    reloaded = True
+                if step_idx == 4 and event.key == pygame.K_f:
+                    if not in_car and player_pos.distance_to(car_pos) < 90:
+                        in_car = True
+                        entered_car = True
+                    elif in_car:
+                        in_car = False
+                        exited_car = True
+                        player_pos = car_pos + pygame.Vector2(70, 0)
+                if step_idx == 3 and event.key == pygame.K_RETURN:
+                    wheel_used = True
+                if step_idx == len(texts)-1 and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                     fade_menu_out(screen)
                     return "BACK"
-            elif event.type == pygame.MOUSEBUTTONDOWN and step == 3 and event.button == 2:
-                step += 1
-        clock.tick(FPS)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if step_idx == 2 and event.button == 1 and not in_car and fire_cooldown <= 0 and ammo > 0:
+                    # simple hit check: shoot toward target area
+                    mx,my = event.pos
+                    aim = pygame.Vector2(mx,my) - player_pos
+                    to_target = target_pos - player_pos
+                    if aim.length_squared() > 0 and to_target.length_squared() > 0:
+                        aim_n = aim.normalize(); tgt_n = to_target.normalize()
+                        if aim_n.dot(tgt_n) > 0.92 and target_alive and player_pos.distance_to(target_pos) < 420:
+                            target_alive = False
+                    ammo -= 1
+                    fire_cooldown = 0.25
+                    shot_done = True
+                if step_idx == 3 and event.button == 2:
+                    wheel_open = not wheel_open
+                    if not wheel_open:
+                        wheel_used = True
+            if event.type == pygame.MOUSEBUTTONUP and step_idx == 3 and event.button == 2:
+                wheel_open = False
+                wheel_used = True
+
+        keys = pygame.key.get_pressed()
+        speed = 220 * dt
+        if not in_car:
+            move = pygame.Vector2(0,0)
+            if keys[pygame.K_w] or keys[pygame.K_UP]: move.y -= 1
+            if keys[pygame.K_s] or keys[pygame.K_DOWN]: move.y += 1
+            if keys[pygame.K_a] or keys[pygame.K_LEFT]: move.x -= 1
+            if keys[pygame.K_d] or keys[pygame.K_RIGHT]: move.x += 1
+            if move.length_squared() > 0:
+                if keys[pygame.K_LSHIFT]: move = move.normalize() * speed * 1.6
+                else: move = move.normalize() * speed
+                player_pos += move
+                player_pos.x = max(40, min(screen.get_width()-40, player_pos.x))
+                player_pos.y = max(190, min(screen.get_height()-40, player_pos.y))
+        else:
+            if keys[pygame.K_w] or keys[pygame.K_UP]: car_speed = min(260, car_speed + 300*dt)
+            elif keys[pygame.K_s] or keys[pygame.K_DOWN]: car_speed = max(-120, car_speed - 360*dt)
+            else:
+                if car_speed > 0: car_speed = max(0, car_speed - 220*dt)
+                elif car_speed < 0: car_speed = min(0, car_speed + 220*dt)
+            if keys[pygame.K_SPACE]: car_speed *= 0.9
+            if abs(car_speed) > 5:
+                turn = 120*dt
+                if keys[pygame.K_a] or keys[pygame.K_LEFT]: car_angle += turn
+                if keys[pygame.K_d] or keys[pygame.K_RIGHT]: car_angle -= turn
+            car_pos += pygame.Vector2(car_speed*dt, 0).rotate(-car_angle)
+            car_pos.x = max(80, min(screen.get_width()-80, car_pos.x))
+            car_pos.y = max(220, min(screen.get_height()-80, car_pos.y))
+            if abs(car_speed) > 20 or car_pos.distance_to(pygame.Vector2(700,360)) > 60:
+                drove_car = True
+
+        fire_cooldown = max(0.0, fire_cooldown - dt)
+
+        # step completion checks
+        if step_idx == 0 and player_pos.distance_to(marker_move) < 45:
+            moved_to_marker = True
+        if step_idx == 2 and shot_done and reloaded:
+            pass
+        if step_idx == 4 and entered_car and drove_car and exited_car:
+            pass
+
+        completed = False
+        if step_idx == 0 and moved_to_marker: completed = True
+        elif step_idx == 1 and interacted: completed = True
+        elif step_idx == 2 and shot_done and reloaded: completed = True
+        elif step_idx == 3 and wheel_used: completed = True
+        elif step_idx == 4 and entered_car and drove_car and exited_car: completed = True
+        elif step_idx == len(texts)-1: completed = True
+
+        if completed and step_idx < len(texts)-1:
+            step_done_timer += dt
+            if step_done_timer >= 0.9:
+                step_idx += 1
+                step_done_timer = 0.0
+                # setup for next steps
+                if step_idx == 2:
+                    ammo, reserve = 2, 2; target_alive = True; shot_done = False; reloaded = False
+                if step_idx == 3:
+                    wheel_open = False; wheel_used = False
+                if step_idx == 4:
+                    in_car = False; entered_car = False; drove_car = False; exited_car = False; car_speed = 0.0
+
+        # draw scene
+        screen.fill((28, 34, 28))
+        pygame.draw.rect(screen, (45,52,45), (0,180,screen.get_width(),screen.get_height()-180))
+        # markers
+        if step_idx == 0:
+            pygame.draw.circle(screen, (255, 210, 80), marker_move, 26, 3)
+            pygame.draw.circle(screen, (255, 210, 80, 80), marker_move, 10)
+        if step_idx == 1:
+            pygame.draw.rect(screen, (120, 180, 255), (marker_interact.x-18, marker_interact.y-28, 36, 56), border_radius=6)
+            if player_pos.distance_to(marker_interact) < 55 and not in_car:
+                txt = _cached_ui_font(None, 24).render("E", True, (255,255,255))
+                screen.blit(txt, (marker_interact.x-6, marker_interact.y-50))
+        if step_idx == 2:
+            if target_alive:
+                pygame.draw.circle(screen, (220,70,70), target_pos, 24)
+                pygame.draw.circle(screen, (255,255,255), target_pos, 24, 2)
+                pygame.draw.circle(screen, (255,255,255), target_pos, 8, 2)
+            else:
+                pygame.draw.line(screen, (120,220,120), (target_pos.x-18,target_pos.y-18), (target_pos.x+18,target_pos.y+18), 3)
+                pygame.draw.line(screen, (120,220,120), (target_pos.x+18,target_pos.y-18), (target_pos.x-18,target_pos.y+18), 3)
+            ammo_txt = _cached_ui_font(None, 26).render(f"Ammo: {ammo}/{reserve}", True, (255,255,255))
+            screen.blit(ammo_txt, (40, screen.get_height()-40))
+        # car
+        car_rect = pygame.Rect(0,0,90,44)
+        car_surf = pygame.Surface((90,44), pygame.SRCALPHA)
+        pygame.draw.rect(car_surf, (70,120,190), (0,0,90,44), border_radius=8)
+        pygame.draw.rect(car_surf, (200,220,255), (18,8,30,28), border_radius=4)
+        rotated = pygame.transform.rotate(car_surf, car_angle)
+        screen.blit(rotated, rotated.get_rect(center=car_pos))
+        if step_idx == 4 and not in_car and player_pos.distance_to(car_pos) < 90:
+            txt = _cached_ui_font(None, 24).render("F", True, (255,255,255))
+            screen.blit(txt, (car_pos.x-6, car_pos.y-50))
+        # player
+        if not in_car:
+            pygame.draw.circle(screen, (240, 210, 120), (int(player_pos.x), int(player_pos.y)), 14)
+            pygame.draw.circle(screen, (40,40,40), (int(player_pos.x), int(player_pos.y)), 14, 2)
+        # weapon wheel overlay
+        if step_idx == 3 and wheel_open:
+            center = pygame.Vector2(screen.get_width()//2, screen.get_height()//2 + 60)
+            pygame.draw.circle(screen, (18,18,24), center, 120)
+            pygame.draw.circle(screen, (200,200,210), center, 120, 2)
+            for i,name in enumerate(wheel_names):
+                ang = -90 + i*90
+                pos = center + pygame.Vector2(80,0).rotate(ang)
+                pygame.draw.circle(screen, (212,91,18) if i==wheel_selected else (70,70,80), pos, 34)
+                label = _cached_ui_font(None, 22).render(name, True, (255,255,255))
+                screen.blit(label, label.get_rect(center=(pos.x, pos.y+2)))
+            mx,my = pygame.mouse.get_pos()
+            v = pygame.Vector2(mx,my)-center
+            if v.length_squared() > 400:
+                wheel_selected = int(((math.degrees(math.atan2(v.y,v.x))+90+360+45)//90) % 4)
+
+        draw_panel(completed=completed)
+        if needs_fade_in:
+            fade_menu_in(screen)
+            needs_fade_in = False
+        else:
+            pygame.display.flip()
+
+    # unreachable
+    return "BACK"
 
 
 def stats_dialog(screen, font, small_font, t, stats=None, controls=None, fade_in=False):
