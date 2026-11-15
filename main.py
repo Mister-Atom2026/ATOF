@@ -5,8 +5,8 @@ import pygame
 
 from settings_manager import load_settings, load_statistics, save_settings
 
-VERSION = "0.9.0-alpha.1"
-RELEASE_NAME = "Alpha 1"
+VERSION = "0.9.0-alpha.2"
+RELEASE_NAME = "Alpha 2"
 APP_SETTINGS = load_settings()
 
 import constants
@@ -86,6 +86,7 @@ translations = {
     "English": {
         "play": "Play",
         "settings": "Settings",
+        "tutorial": "Tutorial",
         "additional_content": "Additional Content",
         "exit": "Exit",
         "hint": "[F] Enter Car",
@@ -122,6 +123,7 @@ translations = {
     "Українська": {
         "play": "Грати",
         "settings": "Налаштування",
+        "tutorial": "Навчання",
         "additional_content": "Додатковий контент",
         "exit": "Вихід",
         "hint": "[F] Сісти в авто",
@@ -158,6 +160,7 @@ translations = {
     "Русский": {
         "play": "Играть",
         "settings": "Настройки",
+        "tutorial": "Обучение",
         "additional_content": "Дополнительный контент",
         "exit": "Выход",
         "hint": "[F] Сесть в авто",
@@ -194,6 +197,7 @@ translations = {
     "Español": {
         "play": "Jugar",
         "settings": "Ajustes",
+        "tutorial": "Tutorial",
         "additional_content": "Contenido adicional",
         "exit": "Salir",
         "hint": "[F] Subir al coche",
@@ -230,6 +234,7 @@ translations = {
     "Deutsch": {
         "play": "Spielen",
         "settings": "Einstellungen",
+        "tutorial": "Tutorial",
         "additional_content": "Zusatzinhalte",
         "exit": "Beenden",
         "hint": "[F] Ins Auto steigen",
@@ -266,6 +271,7 @@ translations = {
     "Français": {
         "play": "Jouer",
         "settings": "Paramètres",
+        "tutorial": "Tutoriel",
         "additional_content": "Contenu supplémentaire",
         "exit": "Quitter",
         "hint": "[F] Monter en voiture",
@@ -437,6 +443,7 @@ def activate_menu_option(index):
         return start_open_world()
 
     if index == 1:
+        engine.fade_menu_out(screen)
         result = engine.settings_sub_menu(
             screen,
             settings_font,
@@ -444,25 +451,39 @@ def activate_menu_option(index):
             translations,
             LANGUAGES,
             on_change=save_settings,
+            fade_in=True,
         )
         if result == "VIDEO_CHANGED":
             apply_video_settings()
-        return result != "EXIT"
+        return "BACK" if result != "EXIT" else "EXIT"
 
     if index == 2:
+        engine.fade_menu_out(screen)
+        result = engine.tutorial_menu(
+            screen,
+            settings_font,
+            APP_SETTINGS,
+            translations,
+            LANGUAGES,
+            fade_in=True,
+        )
+        return "BACK" if result != "EXIT" else "EXIT"
+
+    if index == 3:
         language = LANGUAGES[APP_SETTINGS["lang_idx"]]
         text = dict(translations[language])
         text["stats_title"] = text["last_session_stats"]
-        result = engine.stats_dialog(screen, settings_font, settings_font, text, APP_STATS)
-        return result != "EXIT"
+        engine.fade_menu_out(screen)
+        result = engine.stats_dialog(screen, settings_font, settings_font, text, APP_STATS, fade_in=True)
+        return "BACK" if result != "EXIT" else "EXIT"
 
     language = LANGUAGES[APP_SETTINGS["lang_idx"]]
-    return not engine.confirm_dialog(
+    return False if engine.confirm_dialog(
         screen,
         settings_font,
         settings_font,
         translations[language],
-    )
+    ) else "BACK"
 
 
 def main():
@@ -470,6 +491,7 @@ def main():
     selected_index = 0
     last_hover_key = None
     clock = pygame.time.Clock()
+    needs_fade_in = False
 
     try:
         if not play_intro_videos(screen):
@@ -477,7 +499,7 @@ def main():
         while True:
             language = LANGUAGES[APP_SETTINGS["lang_idx"]]
             text = translations[language]
-            options = [text["play"], text["settings"], text["additional_content"], text["exit"]]
+            options = [text["play"], text["settings"], text.get("tutorial", "Tutorial"), text["additional_content"], text["exit"]]
 
             screen.fill(COLOR_BG)
             draw_logo()
@@ -514,8 +536,11 @@ def main():
                         if rect.collidepoint(event.pos):
                             selected_index = index
                             engine.play_menu_sound("click")
-                            if not activate_menu_option(index):
+                            result = activate_menu_option(index)
+                            if result is False or result == "EXIT":
                                 return
+                            if result == "BACK":
+                                needs_fade_in = True
                             break
 
                 if event.type == pygame.KEYDOWN:
@@ -527,10 +552,17 @@ def main():
                         engine.play_menu_sound("hover")
                     elif event.key == pygame.K_RETURN:
                         engine.play_menu_sound("click")
-                        if not activate_menu_option(selected_index):
+                        result = activate_menu_option(selected_index)
+                        if result is False or result == "EXIT":
                             return
+                        if result == "BACK":
+                            needs_fade_in = True
 
-            pygame.display.flip()
+            if needs_fade_in:
+                engine.fade_menu_in(screen)
+                needs_fade_in = False
+            else:
+                pygame.display.flip()
             clock.tick(constants.FPS)
     finally:
         try:

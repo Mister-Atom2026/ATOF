@@ -4,8 +4,8 @@ WORLD_WIDTH, WORLD_HEIGHT = 1280 * 4, 720 * 4  # Full world-map dimensions.
 FPS = 60
 
 # Collision and navigation mask paths.
-MAP_MINI = "Карта Вишневого.png"
-MAP_COLLISION = "Нізя їздити.png"
+MAP_MINI = "vyshneve_map.png"
+MAP_COLLISION = "vyshneve_collision.png"
 
 # Colors used by the game logic.
 C_WALL = (136, 0, 21)   # Red represents a wall.

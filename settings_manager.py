@@ -49,13 +49,11 @@ _WEAPON_MAGAZINE_CAPACITIES = {
     "pistol": 7,
     "shotgun": 5,
     "rifle": 50,
-    "smg": 20,
 }
 _WEAPON_RESERVE_CAPACITIES = {
     "pistol": 49,
     "shotgun": 25,
     "rifle": 150,
-    "smg": 80,
 }
 _VEHICLE_CLASSES = {"sport", "stolen-sedan", "stolen-police"}
 
@@ -86,6 +84,32 @@ def _normalize_weapon_ammo(values, field, capacities):
         for weapon, capacity in capacities.items()
         if weapon in raw
     }
+
+
+def _normalize_weapon_item(item):
+    if not isinstance(item, dict):
+        return None
+    wtype = item.get("type")
+    if wtype == "knife":
+        return {"type": "knife"}
+    if wtype not in _WEAPON_MAGAZINE_CAPACITIES:
+        return None
+    return {
+        "type": wtype,
+        "ammo": _bounded_int(item.get("ammo"), _WEAPON_MAGAZINE_CAPACITIES[wtype], 0, _WEAPON_MAGAZINE_CAPACITIES[wtype]),
+        "reserve": _bounded_int(item.get("reserve"), 0, 0, _WEAPON_RESERVE_CAPACITIES[wtype]),
+    }
+
+
+def _normalize_weapon_items(items, limit):
+    if not isinstance(items, list):
+        return []
+    normalized = []
+    for item in items[:limit]:
+        norm = _normalize_weapon_item(item)
+        if norm is not None:
+            normalized.append(norm)
+    return normalized
 
 
 def _normalize_garage_cars(values):
@@ -174,6 +198,23 @@ def load_game_save():
         treasures = []
     game_time = _finite_number(values.get("game_time"), maximum=1439.999)
 
+    carried_firearms = _normalize_weapon_items(values.get("carried_firearms", []), 2)
+    carried_knife = bool(values.get("carried_knife", False))
+    home_storage = _normalize_weapon_items(values.get("home_storage", []), 7)
+    carrying_out = _normalize_weapon_items(values.get("carrying_out", []), 3)
+    raw_car_storage = values.get("car_storage", {})
+    car_storage = {}
+    if isinstance(raw_car_storage, dict):
+        for key, items in list(raw_car_storage.items())[:20]:
+            if isinstance(key, str):
+                car_storage[key] = _normalize_weapon_items(items, 20)
+
+    weapon = values.get("weapon")
+    if weapon == "smg":
+        weapon = "pistol"
+    if weapon not in ("none", "pistol", "shotgun", "rifle", "knife"):
+        weapon = "pistol"
+
     return {
         "hero_health": _finite_number(values.get("hero_health"), default=100.0, maximum=100.0),
         "hunger": _finite_number(values.get("hunger"), default=100.0, maximum=100.0),
@@ -183,22 +224,25 @@ def load_game_save():
             maximum=59.999,
         ),
         "ammo": _bounded_int(values.get("ammo"), 7, 0, 50),
-        "reserve_ammo": _bounded_int(values.get("reserve_ammo"), 49, 0, 150),
+        "reserve_ammo": _bounded_int(values.get("reserve_ammo"), 30, 0, 150),
         "ammo_by_weapon": _normalize_weapon_ammo(
             values, "ammo_by_weapon", _WEAPON_MAGAZINE_CAPACITIES
         ),
         "reserve_ammo_by_weapon": _normalize_weapon_ammo(
             values, "reserve_ammo_by_weapon", _WEAPON_RESERVE_CAPACITIES
         ),
-        "weapon": values.get("weapon")
-        if values.get("weapon") in ("none", "pistol", "shotgun", "rifle", "smg")
-        else "pistol",
+        "weapon": weapon,
+        "carried_firearms": carried_firearms,
+        "carried_knife": carried_knife,
+        "home_storage": home_storage,
+        "car_storage": car_storage,
+        "carrying_out": carrying_out,
         "honor": _finite_number(values.get("honor"), minimum=_HONOR_MIN, maximum=_HONOR_MAX),
         "respect": _finite_number(values.get("respect"), minimum=_HONOR_MIN, maximum=_HONOR_MAX),
         "wanted_level": _bounded_int(values.get("wanted_level"), 0, 0, 5),
         "wanted_escape_timer": _finite_number(values.get("wanted_escape_timer"), maximum=100_000.0),
         "game_state": values.get("game_state")
-        if values.get("game_state") in ("CITY", "HOUSE")
+        if values.get("game_state") in ("CITY", "HOUSE", "GUNSHOP")
         else "CITY",
         "player": {
             "x": _finite_number(player["x"], minimum=-1_000_000_000.0),

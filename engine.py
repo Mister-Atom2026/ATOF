@@ -29,6 +29,13 @@ WORLD_WIDTH = _constants.WORLD_WIDTH
 WORLD_HEIGHT = _constants.WORLD_HEIGHT
 HOUSE_SLEEP_SPOT = _constants.HOUSE_SLEEP_SPOT
 HOUSE_ENTRY_SPOT = _constants.HOUSE_ENTRY_SPOT
+GUNSHOP_POS = pygame.Vector2(10027, 4902)
+GUNSHOP_RADIUS = 80
+GUNSHOP_EXIT_SPOT = pygame.Vector2(352, 0)
+GUNSHOP_EXIT_RADIUS = 40
+GUNSHOP_ENTRY_SPOT = (352, 40)
+GUNSHOP_COUNTER_POS = pygame.Vector2(145, 224)
+GUNSHOP_COUNTER_RADIUS = 36
 SUPPORTED_LANGUAGES = (
     "English",
     "Українська",
@@ -204,6 +211,8 @@ _MINIMAP_BACKGROUND_CACHE: dict[
 
 HOUSE_FRIDGE_POS = pygame.Vector2(675, 248)
 HOUSE_FRIDGE_RADIUS = 46
+HOUSE_NIGHTSTAND_POS = pygame.Vector2(208, 192)
+HOUSE_NIGHTSTAND_RADIUS = 46
 FRIDGE_FOODS = (
     ("fridge_apple", 15),
     ("fridge_sandwich", 30),
@@ -223,6 +232,9 @@ _INTERACTION_TEXTS = {
         "fridge_apple": "Apple", "fridge_sandwich": "Sandwich",
         "fridge_meal": "Hot meal", "fridge_item_detail": "+{value}%  ·  {stock} left",
         "fridge_full": "Already full", "fridge_close": "Esc  Close",
+        "enter_gunshop": "Enter shop", "exit_gunshop": "Leave shop",
+        "gunshop_browse": "Browse assortment",
+        "open_nightstand": "Open nightstand", "open_trunk": "Open trunk",
     },
     "Українська": {
         "enter_car": "Сісти в машину", "steal_car": "Викрасти машину",
@@ -235,6 +247,9 @@ _INTERACTION_TEXTS = {
         "fridge_apple": "Яблуко", "fridge_sandwich": "Бутерброд",
         "fridge_meal": "Гаряча страва", "fridge_item_detail": "+{value}%  ·  лишилося {stock}",
         "fridge_full": "Ти вже ситий", "fridge_close": "Esc  Закрити",
+        "enter_gunshop": "Увійти в магазин", "exit_gunshop": "Вийти з магазину",
+        "gunshop_browse": "Переглянути асортимент",
+        "open_nightstand": "Відкрити тумбочку", "open_trunk": "Відкрити багажник",
     },
     "Русский": {
         "enter_car": "Сесть в машину", "steal_car": "Угнать машину",
@@ -247,6 +262,9 @@ _INTERACTION_TEXTS = {
         "fridge_apple": "Яблоко", "fridge_sandwich": "Бутерброд",
         "fridge_meal": "Горячее блюдо", "fridge_item_detail": "+{value}%  ·  осталось {stock}",
         "fridge_full": "Ты уже сыт", "fridge_close": "Esc  Закрыть",
+        "enter_gunshop": "Войти в магазин", "exit_gunshop": "Выйти из магазина",
+        "gunshop_browse": "Посмотреть ассортимент",
+        "open_nightstand": "Открыть тумбочку", "open_trunk": "Открыть багажник",
     },
     "Español": {
         "enter_car": "Subir al coche", "steal_car": "Robar vehículo",
@@ -259,6 +277,9 @@ _INTERACTION_TEXTS = {
         "fridge_apple": "Manzana", "fridge_sandwich": "Bocadillo",
         "fridge_meal": "Plato caliente", "fridge_item_detail": "+{value}%  ·  quedan {stock}",
         "fridge_full": "Ya estás lleno", "fridge_close": "Esc  Cerrar",
+        "enter_gunshop": "Entrar en la tienda", "exit_gunshop": "Salir de la tienda",
+        "gunshop_browse": "Ver surtido",
+        "open_nightstand": "Abrir mesita de noche", "open_trunk": "Abrir maletero",
     },
     "Deutsch": {
         "enter_car": "Ins Auto steigen", "steal_car": "Auto stehlen",
@@ -271,6 +292,9 @@ _INTERACTION_TEXTS = {
         "fridge_apple": "Apfel", "fridge_sandwich": "Sandwich",
         "fridge_meal": "Warme Mahlzeit", "fridge_item_detail": "+{value}%  ·  {stock} übrig",
         "fridge_full": "Schon satt", "fridge_close": "Esc  Schließen",
+        "enter_gunshop": "Laden betreten", "exit_gunshop": "Laden verlassen",
+        "gunshop_browse": "Sortiment ansehen",
+        "open_nightstand": "Nachttisch öffnen", "open_trunk": "Kofferraum öffnen",
     },
     "Français": {
         "enter_car": "Monter en voiture", "steal_car": "Voler le véhicule",
@@ -283,6 +307,9 @@ _INTERACTION_TEXTS = {
         "fridge_apple": "Pomme", "fridge_sandwich": "Sandwich",
         "fridge_meal": "Plat chaud", "fridge_item_detail": "+{value}%  ·  reste {stock}",
         "fridge_full": "Vous êtes déjà rassasié", "fridge_close": "Esc  Fermer",
+        "enter_gunshop": "Entrer dans le magasin", "exit_gunshop": "Quitter le magasin",
+        "gunshop_browse": "Voir l'assortiment",
+        "open_nightstand": "Ouvrir la table de chevet", "open_trunk": "Ouvrir le coffre",
     },
 }
 
@@ -640,6 +667,8 @@ class GameAssets:
     house_visual: pygame.Surface
     house_collision: pygame.Surface
     house_info: pygame.Surface
+    gunshop_visual: pygame.Surface
+    gunshop_collision: pygame.Surface
 
 
 @dataclass(frozen=True)
@@ -670,11 +699,11 @@ def load_game_assets(
     """Load and prepare the shared city, house, and character assets."""
     atom = load_image("characters/atom.png", alpha=True)
 
-    original_nav_map = load_image("world/Карта Вишневого.png")
-    original_background = load_image("world/НОРМ Карта Вишневого.png")
+    original_nav_map = load_image("world/vyshneve_map.png")
+    original_background = load_image("world/vyshneve_map_normal.png")
     world_background = pygame.transform.scale(original_background, world_size)
     full_map = pygame.transform.scale(original_nav_map, screen_size)
-    collision_source = load_image("world/Нізя їздити.png")
+    collision_source = load_image("world/vyshneve_collision.png")
     collision_mask = pygame.transform.scale(collision_source, world_size)
     traffic.prepare_collision_mask(collision_mask, collision_source)
 
@@ -687,6 +716,20 @@ def load_game_assets(
     house_collision = pygame.transform.scale(load_image("ch_home/hkm.png"), house_size)
     house_info = pygame.transform.scale(load_image("ch_home/him.png"), house_size)
 
+    gunshop_raw = load_image("world/gunshop.png")
+    gunshop_size = (
+        gunshop_raw.get_width() * house_scale,
+        gunshop_raw.get_height() * house_scale,
+    )
+    gunshop_visual = pygame.transform.scale(gunshop_raw, gunshop_size)
+    try:
+        gunshop_collision = pygame.transform.scale(
+            load_image("world/gunshop_col.png"), gunshop_size
+        )
+    except (pygame.error, OSError):
+        gunshop_collision = pygame.Surface(gunshop_size)
+        gunshop_collision.fill((255, 255, 255))
+
     return GameAssets(
         atom=atom,
         original_nav_map=original_nav_map,
@@ -696,6 +739,8 @@ def load_game_assets(
         house_visual=house_visual,
         house_collision=house_collision,
         house_info=house_info,
+        gunshop_visual=gunshop_visual,
+        gunshop_collision=gunshop_collision,
     )
 
 
@@ -1254,13 +1299,14 @@ def _weapon_geometry(start, direction, weapon_type, weapon_texture=None):
 
 
 class WeaponWheel:
-    WEAPONS = ("none", "pistol", "shotgun", "rifle", "smg")
-    STARTING_AMMO = {"pistol": 7, "shotgun": 0, "rifle": 0, "smg": 0}
-    STARTING_RESERVE_AMMO = {"pistol": 0, "shotgun": 0, "rifle": 0, "smg": 0}
+    FIREARM_TYPES = ("pistol", "shotgun", "rifle")
+    WEAPONS = ("none", "pistol", "shotgun", "rifle", "knife")  # legacy compatibility
+    STARTING_AMMO = {"pistol": 7, "shotgun": 5, "rifle": 50}
+    STARTING_RESERVE_AMMO = {"pistol": 30, "shotgun": 0, "rifle": 0}
 
-    # Weapon stats: (damage, fire_delay, reload_time, mag_size, reserve_max, spread_count, spread_angles, projectile_speed, range)
     WEAPON_STATS = {
         "pistol": {
+            "name_key": "pistol",
             "damage": 34.0,
             "fire_delay": 1.0,
             "reload_time": 3.0,
@@ -1270,8 +1316,10 @@ class WeaponWheel:
             "spread_angles": (0,),
             "projectile_speed": 26.0,
             "range": 900.0,
+            "handedness": "one_handed",
         },
         "shotgun": {
+            "name_key": "shotgun",
             "damage": 120.0,
             "fire_delay": 2.0,
             "reload_time": 6.0,
@@ -1281,8 +1329,10 @@ class WeaponWheel:
             "spread_angles": (-15, -10, -5, 0, 5, 10, 15, 20),
             "projectile_speed": 21.0,
             "range": 500.0,
+            "handedness": "two_handed",
         },
         "rifle": {
+            "name_key": "rifle",
             "damage": 20.0,
             "fire_delay": 0.3,
             "reload_time": 5.0,
@@ -1292,31 +1342,36 @@ class WeaponWheel:
             "spread_angles": (0,),
             "projectile_speed": 35.0,
             "range": 1200.0,
+            "handedness": "two_handed",
         },
-        "smg": {
-            "damage": 25.0,
-            "fire_delay": 0.15,
-            "reload_time": 3.5,
-            "mag_size": 20,
-            "reserve_max": 80,
-            "spread_count": 1,
-            "spread_angles": (0,),
-            "projectile_speed": 28.0,
-            "range": 800.0,
+        "knife": {
+            "name_key": "knife",
+            "damage": 55.0,
+            "fire_delay": 0.55,
+            "reload_time": 0.0,
+            "mag_size": 0,
+            "reserve_max": 0,
+            "spread_count": 0,
+            "spread_angles": (),
+            "projectile_speed": 0.0,
+            "range": 85.0,  # melee radius
+            "handedness": "knife",
         },
     }
 
     def __init__(
         self,
         ammo: int = 7,
-        reserve_ammo: int = 49,
+        reserve_ammo: int = 30,
         selected: str = "pistol",
         ammo_by_weapon: Mapping[str, int] | None = None,
         reserve_ammo_by_weapon: Mapping[str, int] | None = None,
+        carried_firearms: list[dict] | None = None,
+        carried_knife: bool = False,
+        home_storage: list[dict] | None = None,
+        car_storage: dict | None = None,
+        carrying_out: list[dict] | None = None,
     ):
-        if selected not in self.WEAPONS:
-            raise ValueError(f"Unknown weapon: {selected}")
-        self.selected = selected
         saved_ammo = ammo_by_weapon if isinstance(ammo_by_weapon, Mapping) else {}
         saved_reserve = (
             reserve_ammo_by_weapon
@@ -1333,35 +1388,68 @@ class WeaponWheel:
 
         self.ammo_by_weapon = {}
         self.reserve_ammo_by_weapon = {}
-        for weapon, stats in self.WEAPON_STATS.items():
+        for weapon in self.FIREARM_TYPES:
+            stats = self.WEAPON_STATS[weapon]
             self.ammo_by_weapon[weapon] = bounded_count(
-                saved_ammo.get(weapon, stats["mag_size"]),
-                stats["mag_size"],
+                saved_ammo.get(weapon, self.STARTING_AMMO.get(weapon, stats["mag_size"])),
+                self.STARTING_AMMO.get(weapon, stats["mag_size"]),
                 stats["mag_size"],
             )
             self.reserve_ammo_by_weapon[weapon] = bounded_count(
-                saved_reserve.get(weapon, stats["reserve_max"]),
-                stats["reserve_max"],
+                saved_reserve.get(weapon, self.STARTING_RESERVE_AMMO.get(weapon, 0)),
+                self.STARTING_RESERVE_AMMO.get(weapon, 0),
                 stats["reserve_max"],
             )
-        # Old save files only have one pair of counts; apply it to their saved weapon.
-        if selected != "none":
-            self.ammo = ammo
-            self.reserve_ammo = reserve_ammo
+
+        # Backward compatibility with old single-weapon saves
+        legacy_weapon = selected if selected in self.FIREARM_TYPES else "pistol"
+        if carried_firearms is None:
+            legacy_ammo = bounded_count(ammo, self.ammo_by_weapon.get(legacy_weapon, 7), self.WEAPON_STATS[legacy_weapon]["mag_size"])
+            legacy_reserve = bounded_count(reserve_ammo, self.reserve_ammo_by_weapon.get(legacy_weapon, 0), self.WEAPON_STATS[legacy_weapon]["reserve_max"])
+            self.ammo_by_weapon[legacy_weapon] = legacy_ammo
+            self.reserve_ammo_by_weapon[legacy_weapon] = legacy_reserve
+            self.carried_firearms = [{"type": legacy_weapon, "ammo": legacy_ammo, "reserve": legacy_reserve}] if selected != "none" else []
+            self.carried_knife = False
+            self.selected = legacy_weapon if self.carried_firearms else "none"
         else:
-            # Legacy unarmed saves still carry the pistol's last ammunition.
-            self.ammo_by_weapon["pistol"] = bounded_count(
-                ammo, 7, self.WEAPON_STATS["pistol"]["mag_size"]
-            )
-            self.reserve_ammo_by_weapon["pistol"] = bounded_count(
-                reserve_ammo, 49, self.WEAPON_STATS["pistol"]["reserve_max"]
-            )
+            self.carried_firearms = []
+            for item in (carried_firearms or [])[:2]:
+                if not isinstance(item, dict):
+                    continue
+                wtype = item.get("type")
+                if wtype not in self.FIREARM_TYPES:
+                    continue
+                stats = self.WEAPON_STATS[wtype]
+                mag = bounded_count(item.get("ammo", stats["mag_size"]), stats["mag_size"], stats["mag_size"])
+                res = bounded_count(item.get("reserve", 0), 0, stats["reserve_max"])
+                self.carried_firearms.append({"type": wtype, "ammo": mag, "reserve": res})
+                self.ammo_by_weapon[wtype] = mag
+                self.reserve_ammo_by_weapon[wtype] = res
+            self.carried_knife = bool(carried_knife)
+            if selected == "knife" and self.carried_knife:
+                self.selected = "knife"
+            elif selected == "none":
+                self.selected = "none"
+            elif selected in self.FIREARM_TYPES and any(i["type"] == selected for i in self.carried_firearms):
+                self.selected = selected
+            elif self.carried_firearms:
+                self.selected = self.carried_firearms[0]["type"]
+            elif self.carried_knife:
+                self.selected = "knife"
+            else:
+                self.selected = "none"
+
+        self.home_storage = list(home_storage or [])[:7]
+        self.car_storage = dict(car_storage or {})  # car_id -> list of items
+        self.carrying_out = list(carrying_out or [])[:3]
+
         self.wheel_open = False
         self.fire_button_held = False
         self.last_fire_time = 0.0
         self.is_reloading = False
         self.reload_start_time = 0.0
         self.reload_end_time = 0.0
+        self._pending_ammo_transfer = 0
 
         self.weapon_textures = {}
         texture_paths = {
@@ -1397,47 +1485,95 @@ class WeaponWheel:
                 ),
             )
 
+        self._sync_selected_counts()
+
+    def _sync_selected_counts(self):
+        if self.selected in self.FIREARM_TYPES:
+            for item in self.carried_firearms:
+                if item["type"] == self.selected:
+                    self.ammo_by_weapon[self.selected] = item["ammo"]
+                    self.reserve_ammo_by_weapon[self.selected] = item["reserve"]
+                    break
+
+    def _write_back_selected_counts(self):
+        if self.selected in self.FIREARM_TYPES:
+            for item in self.carried_firearms:
+                if item["type"] == self.selected:
+                    item["ammo"] = self.ammo
+                    item["reserve"] = self.reserve_ammo
+                    self.ammo_by_weapon[self.selected] = self.ammo
+                    self.reserve_ammo_by_weapon[self.selected] = self.reserve_ammo
+                    break
+
+    @property
+    def wheel_slots(self):
+        slots = []
+        for item in self.carried_firearms[:2]:
+            slots.append(item["type"])
+        while len(slots) < 2:
+            slots.append(None)
+        slots.append("knife" if self.carried_knife else None)
+        slots.append("none")
+        return slots
+
     @classmethod
     def new_game(cls):
         return cls(
-            ammo=7,
-            reserve_ammo=0,
-            ammo_by_weapon=cls.STARTING_AMMO,
-            reserve_ammo_by_weapon=cls.STARTING_RESERVE_AMMO,
+            carried_firearms=[{"type": "pistol", "ammo": 7, "reserve": 30}],
+            carried_knife=False,
+            selected="pistol",
         )
 
     @property
     def ammo(self) -> int:
+        if self.selected not in self.FIREARM_TYPES:
+            return 0
         return self.ammo_by_weapon.get(self.selected, 0)
 
     @ammo.setter
     def ammo(self, value: int) -> None:
         stats = self.WEAPON_STATS.get(self.selected)
-        if stats is None:
+        if not stats or self.selected not in self.FIREARM_TYPES:
             return
         try:
             count = int(value)
         except (TypeError, ValueError):
             count = 0
-        self.ammo_by_weapon[self.selected] = max(
-            0, min(stats["mag_size"], count)
-        )
+        self.ammo_by_weapon[self.selected] = max(0, min(stats["mag_size"], count))
+        self._write_back_selected_counts()
 
     @property
     def reserve_ammo(self) -> int:
+        if self.selected not in self.FIREARM_TYPES:
+            return 0
         return self.reserve_ammo_by_weapon.get(self.selected, 0)
 
     @reserve_ammo.setter
     def reserve_ammo(self, value: int) -> None:
         stats = self.WEAPON_STATS.get(self.selected)
-        if stats is None:
+        if not stats or self.selected not in self.FIREARM_TYPES:
             return
         try:
             count = int(value)
         except (TypeError, ValueError):
             count = 0
-        self.reserve_ammo_by_weapon[self.selected] = max(
-            0, min(stats["reserve_max"], count)
+        self.reserve_ammo_by_weapon[self.selected] = max(0, min(stats["reserve_max"], count))
+        self._write_back_selected_counts()
+
+    @property
+    def is_transporting(self) -> bool:
+        return bool(self.carrying_out)
+
+    def can_shoot(self) -> bool:
+        return not self.is_transporting
+
+    def has_owned_firearm(self, weapon_type: str) -> bool:
+        return any(i.get("type") == weapon_type for i in self.carried_firearms) or any(
+            i.get("type") == weapon_type for i in self.home_storage
+        ) or any(
+            i.get("type") == weapon_type
+            for items in self.car_storage.values()
+            for i in items
         )
 
     def process_event(self, event, screen_size) -> None:
@@ -1464,16 +1600,19 @@ class WeaponWheel:
         if direction.length_squared() < 30**2:
             return
         angle = math.degrees(math.atan2(direction.y, direction.x))
-        index = round((angle + 90) / (360 / len(self.WEAPONS))) % len(self.WEAPONS)
-        new_weapon = self.WEAPONS[index]
-        if new_weapon != self.selected:
-            self.selected = new_weapon
-            self.is_reloading = False  # Cancel reload on weapon switch
+        slots = self.wheel_slots
+        index = round((angle + 90) / (360 / len(slots))) % len(slots)
+        chosen = slots[index]
+        if chosen is None:
+            return
+        if chosen != self.selected:
+            self._write_back_selected_counts()
+            self.selected = chosen
+            self._sync_selected_counts()
+            self.is_reloading = False
 
     def reload(self, audio=None) -> int:
-        if self.is_reloading:
-            return 0
-        if self.selected == "none":
+        if self.is_reloading or self.selected not in self.FIREARM_TYPES or self.is_transporting:
             return 0
         stats = self.WEAPON_STATS[self.selected]
         if self.ammo >= stats["mag_size"] or self.reserve_ammo <= 0:
@@ -1483,7 +1622,6 @@ class WeaponWheel:
         self.reload_start_time = time.perf_counter()
         self.reload_end_time = self.reload_start_time + stats["reload_time"]
 
-        # Play reload sound if available
         if audio and hasattr(audio, "weapon_sounds"):
             sound_key = f"{self.selected}_reload"
             if sound_key in audio.weapon_sounds:
@@ -1492,28 +1630,24 @@ class WeaponWheel:
                 except (pygame.error, AttributeError):
                     pass
 
-        # Schedule ammo transfer (will happen when reload completes)
         transfer = min(stats["mag_size"] - self.ammo, self.reserve_ammo)
         self._pending_ammo_transfer = transfer
         return transfer
 
     def update_reload(self) -> bool:
-        """Update reload state. Returns True if reload just completed."""
         if not self.is_reloading:
             return False
-
         current_time = time.perf_counter()
         if current_time >= self.reload_end_time:
-            # Reload complete
             self.ammo += self._pending_ammo_transfer
             self.reserve_ammo -= self._pending_ammo_transfer
             self.is_reloading = False
+            self._write_back_selected_counts()
             return True
         return False
 
     def get_reload_progress(self) -> float:
-        """Get reload progress as 0.0-1.0."""
-        if not self.is_reloading:
+        if not self.is_reloading or self.selected not in self.FIREARM_TYPES:
             return 0.0
         current_time = time.perf_counter()
         elapsed = current_time - self.reload_start_time
@@ -1521,15 +1655,13 @@ class WeaponWheel:
         return min(1.0, elapsed / stats["reload_time"])
 
     def fire(self, origin, target, audio=None) -> list[Projectile]:
-        if self.selected == "none" or self.is_reloading:
+        if self.selected not in self.FIREARM_TYPES or self.is_reloading or self.is_transporting:
             return []
         if self.ammo <= 0:
             return []
 
         stats = self.WEAPON_STATS[self.selected]
         current_time = time.perf_counter()
-
-        # Check fire delay
         if current_time - self.last_fire_time < stats["fire_delay"]:
             return []
 
@@ -1538,12 +1670,11 @@ class WeaponWheel:
             return []
         direction.normalize_ip()
         self.ammo -= 1
+        self._write_back_selected_counts()
         self.last_fire_time = current_time
 
         texture = self.weapon_textures.get(self.selected)
-        _, muzzle_position = _weapon_geometry(
-            origin, direction, self.selected, texture
-        )
+        _, muzzle_position = _weapon_geometry(origin, direction, self.selected, texture)
 
         projectiles = []
         for angle in stats["spread_angles"]:
@@ -1568,9 +1699,45 @@ class WeaponWheel:
             return []
         return self.fire(origin, target, audio)
 
-    def melee_target(self, origin, target, candidates, max_distance=70.0):
-        # Melee removed for now - all weapons are firearms
-        return None
+    def melee_target(self, origin, target, candidates, max_distance=None):
+        if self.selected != "knife" or self.is_transporting:
+            return None
+        stats = self.WEAPON_STATS["knife"]
+        radius = float(stats["range"] if max_distance is None else max_distance)
+        current_time = time.perf_counter()
+        if current_time - self.last_fire_time < stats["fire_delay"]:
+            return None
+        direction = pygame.Vector2(target) - pygame.Vector2(origin)
+        if direction.length_squared() == 0:
+            direction = pygame.Vector2(0, -1)
+        else:
+            direction.normalize_ip()
+        best = None
+        best_dist = radius + 1
+        for cand in candidates:
+            if not getattr(cand, "is_alive", True):
+                continue
+            pos = getattr(cand, "pos", None)
+            if pos is None:
+                continue
+            delta = pygame.Vector2(pos) - pygame.Vector2(origin)
+            dist = delta.length()
+            if dist > radius:
+                continue
+            if dist > 0 and direction.dot(delta.normalize()) < 0.2:
+                continue
+            if dist < best_dist:
+                best = cand
+                best_dist = dist
+        if best is not None:
+            self.last_fire_time = current_time
+            best.take_damage(stats["damage"])
+        return best
+
+    def weapon_label_key(self, weapon):
+        if weapon is None:
+            return "empty_slot"
+        return weapon
 
     def draw(self, screen, labels) -> None:
         if not self.wheel_open:
@@ -1578,40 +1745,43 @@ class WeaponWheel:
         center = pygame.Vector2(screen.get_size()) / 2
         pygame.draw.circle(screen, (12, 12, 18), center, 148)
         pygame.draw.circle(screen, (180, 180, 190), center, 148, 2)
+        slots = self.wheel_slots
         positions = tuple(
-            center + pygame.Vector2(0, -88).rotate(index * 72)
-            for index in range(len(self.WEAPONS))
+            center + pygame.Vector2(0, -88).rotate(index * 90)
+            for index in range(len(slots))
         )
-        font = _cached_ui_font(None, 27)
-        for weapon, position in zip(self.WEAPONS, positions):
-            selected = weapon == self.selected
+        font = _cached_ui_font(None, 24)
+        for weapon, position in zip(slots, positions):
+            selected = weapon == self.selected or (weapon is None and False)
             pygame.draw.circle(
                 screen,
                 (212, 91, 18) if selected else (58, 58, 68),
                 position,
                 48,
             )
-            texture = self.weapon_textures.get(weapon)
+            texture = self.weapon_textures.get(weapon) if weapon else None
             if texture is not None:
                 icon = texture
                 if max(icon.get_size()) < 36:
                     scale = 3
-                    icon = pygame.transform.scale(
-                        icon, (icon.get_width() * scale, icon.get_height() * scale)
-                    )
+                    icon = pygame.transform.scale(icon, (icon.get_width() * scale, icon.get_height() * scale))
                 if max(icon.get_size()) > 42:
                     scale = 42 / max(icon.get_size())
                     icon = pygame.transform.smoothscale(
                         icon,
-                        (
-                            max(1, round(icon.get_width() * scale)),
-                            max(1, round(icon.get_height() * scale)),
-                        ),
+                        (max(1, round(icon.get_width() * scale)), max(1, round(icon.get_height() * scale))),
                     )
-                icon = icon.copy()
-                icon_rect = icon.get_rect(center=(int(position.x), int(position.y - 8)))
-                screen.blit(icon, icon_rect)
-            label = font.render(labels.get(weapon, weapon.title()), True, (255, 255, 255))
+                screen.blit(icon, icon.get_rect(center=(int(position.x), int(position.y - 8))))
+            elif weapon == "knife":
+                # simple knife icon
+                p = (int(position.x), int(position.y - 10))
+                pygame.draw.line(screen, (220,220,230), (p[0]-10,p[1]+12), (p[0]+12,p[1]-10), 4)
+                pygame.draw.line(screen, (140,90,40), (p[0]-14,p[1]+16), (p[0]-6,p[1]+8), 6)
+            elif weapon == "none":
+                pygame.draw.line(screen, (200,80,80), (position.x-14, position.y-14), (position.x+14, position.y+14), 4)
+                pygame.draw.line(screen, (200,80,80), (position.x+14, position.y-14), (position.x-14, position.y+14), 4)
+            key = weapon if weapon else "empty_slot"
+            label = font.render(labels.get(key, key.replace('_',' ').title() if key else "-"), True, (255, 255, 255))
             screen.blit(label, label.get_rect(center=(int(position.x), int(position.y + 28))))
 
 
@@ -2068,24 +2238,42 @@ class Car:
                 self.speed = 0
         else:
             # 1. Speed control.
+            throttle = keys[pygame.K_w] or keys[pygame.K_UP]
+            brake_reverse = keys[pygame.K_s] or keys[pygame.K_DOWN]
+            handbrake_pressed = keys[pygame.K_SPACE]
             self.is_braking = (
-                (keys[pygame.K_s] or keys[pygame.K_DOWN]) and self.speed > 0
-            ) or (
-                (keys[pygame.K_w] or keys[pygame.K_UP]) and self.speed < 0
+                (brake_reverse and self.speed > 0)
+                or (throttle and self.speed < 0)
+                or (handbrake_pressed and abs(self.speed) > 0)
             )
-            current_accel = self.accel * frame_scale
-            if abs(self.speed) > 10: current_accel = self.accel / 3
-            if abs(self.speed) > 10: current_accel *= frame_scale
 
-            if keys[pygame.K_w] or keys[pygame.K_UP]:
-                if self.speed < 0:
-                    self.speed += self.brake_force * frame_scale
+            if handbrake_pressed:
+                if abs(self.speed) < 0.2:
+                    self.speed = 0
+                elif self.speed > 0:
+                    self.speed = max(0.0, self.speed - self.brake_force * 1.4 * frame_scale)
+                else:
+                    self.speed = min(0.0, self.speed + self.brake_force * 1.4 * frame_scale)
+            elif brake_reverse and throttle:
+                # Brake has priority over gas when both are pressed.
+                if self.speed > 0.1:
+                    self.speed = max(0.0, self.speed - self.brake_force * frame_scale)
+                elif self.speed < -0.1:
+                    self.speed = min(0.0, self.speed + self.brake_force * frame_scale)
+                else:
+                    self.speed = 0
+            elif throttle:
+                if self.speed < -0.1:
+                    self.speed = min(0.0, self.speed + self.brake_force * frame_scale)
                 else:
                     self._accelerate_forward(frame_scale, surface_grip)
-            elif keys[pygame.K_s] or keys[pygame.K_DOWN]:
-                if self.speed > 0:
-                    self.speed -= self.brake_force * frame_scale
+            elif brake_reverse:
+                if self.speed > 0.1:
+                    self.speed = max(0.0, self.speed - self.brake_force * frame_scale)
                 else:
+                    current_accel = self.accel * frame_scale
+                    if abs(self.speed) > 10:
+                        current_accel = self.accel / 3 * frame_scale
                     self.speed = max(self.speed - current_accel, -self.max_speed / 2)
             else:
                 self.speed *= 0.97 ** frame_scale
@@ -2093,9 +2281,7 @@ class Car:
             # 2. Steering.
             left_pressed = keys[pygame.K_a] or keys[pygame.K_LEFT]
             right_pressed = keys[pygame.K_d] or keys[pygame.K_RIGHT]
-            handbrake_pressed = keys[pygame.K_SPACE] and abs(self.speed) > 0.5
-            if handbrake_pressed:
-                self.speed *= 0.985 ** frame_scale
+            handbrake_pressed = handbrake_pressed and abs(self.speed) > 0.5
             if abs(self.speed) > 0.5:
                 steer = 5.0 - (min(abs(self.speed) / 2, 1.0))
                 if handbrake_pressed:
@@ -2588,14 +2774,10 @@ def draw_gta_minimap(
     mini_surf.blit(radar_mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
     text_labels = labels or {}
     hunger_value = max(0, min(100, round(float(hunger))))
-    hunger_text = text_labels.get("hunger_meter", "HUNGER {value}%").format(
-        value=hunger_value
-    )
     center_on_screen = (x + half_size, y + half_size)
     health_ratio = max(0.0, min(1.0, float(health) / 100.0))
 
-    # Layered glass rim keeps the radar legible while the outer ring carries
-    # two independent meters: 240 degrees for health, 120 for hunger.
+    # Glass rim and independent graphical meters (no text labels).
     pygame.draw.circle(screen, (15, 10, 7), center_on_screen, half_size + 10, 9)
     pygame.draw.circle(screen, (126, 79, 43), center_on_screen, half_size + 4, 2)
     pygame.draw.circle(screen, (225, 166, 111), center_on_screen, half_size, 2)
@@ -2625,23 +2807,13 @@ def draw_gta_minimap(
 
     # Put the full circular radar above its backing rim and progress arcs.
     screen.blit(mini_surf, (x, y))
+    # Glass highlight overlay
+    glass = pygame.Surface((size, size), pygame.SRCALPHA)
+    pygame.draw.circle(glass, (255, 255, 255, 28), (half_size, half_size - size // 4), half_size - 18)
+    pygame.draw.circle(glass, (255, 255, 255, 10), (half_size, half_size), half_size, 2)
+    screen.blit(glass, (x, y))
     pygame.draw.circle(screen, (232, 190, 145), center_on_screen, half_size, 2)
 
-    health_text = text_labels.get("health_meter", "HP {value}%").format(
-        value=round(health_ratio * 100)
-    )
-    status_font = _cached_ui_font(None, 15)
-    health_surface = status_font.render(health_text, True, (255, 244, 228))
-    hunger_surface = status_font.render(hunger_text, True, (255, 239, 214))
-    for text_surface, center in (
-        (health_surface, (x + half_size, y + 15)),
-        (hunger_surface, (x + half_size, y + size - 15)),
-    ):
-        text_back = text_surface.get_rect(center=center)
-        text_back.inflate_ip(8, 4)
-        pygame.draw.rect(screen, (18, 12, 8, 220), text_back, border_radius=5)
-        pygame.draw.rect(screen, (151, 91, 46), text_back, 1, border_radius=5)
-        screen.blit(text_surface, text_surface.get_rect(center=text_back.center))
     if distance is not None:
         text = text_labels.get("gps_distance", "Distance: {distance}").format(
             distance=_format_gps_distance(distance)
@@ -2650,12 +2822,111 @@ def draw_gta_minimap(
         rendered_distance = distance_font.render(text, True, (255, 215, 0))
         screen.blit(rendered_distance, (x, y - rendered_distance.get_height() - 8))
 
-def stats_dialog(screen, font, small_font, t, stats=None, controls=None):
+def tutorial_menu(screen, font, settings, trans_dict, languages, fade_in=False):
+    needs_fade_in = fade_in
+    clock = pygame.time.Clock()
+    steps_by_lang = {
+        "English": [
+            ("Movement", "Use W/A/S/D or arrow keys to move.\nPress any movement key to continue."),
+            ("Interaction", "Press E near doors, shops, garage, or objects to interact.\nPress E to continue."),
+            ("Sprint & Combat", "Hold Left Shift to sprint (if not hungry).\nLeft click to attack/shoot, R to reload.\nPress R to continue."),
+            ("Weapons", "Press middle mouse button to open weapon wheel and choose weapon.\nYou can carry up to 2 firearms and 1 knife.\nPress middle mouse button or Enter to continue."),
+            ("Vehicles", "Press F near a car to enter/exit. Use W/S to drive, A/D steer, Space handbrake.\nPress F to continue."),
+            ("Tutorial complete", "Check phone with P, map with Tab, pause with Esc.\nPress Esc or Enter to return to menu."),
+        ],
+        "Українська": [
+            ("Пересування", "Використовуйте W/A/S/D або стрілки для руху.\nНатисніть будь-яку клавішу руху, щоб продовжити."),
+            ("Взаємодія", "Натисніть E біля дверей, магазинів, гаража чи об'єктів.\nНатисніть E, щоб продовжити."),
+            ("Біг і бій", "Утримуйте лівий Shift для бігу (якщо не голодні).\nЛКМ — атака/постріл, R — перезарядка.\nНатисніть R, щоб продовжити."),
+            ("Зброя", "Натисніть середню кнопку миші для колеса зброї.\nМожна носити до 2 одиниць вогнепальної зброї та 1 ніж.\nНатисніть Enter, щоб продовжити."),
+            ("Автомобілі", "Натисніть F біля авто, щоб сісти/вийти. W/S — газ/гальмо, A/D — кермо, Space — ручник.\nНатисніть F, щоб продовжити."),
+            ("Навчання завершено", "Телефон — P, карта — Tab, пауза — Esc.\nНатисніть Esc або Enter, щоб повернутися в меню."),
+        ],
+        "Русский": [
+            ("Передвижение", "Используйте W/A/S/D или стрелки для движения.\nНажмите любую клавишу движения, чтобы продолжить."),
+            ("Взаимодействие", "Нажмите E рядом с дверями, магазинами, гаражом или объектами.\nНажмите E, чтобы продолжить."),
+            ("Бег и бой", "Удерживайте левый Shift для бега.\nЛКМ — атака/выстрел, R — перезарядка.\nНажмите R, чтобы продолжить."),
+            ("Оружие", "Нажмите среднюю кнопку мыши для колеса оружия.\nМожно носить до 2 единиц огнестрельного оружия и 1 нож.\nНажмите Enter, чтобы продолжить."),
+            ("Автомобили", "Нажмите F рядом с авто, чтобы сесть/выйти. W/S — газ/тормоз, A/D — руль, Space — ручник.\nНажмите F, чтобы продолжить."),
+            ("Обучение завершено", "Телефон — P, карта — Tab, пауза — Esc.\nНажмите Esc или Enter, чтобы вернуться в меню."),
+        ],
+        "Español": [
+            ("Movimiento", "Usa W/A/S/D o las flechas para moverte.\nPulsa una tecla de movimiento para continuar."),
+            ("Interacción", "Pulsa E cerca de puertas, tiendas, garaje u objetos.\nPulsa E para continuar."),
+            ("Correr y combate", "Mantén Shift izquierdo para correr.\nClic izquierdo para atacar/disparar, R para recargar.\nPulsa R para continuar."),
+            ("Armas", "Pulsa el botón central del ratón para abrir la rueda de armas.\nPuedes llevar hasta 2 armas de fuego y 1 cuchillo.\nPulsa Enter para continuar."),
+            ("Vehículos", "Pulsa F cerca de un coche para entrar/salir. W/S conducir, A/D girar, Espacio freno de mano.\nPulsa F para continuar."),
+            ("Tutorial completado", "Teléfono P, mapa Tab, pausa Esc.\nPulsa Esc o Enter para volver al menú."),
+        ],
+        "Deutsch": [
+            ("Bewegung", "Nutze W/A/S/D oder Pfeiltasten zum Bewegen.\nDrücke eine Bewegungstaste, um fortzufahren."),
+            ("Interaktion", "Drücke E in der Nähe von Türen, Läden, Garage oder Objekten.\nDrücke E, um fortzufahren."),
+            ("Sprint & Kampf", "Halte linke Umschalttaste zum Sprinten.\nLinksklick zum Angriff/Schuss, R zum Nachladen.\nDrücke R, um fortzufahren."),
+            ("Waffen", "Mittlere Maustaste öffnet das Waffenrad.\nDu kannst bis zu 2 Schusswaffen und 1 Messer tragen.\nDrücke Enter, um fortzufahren."),
+            ("Fahrzeuge", "Drücke F nahe eines Autos zum Ein-/Aussteigen. W/S fahren, A/D lenken, Leertaste Handbremse.\nDrücke F, um fortzufahren."),
+            ("Tutorial abgeschlossen", "Telefon P, Karte Tab, Pause Esc.\nDrücke Esc oder Enter, um zum Menü zurückzukehren."),
+        ],
+        "Français": [
+            ("Déplacement", "Utilisez W/A/S/D ou les flèches pour vous déplacer.\nAppuyez sur une touche de déplacement pour continuer."),
+            ("Interaction", "Appuyez sur E près des portes, magasins, garage ou objets.\nAppuyez sur E pour continuer."),
+            ("Sprint et combat", "Maintenez Maj gauche pour sprinter.\nClic gauche pour attaquer/tirer, R pour recharger.\nAppuyez sur R pour continuer."),
+            ("Armes", "Bouton central de la souris pour la roue des armes.\nVous pouvez porter jusqu'à 2 armes à feu et 1 couteau.\nAppuyez sur Entrée pour continuer."),
+            ("Véhicules", "Appuyez sur F près d'une voiture pour entrer/sortir. W/S conduire, A/D tourner, Espace frein à main.\nAppuyez sur F pour continuer."),
+            ("Tutoriel terminé", "Téléphone P, carte Tab, pause Échap.\nAppuyez sur Échap ou Entrée pour revenir au menu."),
+        ],
+    }
+    lang = languages[settings["lang_idx"]]
+    steps = steps_by_lang.get(lang, steps_by_lang["English"])
+    step = 0
+    while True:
+        screen.fill((12, 12, 12))
+        title_txt, body_txt = steps[step]
+        title = font.render(title_txt, True, (238, 164, 47))
+        screen.blit(title, title.get_rect(center=(screen.get_width()//2, 90)))
+        y = 170
+        for line in body_txt.split("\n"):
+            rendered = _cached_ui_font(None, 28).render(line, True, (240,240,240))
+            screen.blit(rendered, (60, y))
+            y += 40
+        progress = _cached_ui_font(None, 22).render(f"{step+1}/{len(steps)}", True, (180,180,180))
+        screen.blit(progress, (60, screen.get_height()-50))
+        if needs_fade_in:
+            fade_menu_in(screen)
+            needs_fade_in = False
+        else:
+            pygame.display.flip()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return "EXIT"
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    fade_menu_out(screen)
+                    return "BACK"
+                if step == 0 and event.key in (pygame.K_w, pygame.K_a, pygame.K_s, pygame.K_d, pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT):
+                    step += 1
+                elif step == 1 and event.key == pygame.K_e:
+                    step += 1
+                elif step == 2 and event.key == pygame.K_r:
+                    step += 1
+                elif step == 3 and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                    step += 1
+                elif step == 4 and event.key == pygame.K_f:
+                    step += 1
+                elif step == 5 and event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE):
+                    fade_menu_out(screen)
+                    return "BACK"
+            elif event.type == pygame.MOUSEBUTTONDOWN and step == 3 and event.button == 2:
+                step += 1
+        clock.tick(FPS)
+
+
+def stats_dialog(screen, font, small_font, t, stats=None, controls=None, fade_in=False):
     stats = stats or {}
     clock = pygame.time.Clock()
     last_hovered = False
     width, height = screen.get_size()
     back_rect = pygame.Rect(width // 2 - 120, height - 150, 240, 56)
+    needs_fade_in = fade_in
 
     while True:
         screen.fill((14, 14, 20))
@@ -2720,7 +2991,11 @@ def stats_dialog(screen, font, small_font, t, stats=None, controls=None):
         pygame.draw.rect(screen, color, back_rect, border_radius=8)
         back_text = small_font.render(t.get("back", "Back"), True, (255, 255, 255))
         screen.blit(back_text, back_text.get_rect(center=back_rect.center))
-        pygame.display.flip()
+        if needs_fade_in:
+            fade_menu_in(screen)
+            needs_fade_in = False
+        else:
+            pygame.display.flip()
 
         for event in pygame.event.get():
             if controls is not None:
@@ -2729,9 +3004,11 @@ def stats_dialog(screen, font, small_font, t, stats=None, controls=None):
                 return "EXIT"
             if event.type == pygame.KEYDOWN and event.key in (pygame.K_ESCAPE, pygame.K_RETURN):
                 play_menu_sound("click")
+                fade_menu_out(screen)
                 return "BACK"
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and back_rect.collidepoint(event.pos):
                 play_menu_sound("click")
+                fade_menu_out(screen)
                 return "BACK"
         clock.tick(FPS)
 
@@ -2818,7 +3095,7 @@ def selection_menu(screen, title, options, font, small_font, back_label, setting
         clock.tick(FPS)
 
 
-def save_slot_menu(screen, font, small_font, settings, trans_dict, languages, game_state, controls=None):
+def save_slot_menu(screen, font, small_font, settings, trans_dict, languages, game_state, controls=None, fade_in=False):
     """Show save slot selection menu with 5 slots."""
     from settings_manager import get_all_save_slots, save_to_slot
     
@@ -2826,6 +3103,7 @@ def save_slot_menu(screen, font, small_font, settings, trans_dict, languages, ga
     sel = 0
     clock = pygame.time.Clock()
     last_hovered = None
+    needs_fade_in = fade_in
     
     while True:
         t = trans_dict[languages[settings['lang_idx']]]
@@ -2894,7 +3172,11 @@ def save_slot_menu(screen, font, small_font, settings, trans_dict, languages, ga
         if not any(rect.collidepoint(m_pos) for rect in rects):
             last_hovered = None
         
-        pygame.display.flip()
+        if needs_fade_in:
+            fade_menu_in(screen)
+            needs_fade_in = False
+        else:
+            pygame.display.flip()
         clock.tick(FPS)
 
 
@@ -2903,16 +3185,26 @@ def pause_menu(screen, font, small_font, settings, trans_dict, languages, contro
     sel = 0
     clock = pygame.time.Clock()
     last_hovered = None
+    needs_fade_in = False
 
     def activate_option(index, translations):
+        nonlocal needs_fade_in
         if index == 0:
             return "CONTINUE"
         if index == 1:
-            stats_result = stats_dialog(screen, font, small_font, translations, stats, controls)
-            return "EXIT" if stats_result == "EXIT" else None
+            fade_menu_out(screen)
+            stats_result = stats_dialog(screen, font, small_font, translations, stats, controls, fade_in=True)
+            if stats_result == "EXIT":
+                return "EXIT"
+            needs_fade_in = True
+            return None
         if index == 2:
-            settings_result = settings_sub_menu(screen, font, settings, trans_dict, languages, controls, on_change)
-            return settings_result if settings_result in ("EXIT", "VIDEO_CHANGED") else None
+            fade_menu_out(screen)
+            settings_result = settings_sub_menu(screen, font, settings, trans_dict, languages, controls, on_change, fade_in=True)
+            if settings_result in ("EXIT", "VIDEO_CHANGED"):
+                return settings_result
+            needs_fade_in = True
+            return None
         elif index == 3 and confirm_dialog(screen, font, small_font, translations, controls):
             return "MENU"
         return None
@@ -2970,12 +3262,17 @@ def pause_menu(screen, font, small_font, settings, trans_dict, languages, contro
         if not any(rect.collidepoint(m_pos) for rect in rects):
             last_hovered = None
 
-        pygame.display.flip()
+        if needs_fade_in:
+            fade_menu_in(screen)
+            needs_fade_in = False
+        else:
+            pygame.display.flip()
         clock.tick(FPS)
 
 
 # noinspection DuplicatedCode
-def _audio_settings_menu(screen, font, settings, trans_dict, languages, controls=None, on_change=None):
+def _audio_settings_menu(screen, font, settings, trans_dict, languages, controls=None, on_change=None, fade_in=False):
+    needs_fade_in = fade_in
     volume_keys = ("music_volume", "npc_volume", "crash_volume", "button_volume", "footsteps_volume")
     title_keys = ("music_vol", "npc_vol", "crash_vol", "button_vol", "footsteps_vol")
     selected_index = 0
@@ -3027,6 +3324,7 @@ def _audio_settings_menu(screen, font, settings, trans_dict, languages, controls
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     play_menu_sound("click")
+                    fade_menu_out(screen)
                     return "BACK"
                 if event.key == pygame.K_UP:
                     selected_index = (selected_index - 1) % len(volume_keys)
@@ -3041,6 +3339,7 @@ def _audio_settings_menu(screen, font, settings, trans_dict, languages, controls
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if back_rect.collidepoint(event.pos):
                     play_menu_sound("click")
+                    fade_menu_out(screen)
                     return "BACK"
                 for index, rect in enumerate(row_rects):
                     if decrease_rects[index].collidepoint(event.pos):
@@ -3094,12 +3393,17 @@ def _audio_settings_menu(screen, font, settings, trans_dict, languages, controls
         pygame.draw.rect(screen, (70, 70, 70), back_rect, border_radius=8)
         rendered_back = font.render(text.get("back", "Back"), True, (255, 255, 255))
         screen.blit(rendered_back, rendered_back.get_rect(center=back_rect.center))
-        pygame.display.flip()
+        if needs_fade_in:
+            fade_menu_in(screen)
+            needs_fade_in = False
+        else:
+            pygame.display.flip()
         clock.tick(FPS)
 
 
 # noinspection DuplicatedCode
-def _video_settings_menu(screen, font, settings, trans_dict, languages, controls=None, on_change=None):
+def _video_settings_menu(screen, font, settings, trans_dict, languages, controls=None, on_change=None, fade_in=False):
+    needs_fade_in = fade_in
     fps_values = (0, 30, 60, 75, 90, 120, 144, 165, 240)
     resolutions = _available_resolutions(settings)
     selected_index = 1
@@ -3157,6 +3461,7 @@ def _video_settings_menu(screen, font, settings, trans_dict, languages, controls
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     play_menu_sound("click")
+                    fade_menu_out(screen)
                     return "VIDEO_CHANGED" if changed else "BACK"
                 if event.key == pygame.K_UP:
                     selected_index = (selected_index - 1) % 4
@@ -3173,11 +3478,13 @@ def _video_settings_menu(screen, font, settings, trans_dict, languages, controls
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if back_rect.collidepoint(event.pos):
                     play_menu_sound("click")
+                    fade_menu_out(screen)
                     return "VIDEO_CHANGED" if changed else "BACK"
                 for index, rect in enumerate(row_rects):
                     if rect.collidepoint(event.pos):
                         selected_index = index
                         if index == 3:
+                            fade_menu_out(screen)
                             return "VIDEO_CHANGED" if changed else "BACK"
                         adjust(1)
                         break
@@ -3219,16 +3526,119 @@ def _video_settings_menu(screen, font, settings, trans_dict, languages, controls
         pygame.draw.rect(screen, (70, 70, 70), back_rect, border_radius=8)
         rendered_back = font.render(text.get("back", "Back"), True, (255, 255, 255))
         screen.blit(rendered_back, rendered_back.get_rect(center=back_rect.center))
-        pygame.display.flip()
+        if needs_fade_in:
+            fade_menu_in(screen)
+            needs_fade_in = False
+        else:
+            pygame.display.flip()
         clock.tick(FPS)
 
 
 # noinspection DuplicatedCode
-def settings_sub_menu(screen, font, settings, trans_dict, languages, controls=None, on_change=None):
+def _controls_settings_menu(screen, font, settings, trans_dict, languages, controls=None, on_change=None, fade_in=False):
+    needs_fade_in = fade_in
+    clock_menu = pygame.time.Clock()
+    actions = [
+        ("up", "Up / Forward"),
+        ("down", "Down / Brake"),
+        ("left", "Left"),
+        ("right", "Right"),
+        ("interact", "Interact (E)"),
+        ("enter_vehicle", "Enter/Exit vehicle (F)"),
+        ("reload", "Reload (R)"),
+        ("sprint", "Sprint (Shift)"),
+        ("map", "Map (Tab)"),
+        ("phone", "Phone (P)"),
+        ("handbrake", "Handbrake (Space)"),
+    ]
+    defaults = {
+        "up": pygame.K_w, "down": pygame.K_s, "left": pygame.K_a, "right": pygame.K_d,
+        "interact": pygame.K_e, "enter_vehicle": pygame.K_f, "reload": pygame.K_r,
+        "sprint": pygame.K_LSHIFT, "map": pygame.K_TAB, "phone": pygame.K_p, "handbrake": pygame.K_SPACE,
+    }
+    if "keys" not in settings or not isinstance(settings["keys"], dict):
+        settings["keys"] = {}
+    for k,v in defaults.items():
+        settings["keys"].setdefault(k, v)
+    selected = 0
+    waiting = False
+    while True:
+        language = languages[settings["lang_idx"]]
+        text = trans_dict.get(language, {})
+        screen.fill((20,20,20))
+        title = font.render(text.get("controls", "Controls"), True, (238,164,47))
+        screen.blit(title, (40,30))
+        hint = _cached_ui_font(None, 22).render(text.get("controls_hint","Enter: rebind, Esc: back"), True, (200,200,200))
+        screen.blit(hint, (40,80))
+        rects = []
+        for i,(action,label) in enumerate(actions):
+            keycode = settings["keys"].get(action, defaults[action])
+            try:
+                keyname = pygame.key.name(int(keycode))
+            except Exception:
+                keyname = str(keycode)
+            line = f"{label}: [{keyname}]"
+            color = (212,91,18) if i==selected else (255,255,255)
+            if waiting and i==selected:
+                line = f"{label}: ..."
+                color = (255,220,120)
+            rendered = _cached_ui_font(None, 28).render(line, True, color)
+            r = rendered.get_rect(topleft=(50, 130 + i*38))
+            rects.append(r)
+            screen.blit(rendered, r)
+        if needs_fade_in:
+            fade_menu_in(screen)
+            needs_fade_in = False
+        else:
+            pygame.display.flip()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return "EXIT"
+            if waiting:
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        waiting = False
+                    else:
+                        new_key = event.key
+                        action = actions[selected][0]
+                        # conflict handling: swap if used by another action
+                        conflict = None
+                        for other,_ in actions:
+                            if other != action and int(settings["keys"].get(other, defaults.get(other,0))) == int(new_key):
+                                conflict = other
+                                break
+                        old_key = settings["keys"].get(action, defaults[action])
+                        if conflict:
+                            settings["keys"][conflict] = old_key
+                        settings["keys"][action] = new_key
+                        if on_change is not None:
+                            on_change(settings)
+                        waiting = False
+                continue
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    fade_menu_out(screen)
+                    return "BACK"
+                elif event.key == pygame.K_UP:
+                    selected = (selected - 1) % len(actions)
+                elif event.key == pygame.K_DOWN:
+                    selected = (selected + 1) % len(actions)
+                elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                    waiting = True
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                for i,r in enumerate(rects):
+                    if r.collidepoint(event.pos):
+                        selected = i
+                        waiting = True
+        clock_menu.tick(FPS)
+
+
+def settings_sub_menu(screen, font, settings, trans_dict, languages, controls=None, on_change=None, fade_in=False):
     selected_index = 0
     clock = pygame.time.Clock()
     last_hovered = None
     mouse_control_active = False
+    needs_fade_in = fade_in
 
     def apply_change():
         configure_audio(settings)
@@ -3242,6 +3652,7 @@ def settings_sub_menu(screen, font, settings, trans_dict, languages, controls=No
         options = [
             text.get("volume", "Volume"),
             f'{text.get("lang", "Language")}: < {language} >',
+            text.get("controls", "Controls"),
             text.get("video", "Video"),
             text.get("back", "Back"),
         ]
@@ -3269,6 +3680,7 @@ def settings_sub_menu(screen, font, settings, trans_dict, languages, controls=No
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     play_menu_sound("click")
+                    fade_menu_out(screen)
                     return "BACK"
                 if event.key == pygame.K_UP:
                     selected_index = (selected_index - 1) % len(options)
@@ -3282,22 +3694,35 @@ def settings_sub_menu(screen, font, settings, trans_dict, languages, controls=No
                     apply_change()
                 elif event.key == pygame.K_RETURN:
                     if selected_index == 0:
+                        fade_menu_out(screen)
                         result = _audio_settings_menu(
-                            screen, font, settings, trans_dict, languages, controls, on_change
+                            screen, font, settings, trans_dict, languages, controls, on_change, fade_in=True
                         )
+                        needs_fade_in = True
                         if result == "EXIT":
                             return "EXIT"
                     elif selected_index == 1:
                         settings["lang_idx"] = (settings["lang_idx"] + 1) % len(languages)
                         apply_change()
                     elif selected_index == 2:
+                        fade_menu_out(screen)
+                        result = _controls_settings_menu(
+                            screen, font, settings, trans_dict, languages, controls, on_change, fade_in=True
+                        )
+                        needs_fade_in = True
+                        if result == "EXIT":
+                            return "EXIT"
+                    elif selected_index == 3:
+                        fade_menu_out(screen)
                         result = _video_settings_menu(
-                            screen, font, settings, trans_dict, languages, controls, on_change
+                            screen, font, settings, trans_dict, languages, controls, on_change, fade_in=True
                         )
                         if result in ("EXIT", "VIDEO_CHANGED"):
                             return result
+                        needs_fade_in = True
                     else:
                         play_menu_sound("click")
+                        fade_menu_out(screen)
                         return "BACK"
 
             if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -3306,22 +3731,35 @@ def settings_sub_menu(screen, font, settings, trans_dict, languages, controls=No
                         continue
                     selected_index = index
                     if index == 0:
+                        fade_menu_out(screen)
                         result = _audio_settings_menu(
-                            screen, font, settings, trans_dict, languages, controls, on_change
+                            screen, font, settings, trans_dict, languages, controls, on_change, fade_in=True
                         )
+                        needs_fade_in = True
                         if result == "EXIT":
                             return "EXIT"
                     elif index == 1:
                         settings["lang_idx"] = (settings["lang_idx"] + 1) % len(languages)
                         apply_change()
                     elif index == 2:
+                        fade_menu_out(screen)
+                        result = _controls_settings_menu(
+                            screen, font, settings, trans_dict, languages, controls, on_change, fade_in=True
+                        )
+                        needs_fade_in = True
+                        if result == "EXIT":
+                            return "EXIT"
+                    elif index == 3:
+                        fade_menu_out(screen)
                         result = _video_settings_menu(
-                            screen, font, settings, trans_dict, languages, controls, on_change
+                            screen, font, settings, trans_dict, languages, controls, on_change, fade_in=True
                         )
                         if result in ("EXIT", "VIDEO_CHANGED"):
                             return result
+                        needs_fade_in = True
                     else:
                         play_menu_sound("click")
+                        fade_menu_out(screen)
                         return "BACK"
                     break
 
@@ -3343,7 +3781,11 @@ def settings_sub_menu(screen, font, settings, trans_dict, languages, controls=No
         )
         screen.blit(studio_credit, studio_credit.get_rect(center=(screen_width // 2, screen_height - 24)))
 
-        pygame.display.flip()
+        if needs_fade_in:
+            fade_menu_in(screen)
+            needs_fade_in = False
+        else:
+            pygame.display.flip()
         clock.tick(FPS)
 
 
@@ -3961,6 +4403,11 @@ def build_game_state_data(game_state, atom, atom_h, car, weapons, wanted,
         "ammo_by_weapon": dict(weapons.ammo_by_weapon),
         "reserve_ammo_by_weapon": dict(weapons.reserve_ammo_by_weapon),
         "weapon": weapons.selected,
+        "carried_firearms": list(getattr(weapons, "carried_firearms", [])),
+        "carried_knife": bool(getattr(weapons, "carried_knife", False)),
+        "home_storage": list(getattr(weapons, "home_storage", [])),
+        "car_storage": dict(getattr(weapons, "car_storage", {})),
+        "carrying_out": list(getattr(weapons, "carrying_out", [])),
         "honor": honor_and_respect.honor,
         "respect": honor_and_respect.respect,
         "wanted_level": wanted.level,
@@ -4511,10 +4958,15 @@ def run_open_world(screen, settings, *, continue_game=True):
     weapons = (
         WeaponWheel(
             game_save.get("ammo", 7),
-            game_save.get("reserve_ammo", 49),
+            game_save.get("reserve_ammo", 30),
             game_save.get("weapon", "pistol"),
             game_save.get("ammo_by_weapon"),
             game_save.get("reserve_ammo_by_weapon"),
+            carried_firearms=game_save.get("carried_firearms"),
+            carried_knife=game_save.get("carried_knife", False),
+            home_storage=game_save.get("home_storage", []),
+            car_storage=game_save.get("car_storage", {}),
+            carrying_out=game_save.get("carrying_out", []),
         )
         if game_save
         else WeaponWheel.new_game()
@@ -4555,12 +5007,15 @@ def run_open_world(screen, settings, *, continue_game=True):
     house_visual = assets.house_visual
     house_collision = assets.house_collision
     house_info = assets.house_info
+    gunshop_visual = assets.gunshop_visual
+    gunshop_collision = assets.gunshop_collision
 
     show_debug = False
     game_state = game_save.get("game_state", "HOUSE") if game_save else "HOUSE"
     scene_manager = SceneManager(game_state)
     scene_manager.register("CITY")
     scene_manager.register("HOUSE")
+    scene_manager.register("GUNSHOP")
     in_car = False
 
     # GAME OBJECTS
@@ -4628,6 +5083,8 @@ def run_open_world(screen, settings, *, continue_game=True):
             house_data.get("y", HOUSE_ENTRY_SPOT[1]),
         )
         atom_h.angle = house_data.get("angle", 0)
+    atom_g = HousePlayer(*GUNSHOP_ENTRY_SPOT)
+    atom_g.pos.update(GUNSHOP_ENTRY_SPOT)
     gps = GPS()
     if game_save:
         collected_treasures.update(game_save.get("collected_treasures", []))
@@ -4664,7 +5121,7 @@ def run_open_world(screen, settings, *, continue_game=True):
             "player_hp": "HP: {current}/{maximum}", "ammo": "Ammo: {current}/{reserve}",
             "wanted": "Wanted: {stars}", "reload": "Reloaded", "empty_ammo": "Out of ammo",
             "weapon_hint": "Mouse: move while armed | Left Shift: sprint | LMB: fire | R: reload",
-            "none": "Unarmed", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "smg": "WR Mini .45",
+            "none": "Unarmed", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "knife": "Knife", "empty_slot": "Empty",
             "steal_hint": "[F] Steal vehicle",
             "gps_distance": "Distance: {distance}", "gps_set": "Left-click: set destination",
             "gps_clear": "Right-click/Backspace: clear destination",
@@ -4689,7 +5146,7 @@ def run_open_world(screen, settings, *, continue_game=True):
             "player_hp": "ЗД: {current}/{maximum}", "ammo": "Патрони: {current}/{reserve}",
             "wanted": "Розшук: {stars}", "reload": "Перезаряджено", "empty_ammo": "Немає патронів",
             "weapon_hint": "Миша: рух зі зброєю | Лівий Shift: біг | ЛКМ: стріляти | R: перезарядити",
-            "none": "Без зброї", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "smg": "WR Mini .45",
+            "none": "Без зброї", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "knife": "Ніж", "empty_slot": "Порожньо",
             "steal_hint": "[F] Викрасти авто",
             "gps_distance": "Відстань: {distance}", "gps_set": "ЛКМ: поставити точку",
             "gps_clear": "ПКМ/Backspace: прибрати точку",
@@ -4714,7 +5171,7 @@ def run_open_world(screen, settings, *, continue_game=True):
             "player_hp": "ЗД: {current}/{maximum}", "ammo": "Патроны: {current}/{reserve}",
             "wanted": "Розыск: {stars}", "reload": "Перезаряжено", "empty_ammo": "Нет патронов",
             "weapon_hint": "Мышь: движение с оружием | Левый Shift: бег | ЛКМ: стрелять | R: перезарядить",
-            "none": "Без оружия", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "smg": "WR Mini .45",
+            "none": "Без оружия", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "knife": "Нож", "empty_slot": "Пусто",
             "steal_hint": "[F] Угнать авто",
             "gps_distance": "Расстояние: {distance}", "gps_set": "ЛКМ: поставить точку",
             "gps_clear": "ПКМ/Backspace: убрать точку",
@@ -4740,7 +5197,7 @@ def run_open_world(screen, settings, *, continue_game=True):
             "player_hp": "Salud: {current}/{maximum}", "ammo": "Munición: {current}/{reserve}",
             "wanted": "Búsqueda: {stars}", "reload": "Recargado", "empty_ammo": "Sin munición",
             "weapon_hint": "Ratón: moverse armado | Mayús izq.: correr | Clic izq.: disparar | R: recargar",
-            "none": "Sin arma", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "smg": "WR Mini .45",
+            "none": "Sin arma", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "knife": "Cuchillo", "empty_slot": "Vacío",
             "steal_hint": "[F] Robar vehículo",
             "gps_distance": "Distancia: {distance}", "gps_set": "Clic izquierdo: marcar destino",
             "gps_clear": "Clic derecho/Retroceso: borrar destino",
@@ -4766,7 +5223,7 @@ def run_open_world(screen, settings, *, continue_game=True):
             "player_hp": "LP: {current}/{maximum}", "ammo": "Munition: {current}/{reserve}",
             "wanted": "Gesucht: {stars}", "reload": "Nachgeladen", "empty_ammo": "Keine Munition",
             "weapon_hint": "Maus: mit Waffe bewegen | Linke Umschalttaste: sprinten | Linksklick: schießen | R: nachladen",
-            "none": "Keine Waffe", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "smg": "WR Mini .45",
+            "none": "Keine Waffe", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "knife": "Messer", "empty_slot": "Leer",
             "steal_hint": "[F] Auto stehlen",
             "gps_distance": "Entfernung: {distance}", "gps_set": "Linksklick: Ziel setzen",
             "gps_clear": "Rechtsklick/Backspace: Ziel löschen",
@@ -4792,7 +5249,7 @@ def run_open_world(screen, settings, *, continue_game=True):
             "player_hp": "Santé : {current}/{maximum}", "ammo": "Munitions : {current}/{reserve}",
             "wanted": "Recherché : {stars}", "reload": "Rechargé", "empty_ammo": "Plus de munitions",
             "weapon_hint": "Souris : avancer armé | Maj gauche : courir | Clic gauche : tirer | R : recharger",
-            "none": "Désarmé", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "smg": "WR Mini .45",
+            "none": "Désarmé", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "knife": "Couteau", "empty_slot": "Vide",
             "steal_hint": "[F] Voler la voiture",
             "gps_distance": "Distance : {distance}", "gps_set": "Clic gauche : définir la destination",
             "gps_clear": "Clic droit/Retour arrière : supprimer la destination",
@@ -4804,6 +5261,17 @@ def run_open_world(screen, settings, *, continue_game=True):
 
     per_language_labels = {
         "English": {
+            "gunshop_title": 'Gun Shop',
+            "full_ammo": 'Full',
+            "ammo_word": 'ammo',
+            "no_owned_weapons": 'No owned firearms',
+            "nightstand": 'Nightstand',
+            "open_nightstand": 'Open nightstand',
+            "trunk": 'Trunk',
+            "open_trunk": 'Open trunk',
+            "carrying_out_msg": 'Transporting weapons - cannot shoot',
+            "controls": 'Controls',
+            "tutorial": 'Tutorial',
             "sleep_save": "Press [E] / [T] by the bed to sleep and save",
             "hunger_meter": "HUNGER {value}%", "health_meter": "HP {value}%",
             "radio_genre_silent": "No music", "radio_genre_rock": "Alternative rock", "radio_genre_synthwave": "Synthwave",
@@ -4817,6 +5285,17 @@ def run_open_world(screen, settings, *, continue_game=True):
             "stats_no_crash": "Longest drive without a crash: {value} m",
         },
         "Українська": {
+            "gunshop_title": 'Збройний магазин',
+            "full_ammo": 'Повно',
+            "ammo_word": 'патронів',
+            "no_owned_weapons": 'Немає наявної вогнепальної зброї',
+            "nightstand": 'Тумбочка',
+            "open_nightstand": 'Відкрити тумбочку',
+            "trunk": 'Багажник',
+            "open_trunk": 'Відкрити багажник',
+            "carrying_out_msg": 'Перенесення зброї — стріляти не можна',
+            "controls": 'Керування',
+            "tutorial": 'Навчання',
             "sleep_save": "Натисніть [E] / [T] біля ліжка, щоб заснути й зберегтися",
             "hunger_meter": "СИТІСТЬ {value}%", "health_meter": "ЗД {value}%",
             "radio_genre_silent": "Без музики", "radio_genre_rock": "Альтернативний рок", "radio_genre_synthwave": "Синтвейв",
@@ -4830,6 +5309,17 @@ def run_open_world(screen, settings, *, continue_game=True):
             "stats_no_crash": "Найдовша поїздка без аварій: {value} м",
         },
         "Русский": {
+            "gunshop_title": 'Оружейный магазин',
+            "full_ammo": 'Полно',
+            "ammo_word": 'патронов',
+            "no_owned_weapons": 'Нет имеющегося огнестрельного оружия',
+            "nightstand": 'Тумбочка',
+            "open_nightstand": 'Открыть тумбочку',
+            "trunk": 'Багажник',
+            "open_trunk": 'Открыть багажник',
+            "carrying_out_msg": 'Переноска оружия — стрелять нельзя',
+            "controls": 'Управление',
+            "tutorial": 'Обучение',
             "sleep_save": "Нажмите [E] / [T] у кровати, чтобы поспать и сохраниться",
             "hunger_meter": "СЫТОСТЬ {value}%", "health_meter": "ЗД {value}%",
             "radio_genre_silent": "Без музыки", "radio_genre_rock": "Альтернативный рок", "radio_genre_synthwave": "Синтвейв",
@@ -4843,6 +5333,17 @@ def run_open_world(screen, settings, *, continue_game=True):
             "stats_no_crash": "Самая длинная поездка без аварий: {value} м",
         },
         "Español": {
+            "gunshop_title": 'Armería',
+            "full_ammo": 'Lleno',
+            "ammo_word": 'munición',
+            "no_owned_weapons": 'No tienes armas de fuego',
+            "nightstand": 'Mesita de noche',
+            "open_nightstand": 'Abrir mesita de noche',
+            "trunk": 'Maletero',
+            "open_trunk": 'Abrir maletero',
+            "carrying_out_msg": 'Transportando armas: no puedes disparar',
+            "controls": 'Controles',
+            "tutorial": 'Tutorial',
             "sleep_save": "Pulsa [E] / [T] junto a la cama para dormir y guardar",
             "hunger_meter": "HAMBRE {value}%", "health_meter": "SALUD {value}%",
             "radio_genre_silent": "Sin música", "radio_genre_rock": "Rock alternativo", "radio_genre_synthwave": "Synthwave",
@@ -4856,6 +5357,17 @@ def run_open_world(screen, settings, *, continue_game=True):
             "stats_no_crash": "Trayecto más largo sin choque: {value} m",
         },
         "Deutsch": {
+            "gunshop_title": 'Waffenladen',
+            "full_ammo": 'Voll',
+            "ammo_word": 'Munition',
+            "no_owned_weapons": 'Keine eigenen Schusswaffen',
+            "nightstand": 'Nachttisch',
+            "open_nightstand": 'Nachttisch öffnen',
+            "trunk": 'Kofferraum',
+            "open_trunk": 'Kofferraum öffnen',
+            "carrying_out_msg": 'Waffen werden getragen – Schießen nicht möglich',
+            "controls": 'Steuerung',
+            "tutorial": 'Tutorial',
             "sleep_save": "Am Bett [E] / [T] drücken, um zu schlafen und zu speichern",
             "hunger_meter": "HUNGER {value}%", "health_meter": "LP {value}%",
             "radio_genre_silent": "Keine Musik", "radio_genre_rock": "Alternative Rock", "radio_genre_synthwave": "Synthwave",
@@ -4869,6 +5381,17 @@ def run_open_world(screen, settings, *, continue_game=True):
             "stats_no_crash": "Längste Fahrt ohne Unfall: {value} m",
         },
         "Français": {
+            "gunshop_title": 'Armurerie',
+            "full_ammo": 'Plein',
+            "ammo_word": 'munitions',
+            "no_owned_weapons": 'Aucune arme à feu possédée',
+            "nightstand": 'Table de chevet',
+            "open_nightstand": 'Ouvrir la table de chevet',
+            "trunk": 'Coffre',
+            "open_trunk": 'Ouvrir le coffre',
+            "carrying_out_msg": "Transport d'armes : tir impossible",
+            "controls": 'Commandes',
+            "tutorial": 'Tutoriel',
             "sleep_save": "Appuyez sur [E] / [T] près du lit pour dormir et sauvegarder",
             "hunger_meter": "FAIM {value}%", "health_meter": "SANTÉ {value}%",
             "radio_genre_silent": "Sans musique", "radio_genre_rock": "Rock alternatif", "radio_genre_synthwave": "Synthwave",
@@ -5015,7 +5538,6 @@ def run_open_world(screen, settings, *, continue_game=True):
         frame_renderer.submit(RenderLayer.WORLD, draw_city_world)
         frame_renderer.submit(RenderLayer.LIGHTING, draw_city_lighting)
         frame_renderer.render()
-        pygame.display.flip()
 
     def park_vehicle_with_fade():
         nonlocal car, in_car
@@ -5146,10 +5668,11 @@ def run_open_world(screen, settings, *, continue_game=True):
         first_frame = True
         while True:
             selected_car, buttons, engine_prices, wheel_prices = _draw_garage_menu_frame(selected)
-            pygame.display.flip()
             if first_frame:
-                fade_screen(screen, False, duration=0.25)
+                fade_menu_in(screen, duration=0.25)
                 first_frame = False
+            else:
+                pygame.display.flip()
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -5222,6 +5745,362 @@ def run_open_world(screen, settings, *, continue_game=True):
                                 return "CONTINUE"
             menu_clock.tick(FPS)
 
+    _gunshop_music = None
+    _gunshop_music_channel = None
+
+    def _ensure_gunshop_music():
+        nonlocal _gunshop_music, _gunshop_music_channel
+        if _gunshop_music is None:
+            music_path = _ASSET_ROOT / "radio" / "gunshop" / "malt_shop_bop.mp3"
+            if music_path.exists():
+                try:
+                    _gunshop_music = pygame.mixer.Sound(str(music_path))
+                except (pygame.error, OSError):
+                    _gunshop_music = False
+            else:
+                _gunshop_music = False
+        if _gunshop_music and _gunshop_music is not False:
+            if _gunshop_music_channel is None or not _gunshop_music_channel.get_busy():
+                try:
+                    _gunshop_music_channel = _gunshop_music.play(loops=-1)
+                except (pygame.error, AttributeError):
+                    _gunshop_music_channel = None
+            if _gunshop_music_channel:
+                vol = settings.get("music_volume", 20) / 100.0 * 0.5
+                try:
+                    _gunshop_music_channel.set_volume(vol)
+                except (pygame.error, AttributeError):
+                    pass
+
+    def _stop_gunshop_music():
+        nonlocal _gunshop_music_channel
+        if _gunshop_music_channel is not None:
+            try:
+                _gunshop_music_channel.stop()
+            except (pygame.error, AttributeError):
+                pass
+            _gunshop_music_channel = None
+
+    def _owned_firearm_types():
+        types = set()
+        for item in weapons.carried_firearms:
+            if item.get("type") in WeaponWheel.FIREARM_TYPES:
+                types.add(item["type"])
+        for item in getattr(weapons, "home_storage", []):
+            if item.get("type") in WeaponWheel.FIREARM_TYPES:
+                types.add(item["type"])
+        for items in getattr(weapons, "car_storage", {}).values():
+            for item in items:
+                if item.get("type") in WeaponWheel.FIREARM_TYPES:
+                    types.add(item["type"])
+        for item in getattr(weapons, "carrying_out", []):
+            if item.get("type") in WeaponWheel.FIREARM_TYPES:
+                types.add(item["type"])
+        return sorted(types, key=lambda x: WeaponWheel.FIREARM_TYPES.index(x) if x in WeaponWheel.FIREARM_TYPES else 99)
+
+    def _gunshop_buy_ammo_menu():
+        nonlocal money, total_spent
+        price_per_pack = {"pistol": 120, "shotgun": 220, "rifle": 350}
+        pack_size = {"pistol": 7, "shotgun": 5, "rifle": 30}
+        clock_menu = pygame.time.Clock()
+        sel = 0
+        while True:
+            gt_lang = languages[settings['lang_idx']]
+            labels = translations.get(gt_lang, translations["English"])
+            owned = _owned_firearm_types()
+            options = []
+            for wtype in owned:
+                stats = WeaponWheel.WEAPON_STATS[wtype]
+                current_reserve = weapons.reserve_ammo_by_weapon.get(wtype, 0)
+                max_res = stats["reserve_max"]
+                price = price_per_pack.get(wtype, 150)
+                amount = min(pack_size.get(wtype, stats["mag_size"]), max_res - current_reserve)
+                name = labels.get(wtype, wtype.title())
+                if amount <= 0:
+                    text = f"{name}: {labels.get('full_ammo','Full')} ({current_reserve}/{max_res})"
+                else:
+                    text = f"{name}: +{amount} {labels.get('ammo_word','ammo')} - {price} UAH ({current_reserve}/{max_res})"
+                options.append((wtype, price, amount, text))
+            if not options:
+                options.append((None, 0, 0, labels.get("no_owned_weapons", "No owned firearms")))
+            options.append((None, 0, 0, labels.get("back", "Back")))
+            screen.fill((18, 12, 10))
+            title = game_font.render(labels.get("gunshop_title", "Gun Shop"), True, (238, 164, 47))
+            screen.blit(title, (40, 30))
+            money_txt = small_font.render(f"{money} UAH", True, (255,255,255))
+            screen.blit(money_txt, (40, 90))
+            rects = []
+            for i, (_, _, _, text) in enumerate(options):
+                color = (212, 91, 18) if i == sel else (255,255,255)
+                rendered = small_font.render(text, True, color)
+                r = rendered.get_rect(topleft=(50, 140 + i*60))
+                rects.append(r)
+                screen.blit(rendered, r)
+            pygame.display.flip()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return "EXIT"
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        return "BACK"
+                    if event.key == pygame.K_UP:
+                        sel = (sel - 1) % len(options)
+                    elif event.key == pygame.K_DOWN:
+                        sel = (sel + 1) % len(options)
+                    elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_e):
+                        wtype, price, amount, _ = options[sel]
+                        if wtype is None:
+                            return "BACK"
+                        if amount > 0 and money >= price:
+                            money -= price
+                            total_spent += price
+                            weapons.reserve_ammo_by_weapon[wtype] = min(
+                                WeaponWheel.WEAPON_STATS[wtype]["reserve_max"],
+                                weapons.reserve_ammo_by_weapon.get(wtype, 0) + amount,
+                            )
+                            for item in weapons.carried_firearms:
+                                if item.get("type") == wtype:
+                                    item["reserve"] = weapons.reserve_ammo_by_weapon[wtype]
+                            if weapons.selected == wtype:
+                                weapons._sync_selected_counts()
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    for i, r in enumerate(rects):
+                        if r.collidepoint(event.pos):
+                            sel = i
+                            wtype, price, amount, _ = options[sel]
+                            if wtype is None:
+                                return "BACK"
+                            if amount > 0 and money >= price:
+                                money -= price
+                                total_spent += price
+                                weapons.reserve_ammo_by_weapon[wtype] = min(
+                                    WeaponWheel.WEAPON_STATS[wtype]["reserve_max"],
+                                    weapons.reserve_ammo_by_weapon.get(wtype, 0) + amount,
+                                )
+                                for item in weapons.carried_firearms:
+                                    if item.get("type") == wtype:
+                                        item["reserve"] = weapons.reserve_ammo_by_weapon[wtype]
+                                if weapons.selected == wtype:
+                                    weapons._sync_selected_counts()
+            clock_menu.tick(FPS)
+
+    def _weapon_item_label(item, labels):
+        if not item:
+            return "-"
+        wtype = item.get("type")
+        name = labels.get(wtype, str(wtype).title())
+        if wtype == "knife":
+            return f"{name}"
+        stats = WeaponWheel.WEAPON_STATS.get(wtype, {})
+        mag = item.get("ammo", stats.get("mag_size", 0))
+        res = item.get("reserve", 0)
+        return f"{name} ({mag}/{res})"
+
+    def _can_take_to_carried(item):
+        if not item:
+            return False
+        wtype = item.get("type")
+        if wtype == "knife":
+            return not weapons.carried_knife
+        if wtype not in WeaponWheel.FIREARM_TYPES:
+            return False
+        if len(weapons.carried_firearms) >= 2:
+            return False
+        handed = WeaponWheel.WEAPON_STATS[wtype]["handedness"]
+        # limit: max 1 one-handed, 1 two-handed (and total 2 firearms)
+        one = sum(1 for i in weapons.carried_firearms if WeaponWheel.WEAPON_STATS[i["type"]]["handedness"] == "one_handed")
+        two = sum(1 for i in weapons.carried_firearms if WeaponWheel.WEAPON_STATS[i["type"]]["handedness"] == "two_handed")
+        if handed == "one_handed" and one >= 1:
+            return False
+        if handed == "two_handed" and two >= 1:
+            return False
+        return True
+
+    def _car_trunk_point(vehicle):
+        # rear of car in world coords
+        return vehicle.pos + pygame.Vector2(-70, 0).rotate(-vehicle.angle + 180)
+
+    def _near_car_trunk():
+        if in_car:
+            return None, None
+        candidates = [("player_car", car)] + [(f"parked_{i}", pc) for i,pc in enumerate(parked_cars)]
+        for key, veh in candidates:
+            try:
+                if atom.pos.distance_to(_car_trunk_point(veh)) < 55:
+                    return key, veh
+            except Exception:
+                pass
+        return None, None
+
+    def _trunk_menu(storage_key):
+        if storage_key not in weapons.car_storage:
+            weapons.car_storage[storage_key] = []
+        trunk = weapons.car_storage[storage_key]
+        sel = 0
+        mode = "trunk"
+        clock_menu = pygame.time.Clock()
+        while True:
+            gt_lang = languages[settings['lang_idx']]
+            labels = translations.get(gt_lang, translations["English"])
+            carried_items = list(weapons.carried_firearms)
+            if weapons.carried_knife:
+                carried_items.append({"type":"knife"})
+            screen.fill((20,16,14))
+            title = small_font.render(labels.get("trunk", "Trunk"), True, (238,164,47))
+            screen.blit(title, (30,20))
+            hint = small_font.render("Tab: switch | Enter/E: move | Esc: close", True, (200,200,200))
+            screen.blit(hint, (30,55))
+            left_x, right_x, y0 = 30, 520, 100
+            screen.blit(small_font.render(f"Trunk {len(trunk)}", True, (255,255,255)), (left_x, y0-28))
+            screen.blit(small_font.render("Carried", True, (255,255,255)), (right_x, y0-28))
+            items = trunk if mode == "trunk" else carried_items
+            for i in range(max(len(items), 1)):
+                text = _weapon_item_label(items[i], labels) if i < len(items) else "(empty)"
+                color = (212,91,18) if mode=="trunk" and i==sel else (255,255,255) if mode=="trunk" else (170,170,170)
+                screen.blit(small_font.render(text, True, color), (left_x, y0 + i*34))
+            for i in range(max(len(carried_items), 1)):
+                text = _weapon_item_label(carried_items[i], labels) if i < len(carried_items) else "(empty)"
+                color = (212,91,18) if mode=="carried" and i==sel else (255,255,255) if mode=="carried" else (170,170,170)
+                screen.blit(small_font.render(text, True, color), (right_x, y0 + i*34))
+            pygame.display.flip()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return "EXIT"
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        return "BACK"
+                    if event.key == pygame.K_TAB:
+                        mode = "carried" if mode == "trunk" else "trunk"
+                        sel = 0
+                    elif event.key == pygame.K_UP:
+                        maxlen = len(trunk) if mode=="trunk" else len(carried_items)
+                        if maxlen>0: sel = (sel - 1) % maxlen
+                    elif event.key == pygame.K_DOWN:
+                        maxlen = len(trunk) if mode=="trunk" else len(carried_items)
+                        if maxlen>0: sel = (sel + 1) % maxlen
+                    elif event.key in (pygame.K_RETURN, pygame.K_e):
+                        if mode == "trunk" and sel < len(trunk):
+                            item = trunk[sel]
+                            if _can_take_to_carried(item):
+                                taken = trunk.pop(sel)
+                                if taken["type"] == "knife":
+                                    weapons.carried_knife = True
+                                else:
+                                    weapons.carried_firearms.append(taken)
+                                    weapons.ammo_by_weapon[taken["type"]] = taken["ammo"]
+                                    weapons.reserve_ammo_by_weapon[taken["type"]] = taken["reserve"]
+                                if weapons.selected == "none":
+                                    weapons.selected = taken["type"]
+                                sel = max(0, min(sel, len(trunk)-1))
+                        elif mode == "carried" and sel < len(carried_items):
+                            item = carried_items[sel]
+                            if item["type"] == "knife":
+                                weapons.carried_knife = False
+                                trunk.append({"type":"knife"})
+                                if weapons.selected == "knife":
+                                    weapons.selected = weapons.carried_firearms[0]["type"] if weapons.carried_firearms else "none"
+                            else:
+                                for idx, cf in enumerate(weapons.carried_firearms):
+                                    if cf is item or (cf.get("type")==item.get("type") and cf.get("ammo")==item.get("ammo") and cf.get("reserve")==item.get("reserve")):
+                                        removed = weapons.carried_firearms.pop(idx)
+                                        removed["ammo"] = weapons.ammo_by_weapon.get(removed["type"], removed.get("ammo",0))
+                                        removed["reserve"] = weapons.reserve_ammo_by_weapon.get(removed["type"], removed.get("reserve",0))
+                                        trunk.append(removed)
+                                        if weapons.selected == removed["type"]:
+                                            weapons.selected = weapons.carried_firearms[0]["type"] if weapons.carried_firearms else ("knife" if weapons.carried_knife else "none")
+                                            weapons._sync_selected_counts()
+                                        break
+                            sel = 0
+            clock_menu.tick(FPS)
+
+    def _nightstand_menu():
+        nonlocal money
+        fade_screen(screen, True, duration=0.25)
+        sel = 0
+        mode = "storage"  # storage or carried
+        clock_menu = pygame.time.Clock()
+        while True:
+            gt_lang = languages[settings['lang_idx']]
+            labels = translations.get(gt_lang, translations["English"])
+            storage = weapons.home_storage
+            carried_items = list(weapons.carried_firearms)
+            if weapons.carried_knife:
+                carried_items.append({"type":"knife"})
+            screen.fill((24,18,14))
+            title = game_font.render(labels.get("nightstand", "Nightstand"), True, (238,164,47))
+            screen.blit(title, (40,20))
+            hint = small_font.render("Tab: switch | Enter/E: move | Esc: close", True, (200,200,200))
+            screen.blit(hint, (40,70))
+            left_x, right_x, y0 = 40, 680, 120
+            screen.blit(small_font.render(f"Storage {len(storage)}/7", True, (255,255,255)), (left_x, y0-30))
+            screen.blit(small_font.render(f"Carried {len(weapons.carried_firearms)}F/{1 if weapons.carried_knife else 0}K", True, (255,255,255)), (right_x, y0-30))
+            items = storage if mode == "storage" else carried_items
+            for i in range(max(len(items), 1)):
+                text = _weapon_item_label(items[i], labels) if i < len(items) else "(empty)"
+                color = (212,91,18) if mode=="storage" and i==sel else (255,255,255) if mode=="storage" else (170,170,170)
+                screen.blit(small_font.render(text, True, color), (left_x, y0 + i*36))
+            for i in range(max(len(carried_items), 1)):
+                text = _weapon_item_label(carried_items[i], labels) if i < len(carried_items) else "(empty)"
+                color = (212,91,18) if mode=="carried" and i==sel else (255,255,255) if mode=="carried" else (170,170,170)
+                screen.blit(small_font.render(text, True, color), (right_x, y0 + i*36))
+            pygame.display.flip()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return "EXIT"
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        fade_screen(screen, True, duration=0.2)
+                        # redraw house snapshot? easier fade in black-ish handled by caller context not perfect, but ok
+                        fade_screen(screen, False, duration=0.2)
+                        return "BACK"
+                    if event.key == pygame.K_TAB:
+                        mode = "carried" if mode == "storage" else "storage"
+                        sel = 0
+                    elif event.key == pygame.K_UP:
+                        maxlen = len(storage) if mode=="storage" else len(carried_items)
+                        if maxlen>0: sel = (sel - 1) % maxlen
+                    elif event.key == pygame.K_DOWN:
+                        maxlen = len(storage) if mode=="storage" else len(carried_items)
+                        if maxlen>0: sel = (sel + 1) % maxlen
+                    elif event.key in (pygame.K_RETURN, pygame.K_e):
+                        if mode == "storage" and sel < len(storage):
+                            item = storage[sel]
+                            if _can_take_to_carried(item):
+                                taken = storage.pop(sel)
+                                if taken["type"] == "knife":
+                                    weapons.carried_knife = True
+                                else:
+                                    weapons.carried_firearms.append(taken)
+                                    weapons.ammo_by_weapon[taken["type"]] = taken["ammo"]
+                                    weapons.reserve_ammo_by_weapon[taken["type"]] = taken["reserve"]
+                                if weapons.selected == "none":
+                                    weapons.selected = taken["type"]
+                                sel = max(0, min(sel, len(storage)-1))
+                        elif mode == "carried" and sel < len(carried_items):
+                            if len(storage) >= 7:
+                                pass
+                            else:
+                                item = carried_items[sel]
+                                if item["type"] == "knife":
+                                    weapons.carried_knife = False
+                                    storage.append({"type":"knife"})
+                                    if weapons.selected == "knife":
+                                        weapons.selected = weapons.carried_firearms[0]["type"] if weapons.carried_firearms else "none"
+                                else:
+                                    # remove matching firearm instance
+                                    for idx, cf in enumerate(weapons.carried_firearms):
+                                        if cf is item or (cf.get("type")==item.get("type") and cf.get("ammo")==item.get("ammo") and cf.get("reserve")==item.get("reserve")):
+                                            removed = weapons.carried_firearms.pop(idx)
+                                            removed["ammo"] = weapons.ammo_by_weapon.get(removed["type"], removed.get("ammo",0))
+                                            removed["reserve"] = weapons.reserve_ammo_by_weapon.get(removed["type"], removed.get("reserve",0))
+                                            storage.append(removed)
+                                            if weapons.selected == removed["type"]:
+                                                weapons.selected = weapons.carried_firearms[0]["type"] if weapons.carried_firearms else ("knife" if weapons.carried_knife else "none")
+                                                weapons._sync_selected_counts()
+                                            break
+                                sel = 0
+            clock_menu.tick(FPS)
+
     def get_current_game_state():
         return build_game_state_data(
             game_state,
@@ -5257,6 +6136,10 @@ def run_open_world(screen, settings, *, continue_game=True):
         # Update the phone slide animation before drawing it.
         target_y = 0.0 if phone_active else 450.0
         current_lang_name = languages[settings['lang_idx']]
+        if game_state == "GUNSHOP":
+            _ensure_gunshop_music()
+        else:
+            _stop_gunshop_music()
         t = translations.get(current_lang_name, translations["English"])
         keys = keyboard
         # One real second advances one in-game minute; survival uses that same clock.
@@ -5420,6 +6303,7 @@ def run_open_world(screen, settings, *, continue_game=True):
                     frame_clock.reset()
                     if res in ["MENU", "EXIT"]:
                         radio.stop()
+                        _stop_gunshop_music()
                         save_last_session_stats()
                         return res
                     if radio_was_playing:
@@ -5485,6 +6369,17 @@ def run_open_world(screen, settings, *, continue_game=True):
                         elif atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
                             scene_transition.begin("HOUSE", time.perf_counter())
                             entered_house_this_event = True
+                        elif atom.pos.distance_to(GUNSHOP_POS) < GUNSHOP_RADIUS:
+                            scene_transition.begin("GUNSHOP", time.perf_counter())
+                            entered_house_this_event = True
+                        else:
+                            trunk_key, _veh = _near_car_trunk()
+                            if trunk_key:
+                                res = _trunk_menu(trunk_key)
+                                if res == "EXIT":
+                                    return "EXIT"
+                                keyboard._pressed_scancodes.clear()
+                                pygame.event.clear([pygame.KEYDOWN, pygame.KEYUP])
 
                 if (
                     game_state == "HOUSE"
@@ -5499,12 +6394,34 @@ def run_open_world(screen, settings, *, continue_game=True):
                     )
                     if pressed_e and atom_h.pos.distance_to(HOUSE_FRIDGE_POS) < HOUSE_FRIDGE_RADIUS:
                         fridge_menu_open = True
+                    elif pressed_e and atom_h.pos.distance_to(HOUSE_NIGHTSTAND_POS) < HOUSE_NIGHTSTAND_RADIUS:
+                        res = _nightstand_menu()
+                        if res == "EXIT":
+                            return "EXIT"
+                        keyboard._pressed_scancodes.clear()
+                        pygame.event.clear([pygame.KEYDOWN, pygame.KEYUP])
                     elif pressed_e and is_at_sleep_spot(game_state, atom_h.pos):
                         sleep_requested = True
                     elif pressed_t and is_at_sleep_spot(game_state, atom_h.pos):
                         sleep_requested = True
                     elif pressed_e and check_house_exit(atom_h, house_info):
                         scene_transition.begin("CITY", time.perf_counter())
+
+                if (
+                    game_state == "GUNSHOP"
+                    and not scene_transition.active
+                    and not phone_active
+                    and not entered_house_this_event
+                ):
+                    if keyboard.matches(event, pygame.K_e):
+                        if atom_g.pos.distance_to(GUNSHOP_COUNTER_POS) < GUNSHOP_COUNTER_RADIUS:
+                            res = _gunshop_buy_ammo_menu()
+                            if res == "EXIT":
+                                return "EXIT"
+                            keyboard._pressed_scancodes.clear()
+                            pygame.event.clear([pygame.KEYDOWN, pygame.KEYUP])
+                        elif atom_g.pos.distance_to(GUNSHOP_EXIT_SPOT) < GUNSHOP_EXIT_RADIUS:
+                            scene_transition.begin("CITY", time.perf_counter())
             if (
                 event.type == pygame.MOUSEBUTTONDOWN
                 and event.button == 1
@@ -5513,6 +6430,7 @@ def run_open_world(screen, settings, *, continue_game=True):
                 and not in_car
                 and not phone_active
                 and not weapons.wheel_open
+                and not weapons.is_transporting
             ):
                 facing_radians = math.radians(atom.angle)
                 target_position = atom.pos + pygame.Vector2(
@@ -5561,8 +6479,15 @@ def run_open_world(screen, settings, *, continue_game=True):
             game_state = scene_manager.current
             if game_state == "HOUSE":
                 atom_h.pos.update(HOUSE_ENTRY_SPOT)
+            elif game_state == "GUNSHOP":
+                atom_g.pos.update(GUNSHOP_ENTRY_SPOT)
             else:
-                atom.pos.update(7731, 2326)
+                if scene_manager.previous == "HOUSE":
+                    atom.pos.update(7731, 2326)
+                elif scene_manager.previous == "GUNSHOP":
+                    atom.pos.update(GUNSHOP_POS.x, GUNSHOP_POS.y + 80)
+                else:
+                    atom.pos.update(7731, 2326)
                 in_car = False
                 target = atom
                 off_x, off_y = camera.follow(target.pos)
@@ -5699,6 +6624,9 @@ def run_open_world(screen, settings, *, continue_game=True):
                         money_history.append(("+300", "sofa"))
                         collected_treasures.add("sofa")
                 handle_surface_footsteps(keys, in_car, game_state, atom_h.pos, None, step_sounds, foot_chan)
+        elif game_state == "GUNSHOP" and not scene_transition.active:
+            atom_g.update(keys, gunshop_collision, frame_scale)
+            handle_surface_footsteps(keys, in_car, game_state, atom_g.pos, None, step_sounds, foot_chan)
 
         if atom.health <= 0 and not scene_transition.active:
             fade_screen(screen, True, duration=0.35)
@@ -5832,6 +6760,11 @@ def run_open_world(screen, settings, *, continue_game=True):
                             interactions.append(("F", "enter_car"))
                         elif atom.pos.distance_to(pygame.Vector2(7738, 2330)) < 80:
                             interactions.append(("E", "enter_house"))
+                        elif atom.pos.distance_to(GUNSHOP_POS) < GUNSHOP_RADIUS:
+                            interactions.append(("E", "enter_gunshop"))
+                        trunk_key, _veh = _near_car_trunk()
+                        if trunk_key:
+                            interactions.append(("E", "open_trunk"))
                     active_prompt_ids = {interaction[1] for interaction in interactions}
                     for prompt_index, interaction in enumerate(interactions):
                         prompt_id = interaction[1]
@@ -5881,7 +6814,7 @@ def run_open_world(screen, settings, *, continue_game=True):
             frame_renderer.submit(RenderLayer.WORLD, draw_city_world)
             frame_renderer.submit(RenderLayer.LIGHTING, draw_city_lighting)
             frame_renderer.submit(RenderLayer.UI, draw_city_ui)
-        else:
+        elif game_state == "HOUSE":
             def draw_house_background():
                 draw_house_scene(
                     screen, house_visual, house_info, atom_h, small_font, t
@@ -5912,6 +6845,8 @@ def run_open_world(screen, settings, *, continue_game=True):
                     return
                 if atom_h.pos.distance_to(HOUSE_FRIDGE_POS) < HOUSE_FRIDGE_RADIUS:
                     prompt = ("E", "fridge")
+                elif atom_h.pos.distance_to(HOUSE_NIGHTSTAND_POS) < HOUSE_NIGHTSTAND_RADIUS:
+                    prompt = ("E", "open_nightstand")
                 elif is_at_sleep_spot(game_state, atom_h.pos):
                     prompt = ("E", "sleep")
                 elif check_house_exit(atom_h, house_info):
@@ -5955,6 +6890,34 @@ def run_open_world(screen, settings, *, continue_game=True):
 
             frame_renderer.submit(RenderLayer.BACKGROUND, draw_house_background)
             frame_renderer.submit(RenderLayer.UI, draw_house_ui)
+        elif game_state == "GUNSHOP":
+            def draw_gunshop_background():
+                screen.fill((10, 10, 10))
+                h_rect = gunshop_visual.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+                screen.blit(gunshop_visual, h_rect)
+                atom_g.draw(screen, h_rect.x, h_rect.y)
+
+            def draw_gunshop_ui():
+                draw_gta_minimap(
+                    screen,
+                    gunshop_visual,
+                    atom_g,
+                    gunshop_visual.get_width(),
+                    gunshop_visual.get_height(),
+                    house_pos=None,
+                    labels=t,
+                    hunger=survival.hunger,
+                    health=atom.health,
+                    preserve_aspect=True,
+                    zoom=1.0,
+                )
+                if atom_g.pos.distance_to(GUNSHOP_COUNTER_POS) < GUNSHOP_COUNTER_RADIUS:
+                    draw_interaction_prompt(screen, "E", _interaction_text(current_lang_name, "gunshop_browse"))
+                elif atom_g.pos.distance_to(GUNSHOP_EXIT_SPOT) < GUNSHOP_EXIT_RADIUS:
+                    draw_interaction_prompt(screen, "E", _interaction_text(current_lang_name, "exit_gunshop"))
+
+            frame_renderer.submit(RenderLayer.BACKGROUND, draw_gunshop_background)
+            frame_renderer.submit(RenderLayer.UI, draw_gunshop_ui)
         frame_renderer.render()
 
         if fridge_menu_open:
@@ -5966,15 +6929,13 @@ def run_open_world(screen, settings, *, continue_game=True):
                 fridge_selection,
             )
 
-        # In-game clock.
-        h, m = int(game_time / 60), int(game_time % 60)
-        time_text = small_font.render(f"{h:02d}:{m:02d}", True, (255, 255, 255))
-        screen.blit(time_text, (20, 20))
+        # Time is shown in the phone UI, not on the main HUD.
 
         if show_debug:
+            debug_target = atom_h if game_state == "HOUSE" else atom_g if game_state == "GUNSHOP" else target
             draw_debug_coords(
                 screen,
-                (atom_h if game_state == "HOUSE" else target),
+                debug_target,
                 game_state,
                 clock.get_fps(),
             )
@@ -6014,3 +6975,70 @@ def run_open_world(screen, settings, *, continue_game=True):
 
     save_last_session_stats()
     return "EXIT"
+
+
+# ---------------------------------------------------------------------------
+# Menu transition helpers
+# ---------------------------------------------------------------------------
+MENU_TRANSITION_DURATION = 0.2
+
+
+def fade_menu_in(screen, duration=MENU_TRANSITION_DURATION):
+    fade_screen(screen, False, duration)
+
+
+def fade_menu_out(screen, duration=MENU_TRANSITION_DURATION):
+    fade_screen(screen, True, duration)
+
+
+# ---------------------------------------------------------------------------
+# Startup videos (moved from video_intro.py)
+# ---------------------------------------------------------------------------
+VIDEO_EXTENSIONS = {".mp4", ".mkv", ".mov", ".avi", ".webm"}
+VIDEO_DIRECTORY = Path(__file__).resolve().parent / "videos"
+
+
+def _play_intro_video(screen, path):
+    try:
+        import cv2
+    except ImportError:
+        return True
+
+    capture = cv2.VideoCapture(str(path))
+    if not capture.isOpened():
+        return True
+    fps = capture.get(cv2.CAP_PROP_FPS) or 30.0
+    clock = pygame.time.Clock()
+    try:
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return False
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    return True
+
+            success, frame = capture.read()
+            if not success:
+                return True
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = cv2.resize(frame, screen.get_size())
+            surface = pygame.image.frombuffer(frame.tobytes(), screen.get_size(), "RGB")
+            screen.blit(surface, (0, 0))
+            pygame.display.flip()
+            clock.tick(max(1, round(fps)))
+    finally:
+        capture.release()
+
+
+def play_intro_videos(screen, directory=None):
+    """Play bundled videos in filename order; Esc skips only the current video."""
+    if directory is None:
+        directory = VIDEO_DIRECTORY
+    directory = Path(directory)
+    if not directory.is_dir():
+        return True
+    videos = sorted(
+        path for path in directory.iterdir()
+        if path.is_file() and path.suffix.lower() in VIDEO_EXTENSIONS
+    )
+    return all(_play_intro_video(screen, path) for path in videos)

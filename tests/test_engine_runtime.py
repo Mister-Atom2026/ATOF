@@ -18,21 +18,25 @@ import settings_manager
 
 
 class EngineRuntimeTests(unittest.TestCase):
+    def test_car_keeps_its_original_image_for_garage_vehicle_selection(self):
+        car = engine.Car(0, 0)
+
+        self.assertIsNot(car.image, car.original_image)
+        self.assertEqual(car.image.get_size(), car.original_image.get_size())
+        self.assertEqual(
+            pygame.image.tobytes(car.image, "RGBA"),
+            pygame.image.tobytes(car.original_image, "RGBA"),
+        )
+
     def test_new_game_starts_with_only_a_full_mathew_37_magazine(self):
         weapons = engine.WeaponWheel.new_game()
 
-        self.assertEqual(weapons.ammo_by_weapon, {
-            "pistol": 7,
-            "shotgun": 0,
-            "rifle": 0,
-            "smg": 0,
-        })
-        self.assertEqual(weapons.reserve_ammo_by_weapon, {
-            "pistol": 0,
-            "shotgun": 0,
-            "rifle": 0,
-            "smg": 0,
-        })
+        self.assertEqual(weapons.selected, "pistol")
+        self.assertEqual(len(weapons.carried_firearms), 1)
+        self.assertEqual(weapons.carried_firearms[0]["type"], "pistol")
+        self.assertEqual(weapons.carried_firearms[0]["ammo"], 7)
+        self.assertEqual(weapons.carried_firearms[0]["reserve"], 30)
+        self.assertFalse(weapons.carried_knife)
 
     def test_camera_follow_and_coordinate_conversion(self):
         camera = engine.Camera2D((100, 80), (500, 400))
@@ -190,25 +194,28 @@ class EngineRuntimeTests(unittest.TestCase):
         self.assertEqual(wanted.level, 0)
 
     def test_weapon_wheel_selects_shotgun_with_middle_mouse_and_releases(self):
-        weapons = engine.WeaponWheel()
+        weapons = engine.WeaponWheel(
+            carried_firearms=[
+                {"type": "pistol", "ammo": 7, "reserve": 30},
+                {"type": "shotgun", "ammo": 5, "reserve": 10},
+            ],
+            selected="pistol",
+        )
         screen_size = (800, 600)
 
         weapons.process_event(
-            pygame.event.Event(
-                pygame.MOUSEBUTTONDOWN,
-                button=2,
-                pos=(500, 300),
-            ),
+            pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=2, pos=(400, 200)),
             screen_size,
         )
         self.assertTrue(weapons.wheel_open)
         self.assertEqual(weapons.selected, "pistol")
 
+        # second slot (shotgun) is at 90 degrees from top in 4-slot wheel
         weapons.process_event(
             pygame.event.Event(
                 pygame.MOUSEMOTION,
-                pos=(400, 400),
-                rel=(-100, 100),
+                pos=(500, 300),
+                rel=(100, 100),
                 buttons=(False, False, True),
             ),
             screen_size,
@@ -216,27 +223,24 @@ class EngineRuntimeTests(unittest.TestCase):
         self.assertEqual(weapons.selected, "shotgun")
 
         weapons.process_event(
-            pygame.event.Event(
-                pygame.MOUSEBUTTONUP,
-                button=2,
-                pos=(400, 400),
-            ),
+            pygame.event.Event(pygame.MOUSEBUTTONUP, button=2, pos=(500, 300)),
             screen_size,
         )
         self.assertFalse(weapons.wheel_open)
 
     def test_switching_weapon_immediately_shows_its_ammo_and_keeps_each_magazine(self):
-        weapons = engine.WeaponWheel(ammo=4, reserve_ammo=12, selected="pistol")
+        weapons = engine.WeaponWheel(
+            carried_firearms=[
+                {"type": "pistol", "ammo": 4, "reserve": 12},
+                {"type": "shotgun", "ammo": 5, "reserve": 25},
+            ],
+            selected="pistol",
+        )
         screen_size = (800, 600)
 
-        weapons.process_event(
-            pygame.event.Event(
-                pygame.MOUSEBUTTONDOWN,
-                button=2,
-                pos=(400, 400),
-            ),
-            screen_size,
-        )
+        weapons.process_event(pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=2, pos=(400, 200)), screen_size)
+        self.assertEqual(weapons.selected, "pistol")
+        weapons.process_event(pygame.event.Event(pygame.MOUSEMOTION, pos=(500, 300), rel=(100, 100), buttons=(False, False, True)), screen_size)
         self.assertEqual(weapons.selected, "shotgun")
         self.assertEqual((weapons.ammo, weapons.reserve_ammo), (5, 25))
 
@@ -244,27 +248,11 @@ class EngineRuntimeTests(unittest.TestCase):
             weapons.fire((0, 0), (100, 0))
         self.assertEqual(weapons.ammo, 4)
 
-        weapons.process_event(
-            pygame.event.Event(
-                pygame.MOUSEMOTION,
-                pos=(500, 300),
-                rel=(100, -100),
-                buttons=(False, False, True),
-            ),
-            screen_size,
-        )
+        weapons.process_event(pygame.event.Event(pygame.MOUSEMOTION, pos=(400, 200), rel=(-100, -100), buttons=(False, False, True)), screen_size)
         self.assertEqual(weapons.selected, "pistol")
         self.assertEqual((weapons.ammo, weapons.reserve_ammo), (4, 12))
 
-        weapons.process_event(
-            pygame.event.Event(
-                pygame.MOUSEMOTION,
-                pos=(400, 400),
-                rel=(-100, 100),
-                buttons=(False, False, True),
-            ),
-            screen_size,
-        )
+        weapons.process_event(pygame.event.Event(pygame.MOUSEMOTION, pos=(500, 300), rel=(100, 100), buttons=(False, False, True)), screen_size)
         self.assertEqual((weapons.ammo, weapons.reserve_ammo), (4, 25))
 
     def test_held_fire_repeats_at_weapon_rate_until_button_release(self):
@@ -294,9 +282,13 @@ class EngineRuntimeTests(unittest.TestCase):
             self.assertEqual(weapons.fire_if_held((0, 0), (100, 0)), [])
 
     def test_game_state_survives_a_save_round_trip(self):
-        weapons = engine.WeaponWheel(ammo=4, reserve_ammo=12, selected="pistol")
-        weapons.ammo_by_weapon["shotgun"] = 2
-        weapons.reserve_ammo_by_weapon["shotgun"] = 9
+        weapons = engine.WeaponWheel(
+            carried_firearms=[
+                {"type": "pistol", "ammo": 4, "reserve": 12},
+                {"type": "shotgun", "ammo": 2, "reserve": 9},
+            ],
+            selected="pistol",
+        )
         player = SimpleNamespace(pos=pygame.Vector2(1, 2), angle=3, health=100)
         house_player = SimpleNamespace(pos=pygame.Vector2(4, 5), angle=6)
         car = SimpleNamespace(
@@ -346,10 +338,16 @@ class EngineRuntimeTests(unittest.TestCase):
             saved["ammo"],
             saved["reserve_ammo"],
             saved["weapon"],
-            saved["ammo_by_weapon"],
-            saved["reserve_ammo_by_weapon"],
+            saved.get("ammo_by_weapon"),
+            saved.get("reserve_ammo_by_weapon"),
+            carried_firearms=saved.get("carried_firearms"),
+            carried_knife=saved.get("carried_knife", False),
+            home_storage=saved.get("home_storage", []),
+            car_storage=saved.get("car_storage", {}),
+            carrying_out=saved.get("carrying_out", []),
         )
         restored.selected = "shotgun"
+        restored._sync_selected_counts()
         self.assertEqual((restored.ammo, restored.reserve_ammo), (2, 9))
         self.assertEqual(saved["car"]["vehicle_class"], "stolen-sedan")
         self.assertEqual(saved["car"]["engine_upgrade"], 2)
@@ -357,7 +355,13 @@ class EngineRuntimeTests(unittest.TestCase):
         self.assertEqual(saved["garage_cars"], garage_cars)
 
     def test_weapon_wheel_fires_pistol_and_spread_shotgun(self):
-        weapons = engine.WeaponWheel(ammo=2, reserve_ammo=5, selected="pistol")
+        weapons = engine.WeaponWheel(
+            carried_firearms=[
+                {"type": "pistol", "ammo": 2, "reserve": 5},
+                {"type": "shotgun", "ammo": 5, "reserve": 25},
+            ],
+            selected="pistol",
+        )
 
         with patch("engine.time.perf_counter", side_effect=(1.1, 3.2, 4.0, 10.1)):
             pistol_shots = weapons.fire((0, 0), (100, 0))
@@ -365,6 +369,7 @@ class EngineRuntimeTests(unittest.TestCase):
             self.assertEqual(weapons.ammo, 1)
 
             weapons.selected = "shotgun"
+            weapons._sync_selected_counts()
             self.assertEqual(weapons.ammo, 5)
             shotgun_pellets = weapons.fire((0, 0), (100, 0))
             self.assertEqual(len(shotgun_pellets), 8)
@@ -376,10 +381,19 @@ class EngineRuntimeTests(unittest.TestCase):
         self.assertEqual(weapons.ammo, 5)
         self.assertEqual(weapons.reserve_ammo, 24)
         weapons.selected = "pistol"
+        weapons._sync_selected_counts()
         self.assertEqual((weapons.ammo, weapons.reserve_ammo), (1, 5))
 
     def test_projectiles_start_at_the_top_of_the_selected_weapon(self):
-        weapons = engine.WeaponWheel(ammo=7, reserve_ammo=0)
+        weapons = engine.WeaponWheel(
+            carried_firearms=[
+                {"type": "pistol", "ammo": 7, "reserve": 30},
+                {"type": "shotgun", "ammo": 5, "reserve": 25},
+            ],
+            selected="pistol",
+        )
+        # allow switching to rifle for geometry check
+        weapons.carried_firearms.append({"type": "rifle", "ammo": 50, "reserve": 150})
         weapons.weapon_textures["pistol"] = pygame.Surface((6, 12), pygame.SRCALPHA)
         pygame.draw.rect(
             weapons.weapon_textures["pistol"], (255, 255, 255, 255), (2, 1, 2, 10)
@@ -390,8 +404,10 @@ class EngineRuntimeTests(unittest.TestCase):
         with patch("engine.time.perf_counter", side_effect=(1.1, 3.2, 4.0)):
             pistol_projectile = weapons.fire((100, 100), (200, 100))[0]
             weapons.selected = "shotgun"
+            weapons._sync_selected_counts()
             shotgun_projectile = weapons.fire((100, 100), (200, 100))[0]
             weapons.selected = "rifle"
+            weapons._sync_selected_counts()
             rifle_projectile = weapons.fire((100, 100), (200, 100))[0]
 
         self.assertEqual(pistol_projectile.position, pygame.Vector2(112, 103))
@@ -399,7 +415,10 @@ class EngineRuntimeTests(unittest.TestCase):
         self.assertEqual(rifle_projectile.position, pygame.Vector2(135, 100))
 
     def test_unarmed_selection_does_not_consume_ammo(self):
-        weapons = engine.WeaponWheel(ammo=3, selected="none")
+        weapons = engine.WeaponWheel(
+            carried_firearms=[{"type": "pistol", "ammo": 3, "reserve": 5}],
+            selected="none",
+        )
 
         self.assertEqual(weapons.fire((0, 0), (100, 0)), [])
         self.assertEqual(weapons.ammo, 0)
@@ -485,7 +504,7 @@ class EngineRuntimeTests(unittest.TestCase):
         self.assertEqual(saved["ammo"], 20)
         self.assertEqual(saved["reserve_ammo"], 50)
         self.assertEqual(saved["ammo_by_weapon"], {"pistol": 7, "shotgun": 0, "rifle": 50})
-        self.assertEqual(saved["reserve_ammo_by_weapon"], {"smg": 80})
+        self.assertEqual(saved["reserve_ammo_by_weapon"], {})
         self.assertEqual(saved["honor"], -100)
         self.assertEqual(saved["respect"], 100)
         self.assertEqual(saved["wanted_level"], 5)

@@ -260,3 +260,20 @@ Both effects were shortened/volume-adjusted and converted for in-game use under 
 - “Crystal Cave (song18)” by [Cynic Project](https://cynicmusic.com/), downloaded from [OpenGameArt.org](https://opengameart.org/content/crystal-cave-song18). The track is marked [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) by its uploader. It is looped in-game; credit is included in appreciation of the creator.
 - “Observing the Star” by yd, downloaded from [OpenGameArt.org](https://opengameart.org/content/another-space-background-track), marked CC0 1.0.
 - “Freeway Fumes” and “Detour” by [Zane Little Music](https://zanelittle.com/), downloaded from [OpenGameArt.org](https://opengameart.org/content/freeway-fumes) and [OpenGameArt.org](https://opengameart.org/content/detour), both marked CC0 1.0.
+
+## Pre-release 0.9.0 Alpha 2
+
+- **Gun shop:** entering the shop now spawns the player near the interior exit; the interior uses the shop collision map. Added interaction at **X:145, Y:224** (**E** «Переглянути асортимент» / browse assortment) to buy ammunition for firearms the player already owns (prices depend on weapon type). Added a radar in the Gun Shop and in-store music (*Malt Shop Bop* — Kevin MacLeod) at 50% volume.
+- **Weapon system:** SMG removed from the available arsenal. The player can carry up to **2 firearms and 1 knife**; the weapon wheel now has 4 slots (2 firearm slots, knife, unarmed). Added a knife with melee attack. New games start with one fully loaded Mathew 37 pistol (7 in magazine, 30 in reserve). Save data updated for carried weapons and weapon storage.
+- **Home storage:** added a nightstand in the hero's house at **X:208, Y:192** (**E**) with a storage menu (capacity 7). Weapons can be moved between storage and carried inventory with limits (1 one-handed firearm, 1 two-handed firearm, 1 knife carried).
+- **Vehicle trunk:** added **E** interaction near the rear of cars to open a compact trunk menu for storing and taking items/weapons.
+- **Vehicle handling:** braking behavior adjusted — handbrake and brake have priority over throttle, braking can bring the car to a stop, and reverse can be engaged after stopping.
+- **HUD/radar:** added a glass-style visual treatment for radars, removed textual hunger/HP labels from radar rings (kept graphical indicators), and removed the on-screen clock from the main HUD (time remains available in the phone).
+- **Controls settings:** added a **Controls / Керування** tab in settings with key rebinding and conflict handling (swapping conflicting bindings).
+- **Tutorial:** added a **Tutorial / Навчання** option to the main menu with an interactive step-by-step introduction to core mechanics.
+- **Localization:** added/updated translations for new interface elements across supported languages (English, Ukrainian, Russian, Spanish, German, French).
+- **Other:** interaction prompt fade behavior and menu transition improvements; gun shop and garage-related fixes and polish.
+
+## Gun shop music attribution
+
+- *Malt Shop Bop* — Kevin MacLeod ([incompetech.com](https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100705)), licensed under [Creative Commons: By Attribution 4.0](https://creativecommons.org/licenses/by/4.0/). Used in the Gun Shop interior.

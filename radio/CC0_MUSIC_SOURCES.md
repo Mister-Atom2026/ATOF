@@ -33,3 +33,11 @@ the bundled recordings.
 - `nrk/kings_feast.mp3` — *Medieval: King's Feast* by RandomMind, 2:10.
   [OpenGameArt source page](https://opengameart.org/content/medieval-kings-feast)
   lists the music as CC0 and says credits are appreciated but not required.
+
+## Gun Shop — in-store music
+
+- `gunshop/malt_shop_bop.mp3` — *Malt Shop Bop* by Kevin MacLeod
+  ([incompetech.com](https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100705)).
+  Licensed under [Creative Commons: By Attribution 4.0](https://creativecommons.org/licenses/by/4.0/).
+  Used in-game in the Gun Shop interior at 50% volume. Attribution is required
+  when redistributing this recording.
