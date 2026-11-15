@@ -276,6 +276,7 @@ def load_game_save():
         "earned": _bounded_int(values.get("earned"), 0, 0, 2**31 - 1),
         "spent": _bounded_int(values.get("spent"), 0, 0, 2**31 - 1),
         "game_time": game_time,
+        "shop_income_day": _bounded_int(values.get("shop_income_day"), 0, 0, 2**31 - 1),
         "collected_treasures": treasures,
         "distance_streak": _finite_number(values.get("distance_streak")),
         "drift_streak": _finite_number(values.get("drift_streak")),

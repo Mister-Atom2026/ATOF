@@ -261,6 +261,13 @@ Both effects were shortened/volume-adjusted and converted for in-game use under 
 - “Observing the Star” by yd, downloaded from [OpenGameArt.org](https://opengameart.org/content/another-space-background-track), marked CC0 1.0.
 - “Freeway Fumes” and “Detour” by [Zane Little Music](https://zanelittle.com/), downloaded from [OpenGameArt.org](https://opengameart.org/content/freeway-fumes) and [OpenGameArt.org](https://opengameart.org/content/detour), both marked CC0 1.0.
 
+## Pre-release 0.9.0 Alpha 3
+
+- **Radar/HUD:** redesigned the minimap radar with a modern glass look, improved depth/highlights, and prettier, smoother health and hunger status bars.
+- **Map markers:** added quick GPS destination shortcuts on the full-screen map — **G** to mark the gun shop and **H** to mark home — alongside existing click-to-set and clear controls, with visible POI markers and localized hints.
+- **Storage UI:** redesigned the car trunk and home nightstand menus into compact, modern in-game panels while keeping the same storage/transfer rules.
+- **Economy:** added passive shop income of **+100 ₭ per in-game day**; changed the in-game currency from UAH to **krotiks** (**KRO**, symbol **₭**) across the UI.
+
 ## Pre-release 0.9.0 Alpha 2
 
 - **Gun shop:** entering the shop now spawns the player near the interior exit; the interior uses the shop collision map. Added interaction at **X:145, Y:224** (**E** «Переглянути асортимент» / browse assortment) to buy ammunition for firearms the player already owns (prices depend on weapon type). Added a radar in the Gun Shop and in-store music (*Malt Shop Bop* — Kevin MacLeod) at 50% volume.

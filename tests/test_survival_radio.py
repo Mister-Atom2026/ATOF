@@ -215,8 +215,8 @@ class SurvivalAndRadioTests(unittest.TestCase):
         self.assertEqual(screen.get_at((670, 520))[:3], (80, 110, 80))
         self.assertEqual(screen.get_at((130, 520))[:3], (0, 0, 0))
         # The outer ring keeps distinct green-health and orange-hunger arcs.
-        self.assertEqual(screen.get_at((779, 470))[:3], (67, 224, 142))
-        self.assertEqual(screen.get_at((561, 470))[:3], (247, 157, 37))
+        self.assertEqual(screen.get_at((779, 470))[:3], (80, 235, 155))
+        self.assertEqual(screen.get_at((561, 470))[:3], (255, 176, 64))
 
 
 if __name__ == "__main__":
