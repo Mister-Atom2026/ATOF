@@ -4370,64 +4370,161 @@ def _interaction_text(language, key):
     return labels[key]
 
 
+_PROMPT_TEXT_COLOR = (245, 248, 252)
+_PROMPT_STROKE_COLOR = (5, 9, 14)
+_PROMPT_KEYCAP_COLOR = (235, 242, 248)
+_PROMPT_ACCENT_COLOR = (212, 91, 18)
+
+
+def _render_stroked_text(font, text, color, stroke_color=_PROMPT_STROKE_COLOR, stroke=2):
+    """Render text with a thin dark outline so it stays legible on glass panels.
+
+    Returns ``(surface, pad)`` where *pad* is the transparent margin added
+    around the original glyph bounds.  Subtract it when positioning the
+    surface so the visible text still lands where the caller expects it.
+    """
+    base = font.render(text, True, color)
+    stroke = max(0, int(stroke))
+    if stroke == 0:
+        return base, 0
+    outline = font.render(text, True, stroke_color)
+    pad = stroke + 1
+    surf = pygame.Surface(
+        (base.get_width() + pad * 2, base.get_height() + pad * 2), pygame.SRCALPHA
+    )
+    for dx, dy in (
+        (-stroke, 0),
+        (stroke, 0),
+        (0, -stroke),
+        (0, stroke),
+        (-stroke, -stroke),
+        (stroke, -stroke),
+        (-stroke, stroke),
+        (stroke, stroke),
+    ):
+        surf.blit(outline, (pad + dx, pad + dy))
+    surf.blit(base, (pad, pad))
+    return surf, pad
+
+
 def draw_interaction_prompt(
     screen, key, label, left_margin=20, bottom_margin=65, alpha=255
 ):
-    """Show a modern contextual action prompt on the lower-left side."""
+    """Show a high-contrast contextual action prompt on the lower-left side.
+
+    The prompt is composed on its own transparent canvas so the near-opaque
+    glass plate, its shadow and the text look identical over any world
+    texture.  ``alpha`` only fades the finished composition, which keeps the
+    existing fade-in/out API and returned screen-space rectangles intact.
+    """
     alpha = max(0, min(255, int(alpha)))
     if alpha <= 0:
         return None
+
     font = _cached_ui_font(None, 23, weight="medium")
     key_font = _cached_ui_font(None, 22, weight="semibold")
-    label_surface = font.render(label, True, (245, 248, 252))
+    label_surface, label_pad = _render_stroked_text(font, label, _PROMPT_TEXT_COLOR)
     key_surface = key_font.render(key, True, (18, 16, 14))
+
     key_size = 36
     panel_height = 50
-    panel_width = label_surface.get_width() + key_size + 34
+    panel_width = label_surface.get_width() + key_size + 32
     panel = pygame.Rect(
         left_margin,
         screen.get_height() - bottom_margin - panel_height,
         panel_width,
         panel_height,
     )
-    target = screen
-    offset_x = offset_y = 0
-    if alpha < 255:
-        target = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
-        panel = panel.copy()
-        offset_x, offset_y = panel.x, panel.y
-        panel.topleft = (0, 0)
 
-    # glass panel
-    panel_surf = pygame.Surface((panel.width, panel.height), pygame.SRCALPHA)
-    panel_surf.fill((16, 22, 30, 205))
-    # subtle vertical sheen
-    sheen = pygame.Surface((panel.width, panel.height), pygame.SRCALPHA)
-    pygame.draw.ellipse(sheen, (255, 255, 255, 22), (-20, -panel.height * 0.6, panel.width * 0.8, panel.height * 1.1))
-    pygame.draw.rect(sheen, (255, 255, 255, 10), (0, 0, panel.width, panel.height // 2), border_radius=12)
-    panel_surf.blit(sheen, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
-    target.blit(panel_surf, panel.topleft)
-    pygame.draw.rect(target, (120, 145, 175, 120), panel, 1, border_radius=12)
-    pygame.draw.rect(target, (255, 255, 255, 40), panel.inflate(-2, -2), 1, border_radius=11)
-    pygame.draw.rect(target, (212, 91, 18), (panel.x, panel.y, 3, panel.height), border_radius=12)
-
-    key_rect = pygame.Rect(panel.x + 10, panel.centery - key_size // 2, key_size, key_size)
-    pygame.draw.rect(target, (235, 242, 248), key_rect, border_radius=8)
-    pygame.draw.rect(target, (255, 255, 255), key_rect, 1, border_radius=8)
-    pygame.draw.rect(target, (212, 91, 18), key_rect, 1, border_radius=8)
-    target.blit(
-        key_surface,
-        key_surface.get_rect(center=(key_rect.centerx, key_rect.centery + 1)),
+    # Extra room around the panel for the soft drop shadow.  Everything below
+    # is local to this canvas; the returned rectangles are converted back to
+    # screen space before being handed to the caller.
+    pad = 10
+    canvas = pygame.Surface(
+        (panel_width + pad * 2, panel_height + pad * 2), pygame.SRCALPHA
     )
-    label_rect = label_surface.get_rect(midleft=(key_rect.right + 10, panel.centery))
-    target.blit(label_surface, label_rect)
+    local_panel = pygame.Rect(pad, pad, panel_width, panel_height)
+
+    # Layered shadow separates the plate from bright asphalt as well as dark
+    # interiors, so it never looks like a bare white/black strip.
+    for grow, shade in ((12, 45), (8, 75), (4, 115)):
+        shadow_rect = local_panel.inflate(grow, grow)
+        shadow_rect.y += 2
+        pygame.draw.rect(canvas, (0, 0, 0, shade), shadow_rect, border_radius=16)
+
+    # Solid dark edge plus a nearly opaque glass body: the background cannot
+    # bleed through and wash out the label text anymore.
+    pygame.draw.rect(canvas, (2, 5, 9, 255), local_panel, border_radius=13)
+    body = local_panel.inflate(-2, -2)
+    pygame.draw.rect(canvas, (10, 16, 24, 248), body, border_radius=12)
+
+    # Subtle ATOF glass sheen, clipped to the plate so it never leaks out.
+    sheen = pygame.Surface((body.width, body.height), pygame.SRCALPHA)
+    pygame.draw.ellipse(
+        sheen,
+        (255, 255, 255, 20),
+        (-20, -int(body.height * 0.6), int(body.width * 0.8), int(body.height * 1.1)),
+    )
+    pygame.draw.rect(
+        sheen,
+        (255, 255, 255, 12),
+        (0, 0, body.width, body.height // 2),
+        border_radius=12,
+    )
+    canvas.blit(sheen, body.topleft, special_flags=pygame.BLEND_RGBA_ADD)
+
+    # Cool inner rim and the signature orange accent keep the glass language.
+    pygame.draw.rect(
+        canvas, (150, 178, 208, 120), body.inflate(-2, -2), 1, border_radius=11
+    )
+    accent = pygame.Rect(body.left + 3, body.top + 8, 4, body.height - 16)
+    pygame.draw.rect(canvas, (*_PROMPT_ACCENT_COLOR, 255), accent, border_radius=2)
+
+    # Keycap: dark bezel and drop shadow, warm cap, dark glyph and orange ring.
+    local_key = pygame.Rect(
+        body.left + 12, body.centery - key_size // 2, key_size, key_size
+    )
+    key_shadow = local_key.copy()
+    key_shadow.y += 2
+    pygame.draw.rect(canvas, (0, 0, 0, 150), key_shadow, border_radius=10)
+    pygame.draw.rect(canvas, (6, 10, 15, 255), local_key.inflate(4, 4), border_radius=10)
+    pygame.draw.rect(canvas, (*_PROMPT_KEYCAP_COLOR, 255), local_key, border_radius=8)
+    pygame.draw.rect(canvas, (*_PROMPT_ACCENT_COLOR, 255), local_key, 2, border_radius=8)
+    pygame.draw.rect(
+        canvas, (255, 255, 255, 180), local_key.inflate(-8, -8), 1, border_radius=5
+    )
+    canvas.blit(
+        key_surface,
+        key_surface.get_rect(center=(local_key.centerx, local_key.centery + 1)),
+    )
+
+    # Bright outlined label.  The dark stroke is what stops white-on-glass
+    # from washing out over bright world tiles.
+    label_x = local_key.right + 10
+    label_y = body.centery
+    canvas.blit(
+        label_surface,
+        (label_x - label_pad, label_y - label_surface.get_height() // 2),
+    )
 
     if alpha < 255:
-        target.set_alpha(alpha)
-        screen.blit(target, (offset_x, offset_y))
-        panel.move_ip(offset_x, offset_y)
-        key_rect.move_ip(offset_x, offset_y)
-        label_rect.move_ip(offset_x, offset_y)
+        canvas.set_alpha(alpha)
+    screen.blit(canvas, (panel.x - pad, panel.y - pad))
+
+    base_width = label_surface.get_width() - label_pad * 2
+    base_height = label_surface.get_height() - label_pad * 2
+    key_rect = pygame.Rect(
+        panel.x + local_key.x - pad,
+        panel.y + local_key.y - pad,
+        key_size,
+        key_size,
+    )
+    label_rect = pygame.Rect(
+        panel.x + label_x - pad,
+        panel.y + label_y - base_height // 2 - pad,
+        base_width,
+        base_height,
+    )
     return panel, key_rect, label_rect
 
 
