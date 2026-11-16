@@ -215,6 +215,10 @@ def load_game_save():
     if weapon not in ("none", "pistol", "shotgun", "rifle", "knife"):
         weapon = "pistol"
 
+    quests = values.get("quests")
+    if not isinstance(quests, dict):
+        quests = {}
+
     return {
         "hero_health": _finite_number(values.get("hero_health"), default=100.0, maximum=100.0),
         "hunger": _finite_number(values.get("hunger"), default=100.0, maximum=100.0),
@@ -280,6 +284,7 @@ def load_game_save():
         "collected_treasures": treasures,
         "distance_streak": _finite_number(values.get("distance_streak")),
         "drift_streak": _finite_number(values.get("drift_streak")),
+        "quests": quests,
     }
 
 

@@ -68,6 +68,16 @@ class SettingsManagerTests(unittest.TestCase):
                 self.assertEqual(st['money'], 7)
                 self.assertEqual(st['honor'], 3)
 
+    def _valid_save_state(self, **overrides):
+        state = {
+            'money': 50,
+            'player': {'x': 1, 'y': 2, 'angle': 0},
+            'car': {'x': 3, 'y': 4, 'angle': 0},
+            'game_state': 'CITY',
+        }
+        state.update(overrides)
+        return state
+
     def test_save_slots_and_game_save(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
@@ -84,16 +94,69 @@ class SettingsManagerTests(unittest.TestCase):
                 self.assertEqual(len(all_slots), 5)
                 self.assertFalse(all_slots[0].get('empty'))
                 self.assertTrue(all_slots[1].get('empty'))
-                sm.save_game_save({
-                    'money': 50,
-                    'player': {'x': 1, 'y': 2, 'angle': 0},
-                    'car': {'x': 3, 'y': 4, 'angle': 0},
-                    'game_state': 'CITY',
-                })
+                sm.save_game_save(self._valid_save_state())
                 self.assertTrue(game_path.exists())
                 loaded_game = sm.load_game_save()
                 self.assertIsNotNone(loaded_game)
                 self.assertEqual(loaded_game['money'], 50)
+
+    def test_load_game_save_normalizes_quests(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            game_path = base / 'game.json'
+            with patch.object(sm, 'GAME_SAVE_PATH', game_path):
+                sm.save_game_save(self._valid_save_state(quests='bad'))
+                loaded = sm.load_game_save()
+                self.assertEqual(loaded['quests'], {})
+
+                sm.save_game_save(self._valid_save_state(quests=['bad']))
+                loaded = sm.load_game_save()
+                self.assertEqual(loaded['quests'], {})
+
+                sm.save_game_save(self._valid_save_state())
+                loaded = sm.load_game_save()
+                self.assertEqual(loaded['quests'], {})
+
+    def test_load_game_save_preserves_quests_payload(self):
+        quests_payload = {
+            'version': 1,
+            'quests': {
+                'q.main': {
+                    'quest_id': 'q.main',
+                    'state': 'active',
+                    'objectives': {'talk': {'objective_id': 'talk', 'progress': 1, 'completed': False}},
+                    'data': {'note': 'keep'},
+                },
+                'q.future_unknown': {
+                    'quest_id': 'q.future_unknown',
+                    'state': 'inactive',
+                    'objectives': {},
+                    'data': {'mystery': [1, 2, 3]},
+                    'extra_field': {'preserve': True},
+                },
+            },
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            game_path = base / 'game.json'
+            with patch.object(sm, 'GAME_SAVE_PATH', game_path):
+                sm.save_game_save(self._valid_save_state(quests=quests_payload))
+                loaded = sm.load_game_save()
+                self.assertEqual(loaded['quests'], quests_payload)
+
+    def test_save_slot_round_trip_preserves_quests(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            slots_dir = base / 'slots'
+            slots_dir.mkdir()
+            game_path = base / 'game.json'
+            quests_payload = {'version': 1, 'quests': {'q1': {'state': 'completed', 'objectives': {}, 'data': {}}}}
+            with patch.object(sm, 'SAVE_SLOTS_DIR', slots_dir), patch.object(sm, 'GAME_SAVE_PATH', game_path), patch.object(sm, 'SAVE_SLOT_COUNT', 5):
+                state = self._valid_save_state(money=321, quests=quests_payload)
+                sm.save_to_slot(2, state)
+                loaded = sm.load_save_slot(2)
+                self.assertEqual(loaded['quests'], quests_payload)
+                self.assertEqual(sm.load_game_save()['quests'], quests_payload)
 
     def test_invalid_slot_index_raises(self):
         with self.assertRaises(ValueError):

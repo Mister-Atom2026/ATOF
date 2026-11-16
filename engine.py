@@ -22,6 +22,10 @@ from settings_manager import (
 )
 import traffic
 
+import engine_interactions as _engine_interactions
+import engine_quest_hooks as _engine_quest_hooks
+import engine_tutorial as _engine_tutorial
+
 WIDTH = _constants.WIDTH
 HEIGHT = _constants.HEIGHT
 FPS = _constants.FPS
@@ -888,155 +892,27 @@ def configure_game_audio(settings, audio: GameAudio) -> None:
         sound.set_volume(0.2 * footsteps_gain)
 
 
-@dataclass(frozen=True)
-class RadioTrack:
-    title: str
-    path: str
-    duration: float
-
-
-@dataclass(frozen=True)
-class RadioStation:
-    name: str
-    genre_key: str
-    tracks: tuple[RadioTrack, ...]
-
-
-_RADIO_STATIONS = (
-    RadioStation(
-        "Asphalt FM",
-        "radio_genre_rock",
-        (
-            RadioTrack("Sidewalk Talk", "radio/asphalt_fm/sidewalk_talk.ogg", 262.68),
-            RadioTrack("rooms for music.", "radio/asphalt_fm/rooms_for_music.mp3", 200.280816),
-        ),
-    ),
-    RadioStation(
-        "Night Shift 88",
-        "radio_genre_synthwave",
-        (
-            RadioTrack("All The Fight Left!", "radio/night_shift/all_the_fight_left.mp3", 171.984),
-            RadioTrack("Soft and Furious - 02 - Queen", "radio/night_shift/soft_and_furious_queen.ogg", 205.427982),
-        ),
-    ),
-    RadioStation(
-        "НРК — Народне Радіо",
-        "radio_genre_folk",
-        (
-            RadioTrack("Medieval Theme", "radio/nrk/medieval_theme.mp3", 146.416327),
-            RadioTrack("Kings Feast", "radio/nrk/kings_feast.mp3", 130.0563),
-        ),
-    ),
+from engine_radio import (
+    GameRadio as _EngineGameRadio,
+    RADIO_STATIONS,
+    RadioStation,
+    RadioTrack,
+    _RADIO_STATIONS,
 )
 
 
-class GameRadio:
-    """Play stations as live playlists whose clocks keep running while tuned away."""
+class GameRadio(_EngineGameRadio):
+    """Engine-compatible radio wrapper enforcing menu-only in-game playback."""
 
-    def __init__(self, settings, *, monotonic_clock=None):
-        self.settings = settings
-        self.monotonic_clock = monotonic_clock or time.monotonic
-        self.started_at = self.monotonic_clock()
-        self.station_index = 0
-        self.silent_mode = True
-        self.is_on = False
-        self.is_playing = False
-        self._paused_for_game = False
-        self._loaded_track: tuple[int, int] | None = None
-
-    @property
-    def station_name(self) -> str:
-        if self.silent_mode:
-            return "Radio Silent"
-        return _RADIO_STATIONS[self.station_index].name
-
-    @property
-    def station_genre_key(self) -> str:
-        if self.silent_mode:
-            return "radio_genre_silent"
-        return _RADIO_STATIONS[self.station_index].genre_key
-
-    @property
-    def track_name(self) -> str:
-        station = _RADIO_STATIONS[self.station_index]
-        track_index, _offset = self._live_track_position(self.station_index)
-        return station.tracks[track_index].title
-
-    def _live_track_position(self, station_index: int, now: float | None = None) -> tuple[int, float]:
-        station = _RADIO_STATIONS[station_index]
-        if not station.tracks:
-            return 0, 0.0
-        now = self.monotonic_clock() if now is None else now
-        playlist_duration = sum(track.duration for track in station.tracks)
-        playlist_position = max(0.0, now - self.started_at) % playlist_duration
-        for track_index, track in enumerate(station.tracks):
-            if playlist_position < track.duration:
-                return track_index, playlist_position
-            playlist_position -= track.duration
-        return 0, 0.0
-
-    def _play_live_track(self, *, force: bool = False) -> None:
-        # Music is allowed only in the main menu.
-        pygame.mixer.music.stop()
-        self.is_on = False
-        self.is_playing = False
-        self._loaded_track = None
-        self.silent_mode = True
-        return
-
-    def toggle(self) -> None:
-        if self.silent_mode:
-            self.silent_mode = False
-            self.is_on = True
-            self._play_live_track(force=True)
-            return
-        self.is_on = not self.is_on
-        self._paused_for_game = False
-        if not self.is_on:
-            pygame.mixer.music.stop()
-            self._loaded_track = None
-            self.is_playing = False
-            return
-        self._play_live_track(force=True)
-
-    def pause(self) -> None:
-        if self.is_playing:
-            pygame.mixer.music.pause()
-            self.is_playing = False
-            self._paused_for_game = True
-
-    def resume(self) -> None:
-        if not self._paused_for_game:
-            return
-        self._paused_for_game = False
-        if self.is_on:
-            self._play_live_track(force=True)
-
-    def cycle_station(self, direction: int) -> None:
-        position = 0 if self.silent_mode else self.station_index + 1
-        position = (position + direction) % (len(_RADIO_STATIONS) + 1)
-        self.silent_mode = position == 0
-        if not self.silent_mode:
-            self.station_index = position - 1
-        self.is_on = not self.silent_mode
-        self.is_playing = False
-        self._loaded_track = None
-        if self.is_on and not self._paused_for_game:
-            self._play_live_track(force=True)
-        else:
-            pygame.mixer.music.stop()
-
-    def update(self) -> None:
-        if self.is_on and not self._paused_for_game:
-            self._play_live_track()
-
-    def stop(self) -> None:
-        pygame.mixer.music.stop()
-        self.silent_mode = True
-        self.is_on = False
-        self.is_playing = False
-        self._paused_for_game = False
-        self._loaded_track = None
+    def __init__(self, settings, *, monotonic_clock=None, allow_playback=True, in_game=False):
+        super().__init__(
+            settings,
+            monotonic_clock=monotonic_clock,
+            allow_playback=allow_playback,
+            in_game=in_game,
+            audio_settings=_audio_settings,
+            asset_root=_ASSET_ROOT,
+        )
 
 
 def configure_audio(settings):
@@ -2776,6 +2652,7 @@ def draw_gta_minimap(
     health=100.0,
     preserve_aspect=False,
     zoom=0.1,
+    mission_markers=None,
 ):
     """Draw a circular radar with separate hunger and health progress arcs."""
 
@@ -2970,6 +2847,28 @@ def draw_gta_minimap(
 
     # Put the full circular radar above its backing rim and progress arcs.
     screen.blit(mini_surf, (x, y))
+
+    # Optional story/mission markers (overlay hook; no-op without content).
+    if mission_markers:
+        try:
+            import ui_story as _ui_story
+
+            radar_rect = pygame.Rect(x, y, size, size)
+            destination_pos = gps.destination if gps is not None else None
+            _ui_story.draw_mission_markers_minimap(
+                screen,
+                mission_markers,
+                player_world_pos=(target.pos.x, target.pos.y),
+                destination_world_pos=destination_pos,
+                world_w=world_w,
+                world_h=world_h,
+                bg_img=bg_img,
+                radar_rect=radar_rect,
+                zoom=zoom,
+                preserve_aspect=preserve_aspect,
+            )
+        except Exception:
+            pass
 
     # Enhanced glass highlights/reflections and rim
     glass = pygame.Surface((size, size), pygame.SRCALPHA)
@@ -4002,6 +3901,8 @@ def full_screen_map(
     gps: GPS | None = None,
     labels: Mapping[str, str] | None = None,
     gunshop_pos=None,
+    mission_markers=None,
+    mission_labels: Mapping[str, str] | None = None,
 ):
     """Draw the zoomable full-screen map and its icons."""
     house_icon = _get_house_icon()
@@ -4121,6 +4022,21 @@ def full_screen_map(
         if destination is not None:
             dx, dy = world_to_map(*destination)
             _draw_gps_marker(screen, (dx, dy), max(6, int(10 * map_zoom)))
+
+        # Optional story/mission markers (overlay hook; no-op without content).
+        if mission_markers:
+            try:
+                import ui_story as _ui_story
+
+                _ui_story.draw_mission_markers_full_map(
+                    screen,
+                    mission_markers,
+                    world_to_map,
+                    mission_labels or labels,
+                    map_zoom=map_zoom,
+                )
+            except Exception:
+                pass
 
         text_labels = labels or {}
         if distance is not None:
@@ -4529,9 +4445,10 @@ def save_session_statistics(money, total_earned, total_spent, game_time, collect
 def build_game_state_data(game_state, atom, atom_h, car, weapons, wanted,
                           honor_and_respect, money, total_earned, total_spent, game_time,
                           collected_treasures, distance_since_crash, current_drift_distance,
-                          survival=None, garage_cars=None, shop_income_day=0):
+                          survival=None, garage_cars=None, shop_income_day=0,
+                          quest_state=None):
     """Build the serializable state shared by manual and automatic saves."""
-    return {
+    data = {
         "game_state": game_state,
         "player": {
             "x": atom.pos.x,
@@ -4583,17 +4500,22 @@ def build_game_state_data(game_state, atom, atom_h, car, weapons, wanted,
         "distance_streak": distance_since_crash,
         "drift_streak": current_drift_distance,
     }
+    if quest_state is not None:
+        data["quests"] = quest_state
+    return data
 
 
 def save_game_state(game_state, atom, atom_h, car, weapons, wanted,
                     honor_and_respect, money, total_earned, total_spent, game_time,
                     collected_treasures, distance_since_crash, current_drift_distance,
-                    survival=None, garage_cars=None, shop_income_day=0):
+                    survival=None, garage_cars=None, shop_income_day=0,
+                    quest_state=None):
     """Persist the current open-world state."""
     save_game_save(build_game_state_data(
         game_state, atom, atom_h, car, weapons, wanted, honor_and_respect,
         money, total_earned, total_spent, game_time, collected_treasures,
         distance_since_crash, current_drift_distance, survival, garage_cars, shop_income_day,
+        quest_state=quest_state,
     ))
 
 
@@ -5061,6 +4983,11 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
     """Run ATOF's continuous open-world game session."""
     if tutorial_mode:
         continue_game = False
+    # Music plays only in the main menu.
+    try:
+        pygame.mixer.music.stop()
+    except pygame.error:
+        pass
     WORLD_WIDTH = _constants.WORLD_WIDTH
     WORLD_HEIGHT = _constants.WORLD_HEIGHT
     HOUSE_SLEEP_SPOT = _constants.HOUSE_SLEEP_SPOT
@@ -5121,134 +5048,30 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
         else WeaponWheel.new_game()
     )
 
+    # Story/quest framework foundation (no content registered by default).
+    story_runtime = None
+    quest_manager = None
+    try:
+        from story_runtime import bootstrap_story_runtime, build_story_snapshot
+
+        story_runtime = bootstrap_story_runtime(game_save)
+        quest_manager = story_runtime.quest_manager
+    except Exception:
+        try:
+            from quests import create_default_manager
+
+            quest_manager = create_default_manager()
+            if game_save and quest_manager is not None:
+                quest_manager.load_save_data(game_save.get("quests"))
+        except Exception:
+            quest_manager = None
+            QuestContext = None  # type: ignore[assignment]
+        build_story_snapshot = None  # type: ignore[assignment]
+
     tutorial = None
     if tutorial_mode:
         lang = SUPPORTED_LANGUAGES[settings.get("lang_idx", 1)]
-        tut_steps = {
-            "English": [
-                ("Movement & HUD", "Move around and learn the basics.", "WASD/arrows: move. Shift: sprint. Watch HUD: health, hunger, wanted, minimap, money (₭)."),
-                ("House & interaction", "Leave the house and explore the city.", "E: interact/enter/exit. Use E at the house door to go outside, then come back in."),
-                ("Sleep, save & hunger", "Learn survival basics inside the house.", "E/T by the bed: sleep and save (+income days apply). Open fridge with E and eat to restore hunger."),
-                ("Phone & map", "Use the phone and the full map.", "P: phone (apps/info). Tab: full map. On map: LMB set GPS, G gun shop, H home, RMB/Backspace/Delete clear."),
-                ("Garage & your car", "Use the garage and your main vehicle.", "At garage E: open menu, take/store car, upgrades. Trunk (E at rear) opens on your main car and stolen cars you hijacked."),
-                ("Driving controls", "Drive and test vehicle controls.", "F: enter/exit. W/S: accelerate/brake/reverse. A/D: steer. Space: handbrake. H: headlights. E: horn (while driving)."),
-                ("Steal & repair", "Steal an NPC car and learn repair.", "F near an NPC car to steal it. If damaged/broken, hold R to repair. Wanted level can rise for crimes."),
-                ("Gun shop & ammo", "Visit the gun shop and buy ammo.", "Find gun shop (G on map). Enter with E, at counter E browse/buy ammo for owned firearms (₭)."),
-                ("Weapons & combat", "Use the weapon wheel, shoot and reload.", "MMB: weapon wheel (2 firearms, knife, unarmed). LMB: shoot/melee. R: reload. Knife works in close range."),
-                ("Storage & trunk", "Store items in nightstand and car trunk.", "House nightstand (E): move weapons (7 slots). Car trunk (E at rear of main/stolen car): store/take items."),
-                ("Economy & wanted", "Understand money and wanted mechanics.", "Currency: krotiks (₭). Shop gives +100 ₭ per in-game day. Crimes raise wanted level; police may chase."),
-                ("Complete", "Tutorial complete — all core mechanics covered.", "You can keep exploring. Enter: finish tutorial, Tab: skip step, Esc: menu."),
-            ],
-            "Українська": [
-                ("Рух і HUD", "Рухайтесь та ознайомтесь з інтерфейсом.", "WASD/стрілки: рух. Shift: біг. HUD: здоров’я, голод, розшук, мінімапа, гроші (₭)."),
-                ("Дім і взаємодія", "Вийдіть із дому та поверніться.", "E: взаємодія/вхід/вихід. Натисніть E біля дверей, щоб вийти надвір і зайти назад."),
-                ("Сон, збереження, голод", "Базові механіки виживання вдома.", "E/T біля ліжка: сон і збереження (+дохід за дні). Холодильник (E): їжа відновлює голод."),
-                ("Телефон і карта", "Користуйтесь телефоном і мапою.", "P: телефон. Tab: повна мапа. На мапі: ЛКМ — точка GPS, G — збройова, H — дім, ПКМ/Backspace/Delete — очистити."),
-                ("Гараж і авто", "Користуйтесь гаражем і своїм авто.", "Біля гаража E: меню, взяти/поставити авто, апгрейди. Багажник (E ззаду) — у вашого основного та викрадених вами авто."),
-                ("Керування авто", "Керуйте автомобілем.", "F: сісти/вийти. W/S: газ/гальмо/задній хід. A/D: кермо. Space: ручник. H: фари. E: сигнал (за кермом)."),
-                ("Викрадення й ремонт", "Викрадіть авто та дізнайтесь про ремонт.", "F біля NPC-авто — викрасти. Якщо пошкоджене, тримайте R для ремонту. Злочини піднімають розшук."),
-                ("Збройова й патрони", "Відвідайте збройову та купіть патрони.", "Знайдіть збройову (G на мапі). E — увійти, біля прилавку E — купити патрони для наявної зброї (₭)."),
-                ("Зброя та бій", "Колесо зброї, стрільба, перезарядка.", "Середня кнопка миші: колесо (2 вогнепальні, ніж, без зброї). ЛКМ: вогонь/удар ножем. R: перезарядка."),
-                ("Сховище й багажник", "Тумбочка вдома та багажник авто.", "Тумбочка (E): переносіть зброю (7 слотів). Багажник (E ззаду основного/викраденого авто): зберігайте речі."),
-                ("Економіка й розшук", "Гроші та рівень розшуку.", "Валюта: кротики (₭). Магазин дає +100 ₭ за ігровий день. Злочини піднімають розшук — поліція може переслідувати."),
-                ("Завершено", "Навчання завершено — основні механіки пройдено.", "Можете продовжити дослідження. Enter: завершити, Tab: пропустити крок, Esc: меню."),
-            ],
-            "Русский": [
-                ("Движение и HUD", "Двигайтесь и изучите интерфейс.", "WASD/стрелки: движение. Shift: бег. HUD: здоровье, голод, розыск, миникарта, деньги (₭)."),
-                ("Дом и взаимодействие", "Выйдите из дома и вернитесь.", "E: взаимодействие/вход/выход. Нажмите E у двери, чтобы выйти и зайти обратно."),
-                ("Сон, сохранение, голод", "Основы выживания дома.", "E/T у кровати: сон и сохранение (+доход за дни). Холодильник (E): еда восстанавливает голод."),
-                ("Телефон и карта", "Используйте телефон и карту.", "P: телефон. Tab: карта. На карте: ЛКМ — точка GPS, G — оружейный, H — дом, ПКМ/Backspace/Delete — очистить."),
-                ("Гараж и авто", "Используйте гараж и своё авто.", "У гаража E: меню, взять/поставить авто, улучшения. Багажник (E сзади) — у основного и угнанных вами авто."),
-                ("Управление авто", "Управляйте автомобилем.", "F: сесть/выйти. W/S: газ/тормоз/задний ход. A/D: руль. Space: ручник. H: фары. E: сигнал (за рулём)."),
-                ("Угон и ремонт", "Угоните авто и узнайте о ремонте.", "F рядом с NPC-авто — угнать. Если повреждено, удерживайте R для ремонта. Преступления повышают розыск."),
-                ("Оружейный и патроны", "Посетите оружейный магазин и купите патроны.", "Найдите магазин (G на карте). E — войти, у прилавка E — купить патроны (₭)."),
-                ("Оружие и бой", "Колесо оружия, стрельба, перезарядка.", "Средняя кнопка мыши: колесо. ЛКМ: огонь/удар ножом. R: перезарядка."),
-                ("Хранилище и багажник", "Тумбочка дома и багажник авто.", "Тумбочка (E): оружие (7 слотов). Багажник (E сзади основного/угнанного авто): хранение вещей."),
-                ("Экономика и розыск", "Деньги и уровень розыска.", "Валюта: кротики (₭). Магазин даёт +100 ₭ за игровой день. Преступления повышают розыск."),
-                ("Готово", "Обучение завершено — основные механики пройдены.", "Можно продолжить исследование. Enter: завершить, Tab: пропустить шаг, Esc: меню."),
-            ],
-            "Español": [
-                ("Movimiento y HUD", "Muévete y conoce la interfaz.", "WASD/flechas: mover. Shift: correr. HUD: salud, hambre, búsqueda, minimapa, dinero (₭)."),
-                ("Casa e interacción", "Sal de la casa y vuelve a entrar.", "E: interactuar/entrar/salir. Pulsa E en la puerta para salir y volver."),
-                ("Dormir, guardar y hambre", "Supervivencia básica en casa.", "E/T junto a la cama: dormir y guardar. Nevera (E): comer restaura el hambre."),
-                ("Teléfono y mapa", "Usa el teléfono y el mapa.", "P: teléfono. Tab: mapa. En mapa: clic izq. GPS, G armería, H casa, clic der./Backspace/Borrar limpiar."),
-                ("Garaje y tu coche", "Usa el garaje y tu vehículo principal.", "En el garaje E: menú, sacar/guardar, mejoras. Maletero (E atrás) en tu coche principal y robados."),
-                ("Conducir", "Prueba los controles del vehículo.", "F: entrar/salir. W/S: acelerar/frenar/marcha atrás. A/D: girar. Espacio: freno de mano. H: faros. E: bocina (conduciendo)."),
-                ("Robar y reparar", "Roba un coche y aprende a reparar.", "F cerca de un coche NPC para robarlo. Si está dañado, mantén R para reparar. Los delitos suben la búsqueda."),
-                ("Armería y munición", "Visita la armería y compra munición.", "Encuentra la armería (G en mapa). E para entrar, en mostrador E para comprar munición (₭)."),
-                ("Armas y combate", "Rueda de armas, disparar y recargar.", "Botón central: rueda. Clic izq.: disparar/cuchillo. R: recargar."),
-                ("Almacenamiento y maletero", "Mesita y maletero del coche.", "Mesita (E): guarda armas (7). Maletero (E atrás del coche principal/robado): guardar/sacar."),
-                ("Economía y búsqueda", "Dinero y nivel de búsqueda.", "Moneda: krotiks (₭). La tienda da +100 ₭ por día. Los delitos aumentan la búsqueda."),
-                ("Listo", "Tutorial completado — mecánicas principales cubiertas.", "Puedes seguir explorando. Enter: terminar, Tab: saltar, Esc: menú."),
-            ],
-            "Deutsch": [
-                ("Bewegung & HUD", "Bewege dich und lerne die Oberfläche kennen.", "WASD/Pfeile: bewegen. Shift: sprinten. HUD: Leben, Hunger, Fahndung, Minikarte, Geld (₭)."),
-                ("Haus & Interaktion", "Verlasse das Haus und kehre zurück.", "E: interagieren/rein/raus. Drücke E an der Tür zum Verlassen und Eintreten."),
-                ("Schlafen, Speichern, Hunger", "Überlebensgrundlagen im Haus.", "E/T am Bett: schlafen und speichern. Kühlschrank (E): Essen stellt Hunger wieder her."),
-                ("Telefon & Karte", "Nutze Telefon und Karte.", "P: Telefon. Tab: Karte. Auf Karte: Linksklick GPS, G Waffenladen, H Haus, Rechtsklick/Backspace/Entf löschen."),
-                ("Garage & Auto", "Nutze Garage und dein Hauptfahrzeug.", "Bei Garage E: Menü, nehmen/parken, Upgrades. Kofferraum (E hinten) bei Haupt- und gestohlenen Autos."),
-                ("Fahren", "Teste die Fahrzeugsteuerung.", "F: ein-/aussteigen. W/S: Gas/Bremse/Rückwärts. A/D: lenken. Leertaste: Handbremse. H: Scheinwerfer. E: Hupe (beim Fahren)."),
-                ("Stehlen & Reparieren", "Stiehl ein Auto und lerne Reparatur.", "F nahe NPC-Auto zum Stehlen. Bei Schaden R halten zum Reparieren. Verbrechen erhöhen Fahndung."),
-                ("Waffenladen & Munition", "Besuche den Waffenladen und kaufe Munition.", "Waffenladen finden (G auf Karte). E hinein, am Tresen E Munition kaufen (₭)."),
-                ("Waffen & Kampf", "Waffenrad, Schießen, Nachladen.", "Mittlere Maustaste: Rad. Linksklick: schießen/Messer. R: nachladen."),
-                ("Lager & Kofferraum", "Nachttisch und Kofferraum.", "Nachttisch (E): Waffen lagern (7). Kofferraum (E hinten am Haupt/gestohlenen Auto)."),
-                ("Wirtschaft & Fahndung", "Geld und Fahndungsstufe.", "Währung: Krotiks (₭). Laden gibt +100 ₭ pro Spieltag. Verbrechen erhöhen Fahndung."),
-                ("Fertig", "Tutorial abgeschlossen — Kernmechaniken erklärt.", "Weiter erkunden. Enter: beenden, Tab: Schritt überspringen, Esc: Menü."),
-            ],
-            "Français": [
-                ("Déplacement & HUD", "Déplacez-vous et découvrez l'interface.", "WASD/flèches : bouger. Maj : sprinter. HUD : santé, faim, recherche, minicarte, argent (₭)."),
-                ("Maison & interaction", "Sortez de la maison et revenez.", "E : interagir/entrer/sortir. Appuyez sur E à la porte pour sortir puis rentrer."),
-                ("Dormir, sauvegarder, faim", "Bases de survie dans la maison.", "E/T près du lit : dormir et sauvegarder. Frigo (E) : manger restaure la faim."),
-                ("Téléphone & carte", "Utilisez le téléphone et la carte.", "P : téléphone. Tab : carte. Sur la carte : clic gauche GPS, G armurerie, H maison, clic droit/Retour/Suppr effacer."),
-                ("Garage & voiture", "Utilisez le garage et votre voiture principale.", "Au garage E : menu, prendre/ranger, améliorations. Coffre (E arrière) sur voiture principale et volée."),
-                ("Conduite", "Testez les commandes du véhicule.", "F : entrer/sortir. W/S : accélérer/freiner/marche arrière. A/D : tourner. Espace : frein à main. H : phares. E : klaxon (en conduisant)."),
-                ("Vol & réparation", "Volez une voiture et apprenez la réparation.", "F près d'une voiture PNJ pour la voler. Si endommagée, maintenir R pour réparer. Les crimes augmentent la recherche."),
-                ("Armurerie & munitions", "Visitez l'armurerie et achetez des munitions.", "Trouvez l'armurerie (G sur carte). E pour entrer, au comptoir E pour acheter des munitions (₭)."),
-                ("Armes & combat", "Roue des armes, tirer, recharger.", "Bouton central : roue. Clic gauche : tirer/couteau. R : recharger."),
-                ("Rangement & coffre", "Table de chevet et coffre.", "Table de chevet (E) : ranger armes (7). Coffre (E arrière voiture principale/volée)."),
-                ("Économie & recherche", "Argent et niveau de recherche.", "Monnaie : krotiks (₭). Le magasin donne +100 ₭ par jour. Les crimes augmentent la recherche."),
-                ("Terminé", "Tutoriel terminé — mécaniques principales couvertes.", "Vous pouvez continuer. Entrée : terminer, Tab : passer, Échap : menu."),
-            ],
-        }.get(lang, tut_steps["English"])
-        tutorial = {
-            "active": True,
-            "steps": tut_steps,
-            "index": 0,
-            "done_timer": 0.0,
-            "step_done_flash": 0.0,
-            "moved": 0.0,
-            "left_house": False,
-            "returned_house": False,
-            "slept_or_saved": False,
-            "fridge_used": False,
-            "phone_opened": False,
-            "map_opened": False,
-            "map_marker_set": False,
-            "entered_car": False,
-            "drove": False,
-            "exited_car": False,
-            "horn_used": False,
-            "stole_car": False,
-            "repaired_car": False,
-            "visited_gunshop": False,
-            "bought_ammo": False,
-            "opened_wheel": False,
-            "fired": False,
-            "reloaded": False,
-            "nightstand_used": False,
-            "trunk_used": False,
-            "visited_target": False,
-            "last_pos": None,
-            "completed": False,
-            "tab_held": False,
-            "initialized_step": -1,
-            "was_in_car": False,
-            "prev_wheel_open": False,
-            "prev_ammo": 0,
-            "prev_reserve": 0,
-            "prev_money": 0,
-            "prev_game_state": "HOUSE",
-        }
+        tutorial = _engine_tutorial.create_tutorial_state(lang)
     wanted = WantedLevel(
         game_save.get("wanted_level", 0) if game_save else 0,
         game_save.get("wanted_escape_timer", 0) if game_save else 0,
@@ -5377,7 +5200,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
     wake_fade_started = None
     scene_transition = SceneTransition(duration=0.8)
     manual_headlights = False
-    radio = GameRadio(settings)
+    radio = GameRadio(settings, allow_playback=False, in_game=True)
 
     # tutorial uses normal new-game spawn/state (in house), no forced overrides
 
@@ -5764,6 +5587,11 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                                         survival, garage_cars, shop_income_day)
         save_session_statistics(money, total_earned, total_spent, game_time, collected_treasures,
                                         personal_records, honor_and_respect)
+        if story_runtime is not None:
+            try:
+                story_runtime.emit("sleep_save", {}, game_state=game_state)
+            except Exception:
+                pass
 
     def save_last_session_stats():
         if tutorial_mode:
@@ -5772,34 +5600,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                                         personal_records, honor_and_respect)
 
     def _tutorial_step_completed():
-        if not tutorial:
-            return True
-        i = tutorial["index"]
-        if i == 0:
-            return bool(tutorial.get("moved", 0) > 220)
-        if i == 1:
-            return bool(tutorial.get("left_house")) and bool(tutorial.get("returned_house"))
-        if i == 2:
-            return bool(tutorial.get("fridge_used")) or bool(tutorial.get("slept_or_saved"))
-        if i == 3:
-            return bool(tutorial.get("phone_opened")) and bool(tutorial.get("map_opened"))
-        if i == 4:
-            return bool(tutorial.get("entered_car")) or bool(tutorial.get("left_house"))
-        if i == 5:
-            return bool(tutorial.get("drove"))
-        if i == 6:
-            return bool(tutorial.get("stole_car")) or bool(tutorial.get("repaired_car")) or bool(tutorial.get("horn_used"))
-        if i == 7:
-            return bool(tutorial.get("visited_gunshop")) or bool(tutorial.get("bought_ammo"))
-        if i == 8:
-            return bool(tutorial.get("opened_wheel")) and (bool(tutorial.get("fired")) or bool(tutorial.get("reloaded")))
-        if i == 9:
-            return bool(tutorial.get("nightstand_used")) or bool(tutorial.get("trunk_used"))
-        if i == 10:
-            return True  # informational step (economy/wanted)
-        if i == 11:
-            return bool(tutorial.get("completed", False))
-        return False
+        return _engine_tutorial.tutorial_step_completed(tutorial)
 
     def _draw_tutorial_overlay():
         if not tutorial:
@@ -6007,7 +5808,11 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
     def garage_menu(park_current=False):
         nonlocal car, in_car, money, total_spent
         if park_current:
+            if tutorial:
+                tutorial["garage_used"] = True
             return park_vehicle_with_fade()
+        if tutorial:
+            tutorial["garage_used"] = True
         selected = len(garage_cars) - 1 if garage_cars else 0
         menu_clock = pygame.time.Clock()
         fade_screen(screen, True, duration=0.25)
@@ -6050,12 +5855,18 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                             money -= engine_prices[level]
                             total_spent += engine_prices[level]
                             selected_car["engine_upgrade"] = level + 1
+                            if tutorial:
+                                tutorial["upgraded_car"] = True
+                                tutorial["garage_used"] = True
                     elif selected_car and event.key in (pygame.K_i, pygame.K_r):
                         level = int(selected_car.get("wheel_upgrade", 0))
                         if level < 5 and money >= wheel_prices[level]:
                             money -= wheel_prices[level]
                             total_spent += wheel_prices[level]
                             selected_car["wheel_upgrade"] = level + 1
+                            if tutorial:
+                                tutorial["upgraded_car"] = True
+                                tutorial["garage_used"] = True
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     for button_index, rect in enumerate(buttons):
                         if rect.collidepoint(event.pos):
@@ -6065,15 +5876,23 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                                     money -= engine_prices[level]
                                     total_spent += engine_prices[level]
                                     selected_car["engine_upgrade"] = level + 1
+                                    if tutorial:
+                                        tutorial["upgraded_car"] = True
+                                        tutorial["garage_used"] = True
                             elif button_index == 1 and selected_car:
                                 level = int(selected_car.get("wheel_upgrade", 0))
                                 if level < 5 and money >= wheel_prices[level]:
                                     money -= wheel_prices[level]
                                     total_spent += wheel_prices[level]
                                     selected_car["wheel_upgrade"] = level + 1
+                                    if tutorial:
+                                        tutorial["upgraded_car"] = True
+                                        tutorial["garage_used"] = True
                             elif button_index == 2 and selected_car:
                                 stored = garage_cars.pop(selected)
                                 _take_vehicle_from_garage(stored)
+                                if tutorial:
+                                    tutorial["garage_used"] = True
                                 fade_screen(screen, True, duration=0.2)
                                 _render_city_snapshot_for_fade()
                                 fade_screen(screen, False, duration=0.25)
@@ -6188,6 +6007,9 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                             for item in weapons.carried_firearms:
                                 if item.get("type") == wtype:
                                     item["reserve"] = weapons.reserve_ammo_by_weapon[wtype]
+                            if tutorial:
+                                tutorial["bought_ammo"] = True
+                                tutorial["visited_gunshop"] = True
                             if weapons.selected == wtype:
                                 weapons._sync_selected_counts()
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -6247,25 +6069,12 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
 
     def _car_trunk_point(vehicle):
         # rear of car in world coords
-        return vehicle.pos + pygame.Vector2(-70, 0).rotate(-vehicle.angle + 180)
+        return _engine_interactions.car_trunk_point(vehicle)
 
     def _near_car_trunk():
-        if in_car:
-            return None, None
-
-        def _trunk_allowed(veh):
-            vehicle_class = getattr(veh, "vehicle_class", "")
-            # only player's main car and cars stolen by the player
-            return vehicle_class == "sport" or str(vehicle_class).startswith("stolen-")
-
-        candidates = [("player_car", car)] + [(f"parked_{i}", pc) for i, pc in enumerate(parked_cars)]
-        for key, veh in candidates:
-            try:
-                if _trunk_allowed(veh) and atom.pos.distance_to(_car_trunk_point(veh)) < 55:
-                    return key, veh
-            except Exception:
-                pass
-        return None, None
+        return _engine_interactions.find_nearby_car_trunk(
+            atom, car, parked_cars, in_car=in_car
+        )
 
     def _storage_menu_ui(title_key, title_fallback, left_key, left_items, left_capacity_text, right_items, on_take, on_store, *, compact=False):
         sel = 0
@@ -6504,6 +6313,14 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
         )
 
     def get_current_game_state():
+        active_quest_manager = (
+            story_runtime.quest_manager
+            if story_runtime is not None and getattr(story_runtime, "quest_manager", None) is not None
+            else quest_manager
+        )
+        quest_state = (
+            active_quest_manager.to_save_data() if active_quest_manager is not None else None
+        )
         return build_game_state_data(
             game_state,
             atom,
@@ -6522,6 +6339,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             survival,
             garage_cars,
             shop_income_day,
+            quest_state=quest_state,
         )
 
     def _advance_game_time(minutes):
@@ -6564,6 +6382,111 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
         _advance_game_time(game_minute_delta)
         survival.advance(game_minute_delta, atom)
         weather.update(frame_scale)
+
+        # Foundation hook: allow future quests/story UI to poll conditions each frame.
+        story_snapshot = None
+        _quest_hook_logger = logging.getLogger(__name__)
+        try:
+            if story_runtime is not None:
+                _snapshot_builder = globals().get("build_story_snapshot")
+                if not callable(_snapshot_builder):
+                    try:
+                        from story_runtime import build_story_snapshot as _snapshot_builder
+                    except Exception:
+                        _snapshot_builder = None
+                snapshot_extra = {
+                    "distance_since_crash": distance_since_crash,
+                    "current_drift_distance": current_drift_distance,
+                    "phone_open": phone_active,
+                    "dialogue_active": bool(getattr(getattr(story_runtime, "dialogue", None), "active", False)),
+                    "flags": getattr(story_runtime, "flags", None),
+                }
+                if callable(_snapshot_builder):
+                    try:
+                        story_snapshot = _snapshot_builder(
+                            game_state=game_state,
+                            atom=atom,
+                            car=car,
+                            atom_h=atom_h,
+                            in_car=in_car,
+                            money=money,
+                            wanted=wanted,
+                            honor_and_respect=honor_and_respect,
+                            weapons=weapons,
+                            survival=survival,
+                            game_time=game_time,
+                            collected_treasures=collected_treasures,
+                            **snapshot_extra,
+                        )
+                    except TypeError:
+                        # Backward-compatible with older snapshot builders.
+                        story_snapshot = _snapshot_builder(
+                            game_state=game_state,
+                            atom=atom,
+                            car=car,
+                            atom_h=atom_h,
+                            in_car=in_car,
+                            money=money,
+                            wanted=wanted,
+                            honor_and_respect=honor_and_respect,
+                            weapons=weapons,
+                            survival=survival,
+                            game_time=game_time,
+                            collected_treasures=collected_treasures,
+                        )
+                        if isinstance(story_snapshot, dict):
+                            story_snapshot.update({k: v for k, v in snapshot_extra.items() if v is not None})
+                if story_snapshot is None:
+                    story_snapshot = _engine_quest_hooks.build_quest_game_snapshot(
+                        game_state=game_state,
+                        atom=atom,
+                        car=car,
+                        atom_h=atom_h,
+                        in_car=in_car,
+                        money=money,
+                        wanted=wanted,
+                        honor_and_respect=honor_and_respect,
+                        weapons=weapons,
+                        survival=survival,
+                        game_time=game_time,
+                        collected_treasures=collected_treasures,
+                        extra=snapshot_extra,
+                    )
+                story_runtime.update(
+                    story_snapshot,
+                    dt_seconds=frame_scale / 60.0,
+                    frame_scale=frame_scale,
+                )
+            elif quest_manager is not None:
+                try:
+                    from quests import QuestContext as _QuestContext
+                except Exception:
+                    _QuestContext = globals().get("QuestContext")
+                if _QuestContext is not None:
+                    snapshot = _engine_quest_hooks.build_quest_game_snapshot(
+                        game_state=game_state,
+                        atom=atom,
+                        car=car,
+                        atom_h=atom_h,
+                        in_car=in_car,
+                        money=money,
+                        wanted=wanted,
+                        honor_and_respect=honor_and_respect,
+                        weapons=weapons,
+                        survival=survival,
+                        game_time=game_time,
+                        collected_treasures=collected_treasures,
+                        extra={
+                            "distance_since_crash": distance_since_crash,
+                            "current_drift_distance": current_drift_distance,
+                        },
+                    )
+                    _engine_quest_hooks.update_quest_manager(
+                        quest_manager, _QuestContext, snapshot, dt=frame_scale
+                    )
+        except Exception:
+            _quest_hook_logger.debug("story/quest update hook failed", exc_info=True)
+            story_snapshot = None
 
         frame_count += frame_scale
         if frame_count >= 60:
@@ -6649,6 +6572,15 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                     phone_active = not phone_active
                     current_app = 0
                     phone_click_sfx.play()  # Play a sound when M opens or closes the phone.
+                    if story_runtime is not None:
+                        try:
+                            story_runtime.emit(
+                                "phone_toggled",
+                                locals().get("story_snapshot") or {},
+                                open=phone_active,
+                            )
+                        except Exception:
+                            pass
 
                 if phone_active:
                     # BACKSPACE controls.
@@ -6687,11 +6619,22 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                 if event.key == pygame.K_F3:
                     show_debug = not show_debug
                 if event.key == pygame.K_TAB:
+                    if story_runtime is not None and story_snapshot is not None:
+                        try:
+                            story_runtime.emit("open_full_map", story_snapshot)
+                        except Exception:
+                            pass
+                    story_markers = (
+                        story_runtime.iter_markers()
+                        if story_runtime is not None else None
+                    )
                     full_screen_map(
                         screen, full_map_img, (car if in_car else atom),
                         current_world_width, current_world_height,
                         controls=keyboard, gps=gps, labels=t,
                         gunshop_pos=GUNSHOP_POS,
+                        mission_markers=story_markers,
+                        mission_labels=getattr(story_runtime, "labels", None) if story_runtime else None,
                     )
                     if tutorial:
                         tutorial["map_opened"] = True
@@ -6923,6 +6866,35 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                 in_car = False
                 target = atom
                 off_x, off_y = camera.follow(target.pos)
+            if story_runtime is not None:
+                try:
+                    snapshot = locals().get("story_snapshot")
+                    if snapshot is None and "build_story_snapshot" in locals() and callable(build_story_snapshot):
+                        snapshot = build_story_snapshot(
+                            game_state=game_state,
+                            atom=atom,
+                            car=car,
+                            atom_h=atom_h,
+                            in_car=in_car,
+                            money=money,
+                            wanted=wanted,
+                            honor_and_respect=honor_and_respect,
+                            weapons=weapons,
+                            survival=survival,
+                            game_time=game_time,
+                            collected_treasures=collected_treasures,
+                            distance_since_crash=distance_since_crash,
+                            current_drift_distance=current_drift_distance,
+                            phone_open=phone_active,
+                        )
+                    story_runtime.emit(
+                        "scene_changed",
+                        snapshot or {},
+                        scene=game_state,
+                        previous=getattr(scene_manager, "previous", None),
+                    )
+                except Exception:
+                    pass
 
         if scene_transition.active and game_state == "CITY":
             target = car if in_car else atom
@@ -7165,6 +7137,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                     labels=t,
                     hunger=survival.hunger,
                     health=atom.health,
+                    mission_markers=story_runtime.iter_markers() if story_runtime is not None else None,
                 )
                 if not phone_active and phone_y_offset >= 449.0 and not weapons.wheel_open:
                     interactions = []
@@ -7265,6 +7238,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                     health=atom.health,
                     preserve_aspect=True,
                     zoom=1.0,
+                    mission_markers=story_runtime.iter_markers() if story_runtime is not None else None,
                 )
                 if phone_active or phone_y_offset < 449.0 or fridge_menu_open:
                     for prompt_id, state in list(interaction_prompt_alphas.items()):
@@ -7342,6 +7316,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                     health=atom.health,
                     preserve_aspect=True,
                     zoom=1.0,
+                    mission_markers=story_runtime.iter_markers() if story_runtime is not None else None,
                 )
                 if atom_g.pos.distance_to(GUNSHOP_COUNTER_POS) < GUNSHOP_COUNTER_RADIUS:
                     draw_interaction_prompt(screen, "E", _interaction_text(current_lang_name, "gunshop_browse"))
@@ -7351,6 +7326,15 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             frame_renderer.submit(RenderLayer.BACKGROUND, draw_gunshop_background)
             frame_renderer.submit(RenderLayer.UI, draw_gunshop_ui)
         frame_renderer.render()
+
+        # Story UI hooks (tracker/toasts/dialogue/journal). No-ops without content/state.
+        if story_runtime is not None and not tutorial_mode:
+            try:
+                story_runtime.draw_hud(screen, t)
+                if getattr(story_runtime, "journal_open", False):
+                    story_runtime.draw_journal(screen, t)
+            except Exception:
+                pass
 
         if fridge_menu_open:
             draw_fridge_menu(

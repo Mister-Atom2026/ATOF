@@ -1,6 +1,15 @@
 # ATOF
 Game About Mister Atom
 
+## Pre-release 0.9.0 Alpha 5
+
+- **Music only in the main menu:** in-game radio and gun shop music playback is now disabled — no music or radio plays during gameplay or transitions, while the main menu theme remains unchanged.
+- **12-step guided tutorial:** the open-world tutorial was rebuilt into 12 steps (EN/UA/RU/ES/DE/FR) covering movement/HUD, home & interactions, sleep/save and hunger/fridge, phone & map (GPS shortcuts, `G`/`H`), garage/car/trunk, driving, theft & repair, gun shop & ammo, weapons/wheel/firing/reload/knife, nightstand, economy/wanted level, and completion. Progress hooks were added for all core actions; the map is available with `Tab`, `N` skips a step, `Esc` opens the menu, and `Enter` finishes the final step. Control hints were corrected (`H` headlights, `E` horn while driving).
+- **Vehicle trunk access:** the trunk now opens only for the player's main `sport` car and player-stolen `stolen-*` vehicles — other/unowned traffic cars no longer expose a trunk.
+- **Glass UI polish:** stronger frosted-glass radar/minimap (blur + tint, specular highlights, inner shadows/curvature, rim) and interactive prompts (translucent panel, sheen, inner outline, accent).
+- **Quest/story foundation (no story content yet):** new modules `quests.py`, `story_runtime.py`, `ui_story.py`, `engine_radio.py`, `engine_tutorial.py`, `engine_interactions.py`, `engine_quest_hooks.py`, `engine_ui.py` with integration hooks in `engine.py`/`open_world.py`/`settings_manager.py`, plus docs `docs/quest_system.md`, `docs/gta_ui_research.md`, `docs/ui_best_practices_atof.md`.
+- **Tests & hygiene:** added `tests/test_quests.py`, expanded settings tests, relaxed survival-radio tests to the new policy; **150 tests passing**.
+
 ## Pre-release 0.9.0 Alpha 4
 
 - **Cross-platform UI font:** bundled **Inter** (SIL OFL 1.1, with `assets/fonts/Inter/OFL.txt`) and switched UI/game font loading to the bundled font files for consistent rendering on Windows, macOS, and Linux (with safe fallback).

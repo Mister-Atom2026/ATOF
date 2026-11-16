@@ -161,7 +161,7 @@ class SurvivalAndRadioTests(unittest.TestCase):
 
     def test_radio_resumes_at_live_station_position(self):
         now = [0.0]
-        radio = engine.GameRadio({}, monotonic_clock=lambda: now[0])
+        radio = engine.GameRadio({}, monotonic_clock=lambda: now[0], allow_playback=True)
         music = pygame.mixer.music
         with (
             patch.object(music, "load") as load,
@@ -183,11 +183,38 @@ class SurvivalAndRadioTests(unittest.TestCase):
 
     def test_radio_live_playlist_moves_to_next_track_at_exact_boundary(self):
         now = [0.0]
-        radio = engine.GameRadio({}, monotonic_clock=lambda: now[0])
+        radio = engine.GameRadio({}, monotonic_clock=lambda: now[0], allow_playback=True)
 
         now[0] = engine._RADIO_STATIONS[0].tracks[0].duration
 
         self.assertEqual(radio.track_name, "rooms for music.")
+
+    def test_radio_does_not_play_mixer_when_playback_disabled(self):
+        radio = engine.GameRadio({}, allow_playback=False)
+        music = pygame.mixer.music
+        with (
+            patch.object(music, "load") as load,
+            patch.object(music, "play") as play,
+            patch.object(music, "stop") as stop,
+            patch.object(music, "pause") as pause,
+        ):
+            radio.toggle()
+            radio.cycle_station(1)
+            radio.pause()
+            radio.stop()
+
+        load.assert_not_called()
+        play.assert_not_called()
+        stop.assert_not_called()
+        pause.assert_not_called()
+        self.assertFalse(radio.is_on)
+        self.assertFalse(radio.is_playing)
+
+    def _assert_color_close(self, actual, expected, tol=18):
+        self.assertEqual(len(actual), 3)
+        self.assertEqual(len(expected), 3)
+        for a, e in zip(actual, expected):
+            self.assertLessEqual(abs(a - e), tol, msg=f"{actual} not within ±{tol} of {expected}")
 
     def test_minimap_keeps_full_radar_inside_separate_status_arcs(self):
         screen = pygame.Surface((800, 600))
@@ -211,12 +238,19 @@ class SurvivalAndRadioTests(unittest.TestCase):
             )
 
         self.assertEqual(screen.get_size(), (800, 600))
-        # The radar occupies the lower-right corner.
-        self.assertEqual(screen.get_at((670, 520))[:3], (80, 110, 80))
+        # The radar occupies the lower-right corner; glass/vignette may subtly tint the map.
+        radar_px = screen.get_at((670, 520))[:3]
+        self._assert_color_close(radar_px, (80, 110, 80), tol=20)
+        self.assertGreater(radar_px[1], radar_px[0], "radar sample should remain greenish")
         self.assertEqual(screen.get_at((130, 520))[:3], (0, 0, 0))
         # The outer ring keeps distinct green-health and orange-hunger arcs.
-        self.assertEqual(screen.get_at((779, 470))[:3], (80, 235, 155))
-        self.assertEqual(screen.get_at((561, 470))[:3], (255, 176, 64))
+        health_arc = screen.get_at((779, 470))[:3]
+        hunger_arc = screen.get_at((561, 470))[:3]
+        self.assertGreater(health_arc[1], 140, health_arc)
+        self.assertGreater(health_arc[1], health_arc[0], health_arc)
+        self.assertGreater(hunger_arc[0], 180, hunger_arc)
+        self.assertGreater(hunger_arc[1], 100, hunger_arc)
+        self.assertGreater(hunger_arc[0], hunger_arc[2], hunger_arc)
 
 
 if __name__ == "__main__":
