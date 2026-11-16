@@ -147,13 +147,20 @@ class LocalizationCompletenessTests(unittest.TestCase):
             for key in keys:
                 self.assertTrue(labels.get(key), f'{lang}.{key} missing')
 
-    def test_house_camera_centers_atom_without_zooming(self):
-        cam_x, cam_y = engine.house_camera((300, 70), (1280, 720))
-        self.assertEqual(cam_x, -340.0)
-        self.assertEqual(cam_y, -290.0)
-        # With no scaling, the house blit offset places Atom at screen center.
-        self.assertEqual(300 - cam_x, 640.0)
-        self.assertEqual(70 - cam_y, 360.0)
+    def test_interior_camera_zooms_and_centers_actor(self):
+        cam_x, cam_y, scaled = engine.interior_camera(
+            (300, 70), (750, 300), (1280, 720)
+        )
+        self.assertEqual(scaled, (3000, 1200))
+        self.assertEqual(cam_x, 560.0)
+        self.assertEqual(cam_y, 0.0)  # clamped at the top edge
+        self.assertEqual(300 * 4.0 - cam_x, 640.0)
+
+        cam_x2, cam_y2, _scaled2 = engine.interior_camera(
+            (700, 280), (750, 300), (1280, 720)
+        )
+        self.assertEqual(cam_x2, 3000 - 1280)  # clamped at the right edge
+        self.assertEqual(cam_y2, 1200 - 720)
 
     def test_legacy_save_keeps_starter_pistol(self):
         wheel = engine.WeaponWheel(

@@ -189,6 +189,28 @@ class SurvivalAndRadioTests(unittest.TestCase):
 
         self.assertEqual(radio.track_name, "rooms for music.")
 
+    def test_radio_stops_when_leaving_car_and_resumes_on_return(self):
+        radio = engine.GameRadio(
+            {}, monotonic_clock=lambda: 0.0, allow_playback=True, in_game=True
+        )
+        music = pygame.mixer.music
+        with (
+            patch.object(music, "load"),
+            patch.object(music, "play") as play,
+            patch.object(music, "stop") as stop,
+            patch.object(music, "get_busy", return_value=True),
+        ):
+            radio.toggle()
+            self.assertTrue(radio.is_playing)
+            radio.pause_for_exit()
+            stop.assert_called_once_with()
+            self.assertFalse(radio.is_playing)
+            self.assertTrue(radio.is_on)
+            radio.update()
+            play.assert_called_once()
+            radio.resume()
+            self.assertTrue(radio.is_playing)
+
     def test_engine_radio_accepts_in_game_construction(self):
         radio = engine.GameRadio(
             {"music_volume": 50}, allow_playback=True, in_game=True

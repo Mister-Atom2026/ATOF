@@ -993,10 +993,18 @@ class HousePlayer:
         elif move.x < 0 and move.y < 0:
             self.angle = 135
 
-    def draw(self, screen, offset_x, offset_y):
+    def draw(self, screen, offset_x, offset_y, zoom=1.0):
         if not self.image:
             return
         rotated = pygame.transform.rotate(self.image, -self.angle)
+        if zoom != 1.0:
+            rotated = pygame.transform.smoothscale(
+                rotated,
+                (
+                    max(1, int(rotated.get_width() * zoom)),
+                    max(1, int(rotated.get_height() * zoom)),
+                ),
+            )
         rect = rotated.get_rect(
             center=(int(self.pos.x + offset_x), int(self.pos.y + offset_y))
         )
@@ -4729,18 +4737,59 @@ def consume_fridge_food(survival, stock, index):
     stock[index] -= 1
     return restored
 
-def house_camera(atom_pos, screen_size):
-    """Follow camera for the house: keep Atom centered, never rescale the map."""
-    return float(atom_pos[0]) - screen_size[0] / 2, float(atom_pos[1]) - screen_size[1] / 2
+INTERIOR_CAMERA_ZOOM = 4.0
+_INTERIOR_SCALED_CACHE: dict[tuple[int, float], pygame.Surface] = {}
+
+
+def interior_camera(actor_pos, image_size, screen_size, zoom=INTERIOR_CAMERA_ZOOM):
+    """Clamped camera that keeps the actor tightly centered in an interior map."""
+    scaled_w = max(1, int(image_size[0] * zoom))
+    scaled_h = max(1, int(image_size[1] * zoom))
+    screen_w, screen_h = screen_size
+    cam_x = float(actor_pos[0]) * zoom - screen_w / 2
+    cam_y = float(actor_pos[1]) * zoom - screen_h / 2
+    if scaled_w > screen_w:
+        cam_x = max(0.0, min(cam_x, scaled_w - screen_w))
+    else:
+        cam_x = (scaled_w - screen_w) / 2
+    if scaled_h > screen_h:
+        cam_y = max(0.0, min(cam_y, scaled_h - screen_h))
+    else:
+        cam_y = (scaled_h - screen_h) / 2
+    return cam_x, cam_y, (scaled_w, scaled_h)
+
+
+def _interior_scaled_surface(visual, zoom):
+    key = (id(visual), zoom)
+    surface = _INTERIOR_SCALED_CACHE.get(key)
+    if surface is None:
+        size = (
+            max(1, int(visual.get_width() * zoom)),
+            max(1, int(visual.get_height() * zoom)),
+        )
+        surface = pygame.transform.smoothscale(visual, size)
+        _INTERIOR_SCALED_CACHE[key] = surface
+    return surface
+
+
+def draw_interior_scene(screen, visual, actor, zoom=INTERIOR_CAMERA_ZOOM):
+    """Draw an interior map zoomed in and centered on the actor."""
+    screen.fill((10, 10, 10))
+    cam_x, cam_y, _scaled = interior_camera(
+        actor.pos, visual.get_size(), screen.get_size(), zoom
+    )
+    screen.blit(_interior_scaled_surface(visual, zoom), (-cam_x, -cam_y))
+    actor.draw(
+        screen,
+        actor.pos.x * (zoom - 1) - cam_x,
+        actor.pos.y * (zoom - 1) - cam_y,
+        zoom,
+    )
 
 
 def draw_house_scene(screen, house_visual, house_info, atom_h, small_font, t):
-    """Draw the house interior at its original size, focused on Atom."""
-    screen.fill((10, 10, 10))
-    cam_x, cam_y = house_camera(atom_h.pos, screen.get_size())
-    offset_x, offset_y = -cam_x, -cam_y
-    screen.blit(house_visual, (offset_x, offset_y))
-    atom_h.draw(screen, offset_x, offset_y)
+    """Draw the house interior focused closely on Atom."""
+    draw_interior_scene(screen, house_visual, atom_h)
 
 def handle_car_logic(atom, car, in_car):
     """Handle entering and leaving the car with the F key."""
@@ -6510,9 +6559,24 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
     _gunshop_music_channel = None
 
     def _ensure_gunshop_music():
-        # Music is allowed only in the main menu.
-        _stop_gunshop_music()
-        return
+        nonlocal _gunshop_music, _gunshop_music_channel
+        # In-car radio and the shop track share the audio stage: radio stops here.
+        radio.pause()
+        if _gunshop_music_channel is not None and _gunshop_music_channel.get_busy():
+            return
+        if _gunshop_music is None:
+            try:
+                _gunshop_music = pygame.mixer.Sound(
+                    str(_ASSET_ROOT / "radio" / "gunshop" / "malt_shop_bop.mp3")
+                )
+            except (pygame.error, OSError):
+                return
+        try:
+            volume = 0.5 * max(0.0, min(1.0, float(_audio_settings.get("music_volume", 0.2))))
+            _gunshop_music.set_volume(volume)
+            _gunshop_music_channel = _gunshop_music.play(loops=-1)
+        except pygame.error:
+            _gunshop_music_channel = None
 
     def _stop_gunshop_music():
         nonlocal _gunshop_music_channel
@@ -7359,7 +7423,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                     if in_car:
                         in_car = handle_car_logic(atom, car, in_car)
                         car_sfx['door_close'].play()
-                        radio.pause()
+                        radio.pause_for_exit()
                     else:
                         nearby_car = nearby_traffic_car(atom.pos)
                         if nearby_car is not None:
@@ -8001,10 +8065,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             frame_renderer.submit(RenderLayer.UI, draw_house_ui)
         elif game_state == "GUNSHOP":
             def draw_gunshop_background():
-                screen.fill((10, 10, 10))
-                h_rect = gunshop_visual.get_rect(center=(WIDTH // 2, HEIGHT // 2))
-                screen.blit(gunshop_visual, h_rect)
-                atom_g.draw(screen, h_rect.x, h_rect.y)
+                draw_interior_scene(screen, gunshop_visual, atom_g)
 
             def draw_gunshop_ui():
                 draw_gta_minimap(

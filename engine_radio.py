@@ -213,6 +213,17 @@ class GameRadio:
             self.is_playing = False
             self._paused_for_game = True
 
+    def pause_for_exit(self) -> None:
+        """Stop audio when leaving the car, keeping station and live position."""
+        if self._playback_permitted:
+            try:
+                pygame.mixer.music.stop()
+            except Exception:
+                pass
+        self.is_playing = False
+        self._loaded_track = None
+        self._paused_for_game = True
+
     def resume(self) -> None:
         if not self._paused_for_game:
             return
