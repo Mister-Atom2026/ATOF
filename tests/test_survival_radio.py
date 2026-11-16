@@ -189,6 +189,20 @@ class SurvivalAndRadioTests(unittest.TestCase):
 
         self.assertEqual(radio.track_name, "rooms for music.")
 
+    def test_radio_plays_while_in_game(self):
+        radio = engine.GameRadio({}, monotonic_clock=lambda: 0.0, allow_playback=True, in_game=True)
+        music = pygame.mixer.music
+        with (
+            patch.object(music, "load") as load,
+            patch.object(music, "play") as play,
+            patch.object(music, "get_busy", return_value=True),
+        ):
+            radio.toggle()
+            radio.update()
+        self.assertTrue(radio.is_playing)
+        load.assert_called_once()
+        play.assert_called_once()
+
     def test_radio_does_not_play_mixer_when_playback_disabled(self):
         radio = engine.GameRadio({}, allow_playback=False)
         music = pygame.mixer.music

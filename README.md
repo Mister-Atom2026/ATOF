@@ -1,9 +1,18 @@
 # ATOF
 Game About Mister Atom
 
-## Pre-release 0.9.0 Alpha 6
+## Pre-release 0.9.1 Alpha 6
 
-A large parallel run of 14 agents: 6 researched the UI of other games, 8 fixed bugs and improved mechanics.
+### Fixed
+
+- **In-game radio.** Radio stations now play during gameplay again (Asphalt FM, Night Shift 88, НРК). Press **V** in a car to turn the radio on/off, **, / .** to change station. The live playlist clock keeps running while tuned away, switching stations resumes at the current position, and volume follows the music setting. The main-menu theme remains separate.
+
+### Changed
+
+- **Radio widget.** A compact glass HUD panel in the car shows the station, genre, current track and key hints.
+- **Vehicle physics.** Grip, rain/ice, handbrake, drift, collision sliding, realistic traffic speeds and braking, obstacle avoidance, and weather grip for all traffic.
+
+## Pre-release 0.9.0 Alpha 6
 
 ### Fixed
 
@@ -15,7 +24,7 @@ A large parallel run of 14 agents: 6 researched the UI of other games, 8 fixed b
 
 - **Vehicle physics:** grip, rain/ice, handbrake, drift, collision sliding, realistic traffic speeds and braking, obstacle avoidance, weather grip for all traffic.
 - **Wanted, fines & bribes:** violations now issue fines in ₭; press **B** in the city to pay a bribe (400 ₭ × wanted stars + outstanding fines) and clear one star, or pay only the fine. Fines persist in saves.
-- **UI from 14-agent research:** six reports (`docs/ui_research_*.md`) covering GTA V/VI, RDR1/2, Mafia III and Mafia: The Old Country. Added a compact objective chip with distance, unified map marker glyphs and a legend, shared menu palette helpers, and six-language labels.
+- **UI research and polish:** six reports (`docs/ui_research_*.md`) covering GTA V/VI, RDR1/2, Mafia III and Mafia: The Old Country. Added a compact objective chip with distance, unified map marker glyphs and a legend, shared menu palette helpers, and six-language labels.
 - **Navigation keys:** `K` opens the quick-locations menu, `J` toggles the journal. Both are rebindable in Settings → Controls and work with any keyboard layout (letters are matched by physical key position).
 
 ### Checks

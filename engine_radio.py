@@ -1,7 +1,8 @@
 """Radio/music playback primitives for ATOF.
 
-The open-world runtime enforces a menu-only music playback policy: in-game
-GameRadio instances may track live station/track state, but must not play audio.
+In-game radio is enabled: stations behave like modern open-world game radio —
+a live playlist clock keeps running while the player tunes away, switching
+stations resumes at the current position, and volume follows the music setting.
 """
 
 from __future__ import annotations
@@ -117,13 +118,11 @@ class GameRadio:
 
     @property
     def _playback_permitted(self) -> bool:
-        # Policy: music/radio audio is menu-only.
-        return bool(self.allow_playback and not self.in_game)
+        # Radio now plays in-game as well; only the explicit flag can mute it.
+        return bool(self.allow_playback)
 
     def set_in_game(self, in_game: bool) -> None:
         self._in_game = bool(in_game)
-        if self.in_game:
-            self._stop_audio_only()
 
     @property
     def station_name(self) -> str:
@@ -174,7 +173,7 @@ class GameRadio:
         track_index, offset = self._live_track_position(self.station_index)
         track_key = (self.station_index, track_index)
         if not self._playback_permitted:
-            # In-game/menu-disabled radio state can advance logically, but no music plays.
+            # Playback explicitly disabled: the live station clock keeps running.
             self._loaded_track = track_key
             self.is_playing = False
             return

@@ -5470,7 +5470,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
     """Run ATOF's continuous open-world game session."""
     if tutorial_mode:
         continue_game = False
-    # Music plays only in the main menu.
+    # Stop the main-menu theme; in-game radio owns the music channel from here.
     try:
         pygame.mixer.music.stop()
     except pygame.error:
@@ -5691,7 +5691,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
     wake_fade_started = None
     scene_transition = SceneTransition(duration=0.8)
     manual_headlights = False
-    radio = GameRadio(settings, allow_playback=False, in_game=True)
+    radio = GameRadio(settings, allow_playback=True, in_game=True, audio_settings=settings)
 
     # tutorial uses normal new-game spawn/state (in house), no forced overrides
 
@@ -7327,6 +7327,8 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                             in_car = handle_car_logic(atom, car, in_car)
                         if in_car != old_in_car:
                             car_sfx['door_open'].play()
+                            if not radio.is_on:
+                                radio.toggle()
                             radio.resume()
                 if (
                     event.type == pygame.KEYDOWN
@@ -7358,6 +7360,8 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                             radio.cycle_station(-1)
                         if keyboard.matches(event, pygame.K_PERIOD):
                             radio.cycle_station(1)
+                        if keyboard.matches(event, pygame.K_v):
+                            radio.toggle()
                     elif not phone_active and keyboard.matches(event, pygame.K_e):
                         if (
                             atom.pos.distance_to(pygame.Vector2(_constants.GARAGE_POS))
@@ -7859,10 +7863,19 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                         genre=t[radio.station_genre_key],
                         track=radio.track_name,
                     ).split("|", 1)[0].strip()
-                    screen.blit(
-                        small_font.render(radio_status, True, (255, 255, 255)),
-                        (20, 50),
+                    status_surf = small_font.render(radio_status, True, (240, 244, 250))
+                    hint_surf = small_font.render("V  ,/. ", True, (170, 180, 195))
+                    plate_w = min(
+                        screen.get_width() - 40,
+                        max(status_surf.get_width(), hint_surf.get_width()) + 28,
                     )
+                    plate = pygame.Rect(
+                        16, 44, plate_w,
+                        status_surf.get_height() + hint_surf.get_height() + 16,
+                    )
+                    _engine_ui.draw_glass_panel(screen, plate, alpha=225, radius=8)
+                    screen.blit(status_surf, (plate.x + 14, plate.y + 8))
+                    screen.blit(hint_surf, (plate.x + 14, plate.y + 12 + status_surf.get_height()))
             frame_renderer.submit(RenderLayer.BACKGROUND, draw_city_background)
             frame_renderer.submit(RenderLayer.WORLD, draw_city_world)
             frame_renderer.submit(RenderLayer.LIGHTING, draw_city_lighting)
