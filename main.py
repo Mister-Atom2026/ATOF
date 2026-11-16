@@ -395,6 +395,8 @@ _CONTROLS_TRANSLATIONS = {
         "controls_map": "Map (Tab)",
         "controls_phone": "Phone (P)",
         "controls_handbrake": "Handbrake (Space)",
+        "controls_quick_nav": "Quick locations (K)",
+        "controls_journal": "Journal (J)",
         "controls_hint": "Enter: rebind, Esc: back",
     },
     "Українська": {
@@ -409,6 +411,8 @@ _CONTROLS_TRANSLATIONS = {
         "controls_map": "Мапа (Tab)",
         "controls_phone": "Телефон (P)",
         "controls_handbrake": "Ручник (Space)",
+        "controls_quick_nav": "Швидкі точки (K)",
+        "controls_journal": "Журнал (J)",
         "controls_hint": "Enter: змінити, Esc: назад",
     },
     "Русский": {
@@ -423,6 +427,8 @@ _CONTROLS_TRANSLATIONS = {
         "controls_map": "Карта (Tab)",
         "controls_phone": "Телефон (P)",
         "controls_handbrake": "Ручник (Space)",
+        "controls_quick_nav": "Быстрые точки (K)",
+        "controls_journal": "Журнал (J)",
         "controls_hint": "Enter: изменить, Esc: назад",
     },
     "Español": {
@@ -437,6 +443,8 @@ _CONTROLS_TRANSLATIONS = {
         "controls_map": "Mapa (Tab)",
         "controls_phone": "Teléfono (P)",
         "controls_handbrake": "Freno de mano (Space)",
+        "controls_quick_nav": "Puntos rápidos (K)",
+        "controls_journal": "Diario (J)",
         "controls_hint": "Enter: reasignar, Esc: volver",
     },
     "Deutsch": {
@@ -451,6 +459,8 @@ _CONTROLS_TRANSLATIONS = {
         "controls_map": "Karte (Tab)",
         "controls_phone": "Telefon (P)",
         "controls_handbrake": "Handbremse (Space)",
+        "controls_quick_nav": "Schnellpunkte (K)",
+        "controls_journal": "Journal (J)",
         "controls_hint": "Enter: neu belegen, Esc: zurück",
     },
     "Français": {
@@ -465,6 +475,8 @@ _CONTROLS_TRANSLATIONS = {
         "controls_map": "Carte (Tab)",
         "controls_phone": "Téléphone (P)",
         "controls_handbrake": "Frein à main (Space)",
+        "controls_quick_nav": "Points rapides (K)",
+        "controls_journal": "Journal (J)",
         "controls_hint": "Entrée : réattribuer, Échap : retour",
     },
 }

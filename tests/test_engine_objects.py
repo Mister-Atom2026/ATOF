@@ -105,7 +105,8 @@ class LocalizationCompletenessTests(unittest.TestCase):
             'controls_up', 'controls_down', 'controls_left', 'controls_right',
             'controls_interact', 'controls_enter_vehicle', 'controls_reload',
             'controls_sprint', 'controls_map', 'controls_phone',
-            'controls_handbrake', 'controls_hint',
+            'controls_handbrake', 'controls_quick_nav', 'controls_journal',
+            'controls_hint',
         )
         for lang in engine.SUPPORTED_LANGUAGES:
             labels = main._CONTROLS_TRANSLATIONS[lang]
@@ -145,6 +146,24 @@ class LocalizationCompletenessTests(unittest.TestCase):
             labels = engine._STORY_UI_TRANSLATIONS[lang]
             for key in keys:
                 self.assertTrue(labels.get(key), f'{lang}.{key} missing')
+
+    def test_keys_work_with_cyrillic_layout(self):
+        scancode_k = getattr(pygame, 'KSCAN_K', None)
+        scancode_j = getattr(pygame, 'KSCAN_J', None)
+        if scancode_k is None or scancode_j is None:
+            self.skipTest('physical scancodes unavailable in this pygame build')
+        # On a Cyrillic layout the physical K/J keys report "л"/"г" as unicode.
+        event_k = pygame.event.Event(pygame.KEYDOWN, key=ord('л'), scancode=scancode_k, unicode='л')
+        event_j = pygame.event.Event(pygame.KEYDOWN, key=ord('г'), scancode=scancode_j, unicode='г')
+        self.assertTrue(engine.KeyboardState.matches(event_k, pygame.K_k))
+        self.assertTrue(engine.KeyboardState.matches(event_j, pygame.K_j))
+
+    def test_rebindable_nav_and_journal_defaults(self):
+        import inspect
+
+        source = inspect.getsource(engine._controls_settings_menu)
+        self.assertIn('"quick_nav": pygame.K_k', source)
+        self.assertIn('"journal": pygame.K_j', source)
 
     def test_quick_location_entries(self):
         entries = engine._quick_location_entries(

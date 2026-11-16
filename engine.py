@@ -3771,11 +3771,14 @@ def _controls_settings_menu(screen, font, settings, trans_dict, languages, contr
         ("map", "controls_map", "Map (Tab)"),
         ("phone", "controls_phone", "Phone (P)"),
         ("handbrake", "controls_handbrake", "Handbrake (Space)"),
+        ("quick_nav", "controls_quick_nav", "Quick locations (K)"),
+        ("journal", "controls_journal", "Journal (J)"),
     ]
     defaults = {
         "up": pygame.K_w, "down": pygame.K_s, "left": pygame.K_a, "right": pygame.K_d,
         "interact": pygame.K_e, "enter_vehicle": pygame.K_f, "reload": pygame.K_r,
         "sprint": pygame.K_LSHIFT, "map": pygame.K_TAB, "phone": pygame.K_p, "handbrake": pygame.K_SPACE,
+        "quick_nav": pygame.K_k, "journal": pygame.K_j,
     }
     if "keys" not in settings or not isinstance(settings["keys"], dict):
         settings["keys"] = {}
@@ -4149,6 +4152,9 @@ def full_screen_map(
     running = True
     labels = labels or {}
 
+    def map_key_hit(event, key):
+        return controls.matches(event, key) if controls is not None else event.key == key
+
     while running:
         screen.fill((20, 20, 20))
         scaled_w = int(screen_width * map_zoom)
@@ -4184,10 +4190,10 @@ def full_screen_map(
                 elif gps is not None and event.key in (pygame.K_DELETE, pygame.K_BACKSPACE):
                     gps.clear_destination()
                     play_menu_sound("click")
-                elif gps is not None and event.key == pygame.K_g and gunshop_pos is not None:
+                elif gps is not None and map_key_hit(event, pygame.K_g) and gunshop_pos is not None:
                     gps.set_destination((float(gunshop_pos[0]), float(gunshop_pos[1])))
                     play_menu_sound("click")
-                elif gps is not None and event.key == pygame.K_h and house_pos is not None:
+                elif gps is not None and map_key_hit(event, pygame.K_h) and house_pos is not None:
                     gps.set_destination((float(house_pos[0]), float(house_pos[1])))
                     play_menu_sound("click")
 
@@ -6109,7 +6115,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                         keyboard._pressed_scancodes.clear()
                         pygame.event.clear([pygame.KEYDOWN, pygame.KEYUP])
                         return "CONTINUE"
-                    elif selected_car and event.key in (pygame.K_u, pygame.K_w):
+                    elif selected_car and (keyboard.matches(event, pygame.K_u) or keyboard.matches(event, pygame.K_w)):
                         level = int(selected_car.get("engine_upgrade", 0))
                         if level < 5 and money >= engine_prices[level]:
                             money -= engine_prices[level]
@@ -6118,7 +6124,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                             if tutorial:
                                 tutorial["upgraded_car"] = True
                                 tutorial["garage_used"] = True
-                    elif selected_car and event.key in (pygame.K_i, pygame.K_r):
+                    elif selected_car and (keyboard.matches(event, pygame.K_i) or keyboard.matches(event, pygame.K_r)):
                         level = int(selected_car.get("wheel_upgrade", 0))
                         if level < 5 and money >= wheel_prices[level]:
                             money -= wheel_prices[level]
@@ -6253,7 +6259,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                         sel = (sel - 1) % len(options)
                     elif event.key == pygame.K_DOWN:
                         sel = (sel + 1) % len(options)
-                    elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_e):
+                    elif keyboard.matches(event, pygame.K_e) or event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                         wtype, price, amount, _ = options[sel]
                         if wtype is None:
                             return "BACK"
@@ -6440,7 +6446,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                         cur = left_items() if mode == "left" else right_items()
                         if cur:
                             sel = (sel + 1) % len(cur)
-                    elif event.key in (pygame.K_RETURN, pygame.K_e):
+                    elif keyboard.matches(event, pygame.K_e) or event.key == pygame.K_RETURN:
                         if mode == "left":
                             cur = left_items()
                             if sel < len(cur):
@@ -6893,7 +6899,10 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                             phone_settings["case_idx"] = phone_color_keys[event.key]
                             save_phone_settings(phone_settings)
                             phone_click_sfx.play()
-                if not phone_active and keyboard.matches(event, pygame.K_k):
+                key_bindings = settings.get("keys", {})
+                nav_key = key_bindings.get("quick_nav", pygame.K_k)
+                journal_key = key_bindings.get("journal", pygame.K_j)
+                if not phone_active and keyboard.matches(event, nav_key):
                     quick_locations_menu(
                         screen, game_font, small_font, settings, translations, languages, gps,
                         house_pos=HOUSE_POS, gunshop_pos=GUNSHOP_POS,
@@ -6905,7 +6914,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                         if gps and getattr(gps, "destination", None) is not None:
                             tutorial["map_marker_set"] = True
                     continue
-                if not phone_active and keyboard.matches(event, pygame.K_j):
+                if not phone_active and keyboard.matches(event, journal_key):
                     if story_runtime is not None:
                         story_runtime.journal_open = not story_runtime.journal_open
                         play_menu_sound("click")
@@ -7060,7 +7069,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                 ):
                     pressed_e = keyboard.matches(event, pygame.K_e)
                     pressed_t = (
-                        event.key == pygame.K_t
+                        keyboard.matches(event, pygame.K_t)
                         or getattr(event, "unicode", "").lower() in ("t", "т")
                     )
                     if pressed_e and atom_h.pos.distance_to(HOUSE_FRIDGE_POS) < HOUSE_FRIDGE_RADIUS:
