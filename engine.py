@@ -6939,6 +6939,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
         _advance_game_time(game_minute_delta)
         survival.advance(game_minute_delta, atom)
         weather.update(frame_scale)
+        traffic.set_weather_grip(weather.grip_multiplier)
         if wanted_notice and time.perf_counter() > wanted_notice_until:
             wanted_notice = ""
 

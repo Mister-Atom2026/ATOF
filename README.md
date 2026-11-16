@@ -1,6 +1,16 @@
 # ATOF
 Game About Mister Atom
 
+## Pre-release 0.9.0 Alpha 6
+
+- **Radar/prompts readability:** removed the frosted-glass blur and glossy highlights from the radar itself (the glass treatment stays on the health/hunger status arcs); rewrote contextual interaction prompts with an opaque dark plate, stroked text and a clearly separated keycap so they stay readable over any texture.
+- **Car theft fix:** stealing a vehicle no longer makes the car you arrived in or nearby traffic disappear — the previous car is always preserved (including stolen police cars), damaged neighbours finish their wreck animation, and respawns no longer appear on top of existing cars.
+- **Vehicle physics:** reworked player car handling (grip, rain/ice, handbrake, drift, collision sliding) and traffic physics (realistic speeds, smooth acceleration/braking, obstacle avoidance, weather grip).
+- **Wanted, fines & bribes:** violations now issue fines in ₭; press **B** in the city to pay a bribe (cost = 400 ₭ × wanted stars + outstanding fines) and clear one star, or pay only the fine. Fines persist in saves.
+- **UI from 14-agent research:** compared GTA V/VI, RDR1/2, Mafia III and Mafia: The Old Country (six research reports in `docs/ui_research_*.md`); added a compact objective chip, distance display, unified map marker glyphs+legend, consistent menu palette helpers and six-language labels.
+- **Navigation keys:** `K` opens the quick-locations menu, `J` toggles the journal; both are rebindable in Settings → Controls and work with any keyboard layout (letters are matched by physical key position).
+- **Checks:** `py_compile` OK; **279 tests passing**. Manual smoke/playtest still recommended.
+
 ## Pre-release 0.9.0 Alpha 5
 
 - **Music only in the main menu:** in-game radio and gun shop music playback is now disabled — no music or radio plays during gameplay or transitions, while the main menu theme remains unchanged.
