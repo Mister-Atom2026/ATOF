@@ -147,6 +147,20 @@ class LocalizationCompletenessTests(unittest.TestCase):
             for key in keys:
                 self.assertTrue(labels.get(key), f'{lang}.{key} missing')
 
+    def test_house_camera_focuses_on_atom_and_clamps(self):
+        cam_x, cam_y, scaled = engine.house_camera(
+            (300, 70), (750, 300), (1280, 720)
+        )
+        self.assertEqual(scaled, (1650, 660))
+        self.assertGreaterEqual(cam_x, 0.0)
+        self.assertLessEqual(cam_x, 1650 - 1280)
+        self.assertEqual(cam_y, -30.0)  # house shorter than screen -> centered
+
+        cam_x2, _cam_y2, _scaled2 = engine.house_camera(
+            (700, 280), (750, 300), (1280, 720)
+        )
+        self.assertEqual(cam_x2, 1650 - 1280)  # clamped at the right edge
+
     def test_legacy_save_keeps_starter_pistol(self):
         wheel = engine.WeaponWheel(
             ammo=11, reserve_ammo=36, selected="shotgun", carried_firearms=None
