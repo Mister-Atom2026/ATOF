@@ -7903,7 +7903,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                         genre=t[radio.station_genre_key],
                         track=radio.track_name,
                     ).split("|", 1)[0].strip()
-                    status_surf = small_font.render(radio_status, True, (240, 244, 250))
+                    status_surf = small_font.render(radio_status, True, (238, 164, 47))
                     hint_surf = small_font.render("V  ,/. ", True, (170, 180, 195))
                     plate_w = min(
                         screen.get_width() - 40,
