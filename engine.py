@@ -4729,55 +4729,14 @@ def consume_fridge_food(survival, stock, index):
     stock[index] -= 1
     return restored
 
-HOUSE_CAMERA_ZOOM = 2.2
-_HOUSE_SCALED_CACHE: dict[tuple[int, float], pygame.Surface] = {}
-
-
-def house_camera(atom_pos, house_size, screen_size, zoom=HOUSE_CAMERA_ZOOM):
-    """Return a clamped camera offset that keeps the character in view."""
-    scaled_w = max(1, int(house_size[0] * zoom))
-    scaled_h = max(1, int(house_size[1] * zoom))
-    screen_w, screen_h = screen_size
-    cam_x = float(atom_pos[0]) * zoom - screen_w / 2
-    cam_y = float(atom_pos[1]) * zoom - screen_h / 2
-    if scaled_w > screen_w:
-        cam_x = max(0.0, min(cam_x, scaled_w - screen_w))
-    else:
-        cam_x = (scaled_w - screen_w) / 2
-    if scaled_h > screen_h:
-        cam_y = max(0.0, min(cam_y, scaled_h - screen_h))
-    else:
-        cam_y = (scaled_h - screen_h) / 2
-    return cam_x, cam_y, (scaled_w, scaled_h)
-
-
-def _scaled_house_surface(house_visual, zoom):
-    key = (id(house_visual), zoom)
-    surface = _HOUSE_SCALED_CACHE.get(key)
-    if surface is None:
-        size = (
-            max(1, int(house_visual.get_width() * zoom)),
-            max(1, int(house_visual.get_height() * zoom)),
-        )
-        surface = pygame.transform.smoothscale(house_visual, size)
-        _HOUSE_SCALED_CACHE[key] = surface
-    return surface
-
-
 def draw_house_scene(screen, house_visual, house_info, atom_h, small_font, t):
-    """Draw the house interior with a camera focused on Atom."""
+    """Draw the house interior."""
     screen.fill((10, 10, 10))
-    screen_size = screen.get_size()
-    cam_x, cam_y, _scaled_size = house_camera(
-        atom_h.pos, house_visual.get_size(), screen_size
-    )
-    scaled_house = _scaled_house_surface(house_visual, HOUSE_CAMERA_ZOOM)
-    screen.blit(scaled_house, (-cam_x, -cam_y))
+    h_rect = house_visual.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+    screen.blit(house_visual, h_rect)
 
-    # The character uses the same zoom transform as the house image.
-    offset_x = atom_h.pos.x * (HOUSE_CAMERA_ZOOM - 1) - cam_x
-    offset_y = atom_h.pos.y * (HOUSE_CAMERA_ZOOM - 1) - cam_y
-    atom_h.draw(screen, offset_x, offset_y)
+    # Draw the character relative to the house center.
+    atom_h.draw(screen, h_rect.x, h_rect.y)
 
 def handle_car_logic(atom, car, in_car):
     """Handle entering and leaving the car with the F key."""
