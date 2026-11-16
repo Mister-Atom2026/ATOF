@@ -2994,22 +2994,14 @@ def draw_gta_minimap(
     health_ratio = max(0.0, min(1.0, float(health) / 100.0))
     hunger_ratio = hunger_value / 100.0
 
-    # Modern glass radar frame + status arcs
+    # Plain radar frame + glowing status arcs (glass treatment stays on the arcs)
     outer_r = half_size + 12
     frame_surf = pygame.Surface((outer_r * 2 + 4, outer_r * 2 + 4), pygame.SRCALPHA)
     fc = (outer_r + 2, outer_r + 2)
-    # soft drop shadow / outer glow
+    # soft drop shadow and solid dark ring
     pygame.draw.circle(frame_surf, (0, 0, 0, 80), (fc[0] + 3, fc[1] + 5), outer_r)
-    pygame.draw.circle(frame_surf, (20, 28, 40, 90), fc, outer_r + 1)
-    # dark glass base ring
     pygame.draw.circle(frame_surf, (16, 20, 28, 240), fc, outer_r)
     pygame.draw.circle(frame_surf, (34, 42, 54, 230), fc, outer_r - 4)
-    pygame.draw.circle(frame_surf, (58, 72, 92, 160), fc, outer_r - 8, 1)
-    # rim lights
-    pygame.draw.circle(frame_surf, (255, 255, 255, 34), fc, outer_r, 1)
-    pygame.draw.circle(frame_surf, (255, 255, 255, 20), fc, half_size + 2, 1)
-    pygame.draw.arc(frame_surf, (255, 255, 255, 55), (fc[0]-outer_r+2, fc[1]-outer_r+2, (outer_r-2)*2, (outer_r-2)*2), math.radians(200), math.radians(330), 2)
-    pygame.draw.arc(frame_surf, (255, 255, 255, 25), (fc[0]-half_size-1, fc[1]-half_size-1, (half_size+1)*2, (half_size+1)*2), math.radians(20), math.radians(120), 1)
     screen.blit(frame_surf, (center_on_screen[0] - fc[0], center_on_screen[1] - fc[1]))
 
     health_start, health_end = -88, 148
@@ -3059,18 +3051,7 @@ def draw_gta_minimap(
         hu_main, hu_glow = (255, 92, 82), (255, 92, 82)
     draw_pretty_arc(hunger_start, hunger_end, hunger_ratio, hu_main, hu_glow)
 
-    # Frosted glass feel: blur + cool tint while keeping markers readable
-    frosted = mini_surf.copy()
-    small_size = max(28, size // 5)
-    blurred = pygame.transform.smoothscale(frosted, (small_size, small_size))
-    blurred = pygame.transform.smoothscale(blurred, (size, size))
-    blurred.set_alpha(95)
-    mini_surf.blit(blurred, (0, 0))
-    tint = pygame.Surface((size, size), pygame.SRCALPHA)
-    pygame.draw.circle(tint, (170, 210, 245, 28), (half_size, half_size), half_size - 1)
-    pygame.draw.circle(tint, (255, 255, 255, 10), (half_size, half_size - size // 10), half_size - 8)
-    mini_surf.blit(tint, (0, 0))
-    # keep markers readable: redraw player + destination on top
+    # Plain radar surface: no frosted-glass blur/tint (glass stays on the HUD arcs).
     pygame.draw.circle(mini_surf, (255, 60, 60), (int(px), int(py)), 6)
     pygame.draw.circle(mini_surf, (255, 255, 255), (int(px), int(py)), 6, 2)
     if destination is not None:
@@ -3101,32 +3082,8 @@ def draw_gta_minimap(
         except Exception:
             _log.debug("story minimap markers render failed", exc_info=True)
 
-    # Enhanced glass highlights/reflections and rim
-    glass = pygame.Surface((size, size), pygame.SRCALPHA)
-    # broad glossy sweep and secondary sheen
-    pygame.draw.ellipse(glass, (255, 255, 255, 58), (-size * 0.10, -size * 0.24, size * 0.96, size * 0.76))
-    pygame.draw.ellipse(glass, (255, 255, 255, 22), (size * 0.00, -size * 0.04, size * 0.66, size * 0.52))
-    pygame.draw.ellipse(glass, (210, 235, 255, 20), (size * 0.18, size * 0.08, size * 0.52, size * 0.30))
-    # inner curvature shading
-    pygame.draw.ellipse(glass, (0, 0, 0, 28), (size * 0.04, size * 0.48, size * 0.92, size * 0.68))
-    pygame.draw.circle(glass, (0, 0, 0, 18), (half_size, half_size), half_size - 3, 10)
-    # clip highlights to circle
-    clip_mask = pygame.Surface((size, size), pygame.SRCALPHA)
-    pygame.draw.circle(clip_mask, (255, 255, 255, 255), (half_size, half_size), half_size - 2)
-    glass.blit(clip_mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
-    # specular hotspots and edge refraction-like rim
-    pygame.draw.circle(glass, (255, 255, 255, 70), (half_size - size // 5, half_size - size // 4), max(9, half_size // 4))
-    pygame.draw.circle(glass, (255, 255, 255, 30), (half_size + size // 4, half_size + size // 7), max(6, half_size // 6))
-    pygame.draw.circle(glass, (180, 220, 255, 22), (half_size + size // 6, half_size - size // 5), max(5, half_size // 7))
-    glass.blit(clip_mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
-    pygame.draw.circle(glass, (255, 255, 255, 34), (half_size, half_size), half_size - 1, 2)
-    pygame.draw.circle(glass, (140, 180, 220, 24), (half_size, half_size), half_size - 3, 1)
-    pygame.draw.arc(glass, (255, 255, 255, 95), (2, 2, size - 4, size - 4), math.radians(198), math.radians(328), 2)
-    pygame.draw.arc(glass, (255, 255, 255, 42), (4, 4, size - 8, size - 8), math.radians(16), math.radians(115), 1)
-    pygame.draw.arc(glass, (120, 170, 220, 30), (3, 3, size - 6, size - 6), math.radians(30), math.radians(150), 1)
-    screen.blit(glass, (x, y))
-    pygame.draw.circle(screen, (228, 242, 255), center_on_screen, half_size, 2)
-    pygame.draw.circle(screen, (150, 175, 205), center_on_screen, half_size + 1, 1)
+    # Plain, readable radar outline (the glass treatment stays on the status arcs).
+    pygame.draw.circle(screen, (200, 210, 225), center_on_screen, half_size, 2)
 
     if distance is not None:
         text = text_labels.get("gps_distance", "Distance: {distance}").format(
