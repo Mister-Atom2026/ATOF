@@ -98,6 +98,7 @@ Use `rewards` hooks and lifecycle hooks (`on_complete`, `on_fail`, objective `on
 - `settings_manager.load_game_save()` preserves the top-level `quests` field as a dict (default `{}`) for forward compatibility.
 - Engine save builders accept optional quest state and include `quests` when provided.
 - Unknown quest IDs in save data are preserved in manager progress; only registered definitions are actively evaluated. This supports adding/removing future content safely.
+- **Versioning/migration:** `SAVE_VERSION` marks the current payload format; `migrate_quest_save_data()` normalizes legacy/bare payloads to it and applies quest-id renames. When a quest id changes, call `register_quest_id_alias(old_id, new_id)` (usually from the content bootstrap) so old saves keep their progress. Explicit current ids take precedence over aliased legacy entries; alias chains and cycles are handled safely.
 
 ## Current integration points (minimal, foundation-only)
 
@@ -113,6 +114,6 @@ Use `rewards` hooks and lifecycle hooks (`on_complete`, `on_fail`, objective `on
 1. Create a `story/` package or content modules with `QuestDef` data/conditions/hooks (still separate from engine loop logic).
 2. Yield/register those definitions from `open_world.iter_quest_definitions()` or a bootstrap function.
 3. Add focused `manager.emit(...)` calls at meaningful gameplay events (dialog, pickups, area enter/exit, mission triggers, combat outcomes) and/or enrich `QuestContext.game`.
-4. Add UI/journal presentation for `active/completed/failed` quests and objective progress.
+4. Add UI/journal presentation for `active/completed/failed` quests and objective progress. Story UI labels (`ui_story.STORY_UI_KEYS`) are already localized for all six languages in `engine._STORY_UI_TRANSLATIONS`; pass them through `StoryRuntime.labels` or the engine `t` dict.
 5. Implement reward hooks that call stable engine APIs (inventory, money, unlocks) and add tests for quest state transitions and save/load round-trips.
 6. Version/migrate quest save data if objective/quest IDs change in future content updates.

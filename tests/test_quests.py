@@ -340,5 +340,58 @@ class QuestDataclassTests(unittest.TestCase):
         self.assertEqual(d["state"], "inactive")
 
 
+class QuestSaveMigrationTests(unittest.TestCase):
+    def test_legacy_bare_payload_is_normalized(self):
+        payload = {"old": {"state": "active", "data": {"x": 1}}}
+        migrated = quests.migrate_quest_save_data(payload)
+        self.assertEqual(migrated["version"], quests.SAVE_VERSION)
+        self.assertEqual(migrated["quests"]["old"]["data"], {"x": 1})
+
+    def test_aliases_apply_and_cycles_are_safe(self):
+        aliases = {"old": "current", "current": "newer", "loop_a": "loop_b", "loop_b": "loop_a"}
+        payload = {
+            "version": 0,
+            "quests": {
+                "old": {"state": "active"},
+                "loop_a": {"state": "completed"},
+                "unknown": {"state": "active"},
+            },
+        }
+        migrated = quests.migrate_quest_save_data(payload, aliases)
+        self.assertIn("newer", migrated["quests"])
+        self.assertNotIn("old", migrated["quests"])
+        self.assertIn("loop_a", migrated["quests"])
+        self.assertIn("unknown", migrated["quests"])
+        self.assertEqual(migrated["version"], quests.SAVE_VERSION)
+
+    def test_explicit_current_id_wins_over_legacy_alias(self):
+        migrated = quests.migrate_quest_save_data(
+            {"old": {"state": "active"}, "current": {"state": "completed"}},
+            {"old": "current"},
+        )
+        self.assertEqual(migrated["quests"]["current"]["state"], "completed")
+
+    def test_register_alias_applies_on_manager_load(self):
+        original = dict(quests.QUEST_ID_ALIASES)
+        try:
+            quests.register_quest_id_alias("intro.talk", "story.intro_talk")
+            q = QuestDef("story.intro_talk", "Talk", objectives=(ObjectiveDef("talk", required=1),))
+            manager = QuestManager([q])
+            manager.load_save_data(
+                {"version": 1, "quests": {"intro.talk": {"state": "active", "data": {"legacy": True}}}}
+            )
+            self.assertEqual(manager.get_progress("story.intro_talk").state, QuestState.ACTIVE)
+            self.assertTrue(manager.get_progress("story.intro_talk").data["legacy"])
+        finally:
+            quests.QUEST_ID_ALIASES.clear()
+            quests.QUEST_ID_ALIASES.update(original)
+
+    def test_invalid_payloads_are_safe(self):
+        for payload in (None, [], "bad", {"quests": "bad"}, {"quests": {1: "x"}}):
+            migrated = quests.migrate_quest_save_data(payload)
+            self.assertEqual(migrated["version"], quests.SAVE_VERSION)
+            self.assertEqual(migrated["quests"], {})
+
+
 if __name__ == "__main__":
     unittest.main()

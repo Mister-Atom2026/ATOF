@@ -123,3 +123,14 @@ class LocalizationCompletenessTests(unittest.TestCase):
                     all(isinstance(part, str) and part.strip() for part in step),
                     f'{lang} step {index} incomplete',
                 )
+
+    def test_story_ui_keys_for_all_languages(self):
+        import ui_story
+
+        keys = set(ui_story.STORY_UI_KEYS)
+        for lang in engine.SUPPORTED_LANGUAGES:
+            labels = engine._STORY_UI_TRANSLATIONS[lang]
+            missing = sorted(keys - set(labels))
+            self.assertFalse(missing, f'{lang} missing {missing}')
+            for key in keys:
+                self.assertTrue(labels[key], f'{lang}.{key} empty')

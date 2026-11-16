@@ -24,6 +24,56 @@ Condition = Callable[["QuestContext", "ObjectiveProgress", "QuestProgress"], boo
 Hook = Callable[["QuestContext", "ObjectiveProgress", "QuestProgress"], None]
 Trigger = Callable[["QuestManager", "QuestContext"], None]
 
+# Current quest save payload version. Bump this when the save shape changes.
+SAVE_VERSION = 1
+
+# Legacy quest id -> current quest id. Content modules register renames here so
+# existing saves keep their progress when a quest is renamed during development.
+QUEST_ID_ALIASES: dict[str, str] = {}
+
+
+def register_quest_id_alias(old_id: str, new_id: str) -> None:
+    """Register a quest id rename for save migration (no-op for invalid input)."""
+    if not isinstance(old_id, str) or not isinstance(new_id, str):
+        return
+    old_id, new_id = old_id.strip(), new_id.strip()
+    if not old_id or not new_id or old_id == new_id:
+        return
+    QUEST_ID_ALIASES[old_id] = new_id
+
+
+def migrate_quest_save_data(data: Any, aliases: Mapping[str, str] | None = None) -> dict[str, Any]:
+    """Normalize a quest save payload to the current ``SAVE_VERSION``.
+
+    Accepts both the wrapped ``{"version": n, "quests": {...}}`` form and the
+    bare ``{quest_id: progress}`` mapping used by older saves. Legacy quest ids
+    are renamed via ``aliases`` (or the global registry), unknown ids are
+    preserved, and a fresh JSON-safe dict is always returned.
+    """
+    result: dict[str, Any] = {"version": SAVE_VERSION, "quests": {}}
+    if not isinstance(data, Mapping):
+        return result
+    raw = data.get("quests", data)
+    if not isinstance(raw, Mapping):
+        return result
+
+    alias_map: Mapping[str, str] = aliases if aliases is not None else QUEST_ID_ALIASES
+    migrated = result["quests"]
+    # Explicit current ids are processed last so they win over renamed legacy ids.
+    ordered = sorted(raw.items(), key=lambda item: 0 if item[0] in alias_map else 1)
+    for quest_id, progress in ordered:
+        if not isinstance(quest_id, str) or not isinstance(progress, Mapping):
+            continue
+        target_id = quest_id
+        seen: set[str] = set()
+        while target_id in alias_map and target_id not in seen:
+            seen.add(target_id)
+            target_id = alias_map[target_id]
+        if not isinstance(target_id, str) or not target_id:
+            target_id = quest_id
+        migrated[target_id] = dict(progress)
+    return result
+
 
 @dataclass(frozen=True)
 class ObjectiveDef:
@@ -321,7 +371,7 @@ class QuestManager:
     def to_save_data(self) -> dict[str, Any]:
         """Return a JSON-serializable snapshot of runtime quest progress."""
         return {
-            "version": 1,
+            "version": SAVE_VERSION,
             "quests": {qid: prog.to_dict() for qid, prog in self.progress.items()},
         }
 
@@ -331,11 +381,7 @@ class QuestManager:
         Unknown quest ids are preserved in progress for forward compatibility, but
         only registered definitions are actively evaluated.
         """
-        if not isinstance(data, Mapping):
-            return
-        quests = data.get("quests", data)
-        if not isinstance(quests, Mapping):
-            return
+        quests = migrate_quest_save_data(data)["quests"]
         for quest_id, raw in quests.items():
             if not isinstance(quest_id, str) or not isinstance(raw, Mapping):
                 continue

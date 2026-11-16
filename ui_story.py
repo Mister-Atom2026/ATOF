@@ -21,6 +21,7 @@ STORY_UI_KEYS = (
     "story_objectives",
     "story_journal",
     "story_no_objectives",
+    "story_objective_active",
     "story_objective_completed",
     "story_objective_failed",
     "story_distance",
@@ -244,7 +245,7 @@ def draw_objectives_journal(screen: pygame.Surface, quest: QuestState | None,
         sel = objectives[selected_index]
         name = tr(labels, sel.title_key, sel.title_default or sel.id)
         desc = tr(labels, sel.description_key or "", sel.description_default or "")
-        status_key = "story_objective_completed" if sel.completed else "story_objective_failed" if sel.failed else "story_objectives"
+        status_key = "story_objective_completed" if sel.completed else "story_objective_failed" if sel.failed else "story_objective_active"
         status_default = "Completed" if sel.completed else "Failed" if sel.failed else "In progress"
         lines = [name, tr(labels, status_key, status_default), "", desc]
         y = detail_rect.y

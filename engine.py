@@ -1,4 +1,5 @@
 import json
+import logging
 import math
 import random
 import time
@@ -25,6 +26,8 @@ import traffic
 import engine_interactions as _engine_interactions
 import engine_quest_hooks as _engine_quest_hooks
 import engine_tutorial as _engine_tutorial
+
+_log = logging.getLogger(__name__)
 
 WIDTH = _constants.WIDTH
 HEIGHT = _constants.HEIGHT
@@ -321,6 +324,70 @@ _INTERACTION_TEXTS = {
         "enter_gunshop": "Entrer dans le magasin", "exit_gunshop": "Quitter le magasin",
         "gunshop_browse": "Voir l'assortiment",
         "open_nightstand": "Ouvrir la table de chevet", "open_trunk": "Ouvrir le coffre",
+    },
+}
+
+# Labels for the story/mission UI scaffolding (ui_story.STORY_UI_KEYS).
+_STORY_UI_TRANSLATIONS = {
+    "English": {
+        "story_objectives": "Objectives",
+        "story_journal": "Journal",
+        "story_no_objectives": "No active objectives.",
+        "story_objective_active": "In progress",
+        "story_objective_completed": "Completed",
+        "story_objective_failed": "Failed",
+        "story_distance": "{value} m",
+        "story_continue": "Esc/Back: close",
+    },
+    "Українська": {
+        "story_objectives": "Цілі",
+        "story_journal": "Журнал",
+        "story_no_objectives": "Немає активних цілей.",
+        "story_objective_active": "В процесі",
+        "story_objective_completed": "Виконано",
+        "story_objective_failed": "Провалено",
+        "story_distance": "{value} м",
+        "story_continue": "Esc/Back: закрити",
+    },
+    "Русский": {
+        "story_objectives": "Цели",
+        "story_journal": "Журнал",
+        "story_no_objectives": "Нет активных целей.",
+        "story_objective_active": "В процессе",
+        "story_objective_completed": "Выполнено",
+        "story_objective_failed": "Провалено",
+        "story_distance": "{value} м",
+        "story_continue": "Esc/Back: закрыть",
+    },
+    "Español": {
+        "story_objectives": "Objetivos",
+        "story_journal": "Diario",
+        "story_no_objectives": "No hay objetivos activos.",
+        "story_objective_active": "En curso",
+        "story_objective_completed": "Completado",
+        "story_objective_failed": "Fallido",
+        "story_distance": "{value} m",
+        "story_continue": "Esc/Back: cerrar",
+    },
+    "Deutsch": {
+        "story_objectives": "Ziele",
+        "story_journal": "Journal",
+        "story_no_objectives": "Keine aktiven Ziele.",
+        "story_objective_active": "Im Gange",
+        "story_objective_completed": "Abgeschlossen",
+        "story_objective_failed": "Fehlgeschlagen",
+        "story_distance": "{value} m",
+        "story_continue": "Esc/Back: schließen",
+    },
+    "Français": {
+        "story_objectives": "Objectifs",
+        "story_journal": "Journal",
+        "story_no_objectives": "Aucun objectif actif.",
+        "story_objective_active": "En cours",
+        "story_objective_completed": "Terminé",
+        "story_objective_failed": "Échoué",
+        "story_distance": "{value} m",
+        "story_continue": "Échap/Retour : fermer",
     },
 }
 
@@ -2868,7 +2935,7 @@ def draw_gta_minimap(
                 preserve_aspect=preserve_aspect,
             )
         except Exception:
-            pass
+            _log.debug("story minimap markers render failed", exc_info=True)
 
     # Enhanced glass highlights/reflections and rim
     glass = pygame.Surface((size, size), pygame.SRCALPHA)
@@ -4037,7 +4104,7 @@ def full_screen_map(
                     map_zoom=map_zoom,
                 )
             except Exception:
-                pass
+                _log.debug("story full-map markers render failed", exc_info=True)
 
         text_labels = labels or {}
         if distance is not None:
@@ -5535,6 +5602,8 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
     }
     for language, labels in per_language_labels.items():
         translations[language].update(labels)
+    for language, labels in _STORY_UI_TRANSLATIONS.items():
+        translations[language].update(labels)
 
     def nearby_traffic_car(
         position,
@@ -5616,7 +5685,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             try:
                 story_runtime.emit("sleep_save", {}, game_state=game_state)
             except Exception:
-                pass
+                _log.debug("story event sleep_save failed", exc_info=True)
 
     def save_last_session_stats():
         if tutorial_mode:
@@ -6606,7 +6675,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                                 open=phone_active,
                             )
                         except Exception:
-                            pass
+                            _log.debug("story event phone_toggled failed", exc_info=True)
 
                 if phone_active:
                     # BACKSPACE controls.
@@ -6649,7 +6718,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                         try:
                             story_runtime.emit("open_full_map", story_snapshot)
                         except Exception:
-                            pass
+                            _log.debug("story event open_full_map failed", exc_info=True)
                     story_markers = (
                         story_runtime.iter_markers()
                         if story_runtime is not None else None
@@ -6920,7 +6989,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                         previous=getattr(scene_manager, "previous", None),
                     )
                 except Exception:
-                    pass
+                    _log.debug("story event scene_changed failed", exc_info=True)
 
         if scene_transition.active and game_state == "CITY":
             target = car if in_car else atom
@@ -7360,7 +7429,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                 if getattr(story_runtime, "journal_open", False):
                     story_runtime.draw_journal(screen, t)
             except Exception:
-                pass
+                _log.debug("story HUD/journal render failed", exc_info=True)
 
         if fridge_menu_open:
             draw_fridge_menu(
