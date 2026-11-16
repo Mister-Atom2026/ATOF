@@ -3529,17 +3529,17 @@ def _controls_settings_menu(screen, font, settings, trans_dict, languages, contr
     needs_fade_in = fade_in
     clock_menu = pygame.time.Clock()
     actions = [
-        ("up", "Up / Forward"),
-        ("down", "Down / Brake"),
-        ("left", "Left"),
-        ("right", "Right"),
-        ("interact", "Interact (E)"),
-        ("enter_vehicle", "Enter/Exit vehicle (F)"),
-        ("reload", "Reload (R)"),
-        ("sprint", "Sprint (Shift)"),
-        ("map", "Map (Tab)"),
-        ("phone", "Phone (P)"),
-        ("handbrake", "Handbrake (Space)"),
+        ("up", "controls_up", "Up / Forward"),
+        ("down", "controls_down", "Down / Brake"),
+        ("left", "controls_left", "Left"),
+        ("right", "controls_right", "Right"),
+        ("interact", "controls_interact", "Interact (E)"),
+        ("enter_vehicle", "controls_enter_vehicle", "Enter/Exit vehicle (F)"),
+        ("reload", "controls_reload", "Reload (R)"),
+        ("sprint", "controls_sprint", "Sprint (Shift)"),
+        ("map", "controls_map", "Map (Tab)"),
+        ("phone", "controls_phone", "Phone (P)"),
+        ("handbrake", "controls_handbrake", "Handbrake (Space)"),
     ]
     defaults = {
         "up": pygame.K_w, "down": pygame.K_s, "left": pygame.K_a, "right": pygame.K_d,
@@ -3561,12 +3561,13 @@ def _controls_settings_menu(screen, font, settings, trans_dict, languages, contr
         hint = _cached_ui_font(None, 22).render(text.get("controls_hint","Enter: rebind, Esc: back"), True, (200,200,200))
         screen.blit(hint, (40,80))
         rects = []
-        for i,(action,label) in enumerate(actions):
+        for i,(action,label_key,label_default) in enumerate(actions):
             keycode = settings["keys"].get(action, defaults[action])
             try:
                 keyname = pygame.key.name(int(keycode))
             except Exception:
                 keyname = str(keycode)
+            label = text.get(label_key, label_default)
             line = f"{label}: [{keyname}]"
             color = (212,91,18) if i==selected else (255,255,255)
             if waiting and i==selected:
@@ -5375,6 +5376,10 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "carrying_out_msg": 'Transporting weapons - cannot shoot',
             "controls": 'Controls',
             "tutorial": 'Tutorial',
+            "tutorial_controls_final": "Enter: finish   Esc: menu",
+            "tutorial_controls_step": "N: skip step   Tab: map   Esc: menu",
+            "tutorial_step_done": "Step completed!",
+            "storage_hint": "Tab: switch   Enter/E: move   Esc: close",
             "sleep_save": "Press [E] / [T] by the bed to sleep and save",
             "hunger_meter": "HUNGER {value}%", "health_meter": "HP {value}%",
             "radio_genre_silent": "No music", "radio_genre_rock": "Alternative rock", "radio_genre_synthwave": "Synthwave",
@@ -5399,6 +5404,10 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "carrying_out_msg": 'Перенесення зброї — стріляти не можна',
             "controls": 'Керування',
             "tutorial": 'Навчання',
+            "tutorial_controls_final": "Enter: завершити   Esc: меню",
+            "tutorial_controls_step": "N: пропустити крок   Tab: мапа   Esc: меню",
+            "tutorial_step_done": "Крок виконано!",
+            "storage_hint": "Tab: перемикання   Enter/E: перенести   Esc: вийти",
             "sleep_save": "Натисніть [E] / [T] біля ліжка, щоб заснути й зберегтися",
             "hunger_meter": "СИТІСТЬ {value}%", "health_meter": "ЗД {value}%",
             "radio_genre_silent": "Без музики", "radio_genre_rock": "Альтернативний рок", "radio_genre_synthwave": "Синтвейв",
@@ -5423,6 +5432,10 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "carrying_out_msg": 'Переноска оружия — стрелять нельзя',
             "controls": 'Управление',
             "tutorial": 'Обучение',
+            "tutorial_controls_final": "Enter: завершить   Esc: меню",
+            "tutorial_controls_step": "N: пропустить шаг   Tab: карта   Esc: меню",
+            "tutorial_step_done": "Шаг завершён!",
+            "storage_hint": "Tab: переключить   Enter/E: перенести   Esc: выход",
             "sleep_save": "Нажмите [E] / [T] у кровати, чтобы поспать и сохраниться",
             "hunger_meter": "СЫТОСТЬ {value}%", "health_meter": "ЗД {value}%",
             "radio_genre_silent": "Без музыки", "radio_genre_rock": "Альтернативный рок", "radio_genre_synthwave": "Синтвейв",
@@ -5447,6 +5460,10 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "carrying_out_msg": 'Transportando armas: no puedes disparar',
             "controls": 'Controles',
             "tutorial": 'Tutorial',
+            "tutorial_controls_final": "Enter: terminar   Esc: menú",
+            "tutorial_controls_step": "N: saltar paso   Tab: mapa   Esc: menú",
+            "tutorial_step_done": "¡Paso completado!",
+            "storage_hint": "Tab: cambiar   Enter/E: mover   Esc: cerrar",
             "sleep_save": "Pulsa [E] / [T] junto a la cama para dormir y guardar",
             "hunger_meter": "HAMBRE {value}%", "health_meter": "SALUD {value}%",
             "radio_genre_silent": "Sin música", "radio_genre_rock": "Rock alternativo", "radio_genre_synthwave": "Synthwave",
@@ -5471,6 +5488,10 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "carrying_out_msg": 'Waffen werden getragen – Schießen nicht möglich',
             "controls": 'Steuerung',
             "tutorial": 'Tutorial',
+            "tutorial_controls_final": "Enter: beenden   Esc: Menü",
+            "tutorial_controls_step": "N: Schritt überspringen   Tab: Karte   Esc: Menü",
+            "tutorial_step_done": "Schritt abgeschlossen!",
+            "storage_hint": "Tab: wechseln   Enter/E: verschieben   Esc: schließen",
             "sleep_save": "Am Bett [E] / [T] drücken, um zu schlafen und zu speichern",
             "hunger_meter": "HUNGER {value}%", "health_meter": "LP {value}%",
             "radio_genre_silent": "Keine Musik", "radio_genre_rock": "Alternative Rock", "radio_genre_synthwave": "Synthwave",
@@ -5495,6 +5516,10 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "carrying_out_msg": "Transport d'armes : tir impossible",
             "controls": 'Commandes',
             "tutorial": 'Tutoriel',
+            "tutorial_controls_final": "Entrée : terminer   Échap : menu",
+            "tutorial_controls_step": "N : passer l’étape   Tab : carte   Échap : menu",
+            "tutorial_step_done": "Étape terminée !",
+            "storage_hint": "Tab : changer   Entrée/E : déplacer   Échap : fermer",
             "sleep_save": "Appuyez sur [E] / [T] près du lit pour dormir et sauvegarder",
             "hunger_meter": "FAIM {value}%", "health_meter": "SANTÉ {value}%",
             "radio_genre_silent": "Sans musique", "radio_genre_rock": "Rock alternatif", "radio_genre_synthwave": "Synthwave",
@@ -5622,13 +5647,14 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
         # wrap-ish hint: render as single line (kept short in data)
         screen.blit(sfont.render(hint, True, (210, 218, 230)), (36, 98))
         lang_name = SUPPORTED_LANGUAGES[settings.get("lang_idx", 1)]
+        tutorial_labels = translations.get(lang_name, translations["English"])
         if i == len(tutorial["steps"]) - 1:
-            controls = "Enter: finish   Esc: menu" if lang_name == "English" else "Enter: завершити   Esc: меню" if lang_name == "Українська" else "Enter: finish   Esc: menu"
+            controls = tutorial_labels.get("tutorial_controls_final", "Enter: finish   Esc: menu")
         else:
-            controls = "N: skip step   Tab: map   Esc: menu" if lang_name == "English" else "N: пропустити крок   Tab: мапа   Esc: меню" if lang_name == "Українська" else "N: skip step   Tab: map   Esc: menu"
+            controls = tutorial_labels.get("tutorial_controls_step", "N: skip step   Tab: map   Esc: menu")
         screen.blit(sfont.render(controls, True, (170, 180, 195)), (36, 124))
         if tutorial.get("step_done_flash", 0) > 0:
-            msg = "Step completed!" if lang_name == "English" else "Крок виконано!" if lang_name == "Українська" else "Step completed!"
+            msg = tutorial_labels.get("tutorial_step_done", "Step completed!")
             done = bfont.render(msg, True, (120, 230, 140))
             screen.blit(done, done.get_rect(topright=(screen.get_width()-36, 30)))
 
@@ -6158,7 +6184,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             draw_items(left_col, left_items(), mode == "left")
             draw_items(right_col, carried, mode == "right")
 
-            hint_text = "Tab: switch   Enter/E: move   Esc: close"
+            hint_text = labels.get("storage_hint", "Tab: switch   Enter/E: move   Esc: close")
             hint_s = hint_font.render(hint_text, True, (190, 185, 180))
             screen.blit(hint_s, (panel.centerx - hint_s.get_width() // 2, panel.bottom - 32))
 

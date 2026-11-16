@@ -92,3 +92,34 @@ class GunshopConstantsTests(unittest.TestCase):
             self.assertIn('leave', gt)
             self.assertEqual(len(gt['engine_tiers']), 6)
             self.assertEqual(len(gt['wheel_tiers']), 6)
+
+
+class LocalizationCompletenessTests(unittest.TestCase):
+    """Guard UI strings that are rendered outside the shared label tables."""
+
+    def test_controls_menu_labels_for_all_languages(self):
+        import main
+
+        keys = (
+            'controls_up', 'controls_down', 'controls_left', 'controls_right',
+            'controls_interact', 'controls_enter_vehicle', 'controls_reload',
+            'controls_sprint', 'controls_map', 'controls_phone',
+            'controls_handbrake', 'controls_hint',
+        )
+        for lang in engine.SUPPORTED_LANGUAGES:
+            labels = main._CONTROLS_TRANSLATIONS[lang]
+            for key in keys:
+                self.assertTrue(labels.get(key), f'{lang}.{key} missing')
+
+    def test_tutorial_steps_for_all_languages(self):
+        import engine_tutorial
+
+        for lang in engine.SUPPORTED_LANGUAGES:
+            steps = engine_tutorial.TUTORIAL_STEPS_BY_LANGUAGE[lang]
+            self.assertEqual(len(steps), 12, lang)
+            for index, step in enumerate(steps, 1):
+                self.assertEqual(len(step), 3, f'{lang} step {index}')
+                self.assertTrue(
+                    all(isinstance(part, str) and part.strip() for part in step),
+                    f'{lang} step {index} incomplete',
+                )
