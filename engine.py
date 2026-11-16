@@ -5760,9 +5760,9 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "steal_hint": "[F] Steal vehicle",
             "gps_distance": "Distance: {distance}", "gps_set": "Left-click: set destination",
             "gps_clear": "Right-click/Backspace: clear destination", "gps_gunshop": "G: mark gun shop", "gps_house": "H: mark home",
-            "radio_on": "{station} · {genre} · {track} | ,/<: previous | ./>: next",
+            "radio_on": "{station} · {genre} · {track} | 4: on/off | 5: next station",
             "radio_paused": "{station} · {genre} · {track} | ,/<: previous | ./>: next",
-            "radio_off": "{station} · {genre} | ,/<: previous | ./>: next",
+            "radio_off": "{station} · {genre} | 4: on/off | 5: next station",
         },
         "Українська": {
             "hint": "[F] Сісти / викрасти авто", "enter": "[E] Увійти в дім", "exit": "[E] Вийти з дому",
@@ -5789,9 +5789,9 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "steal_hint": "[F] Викрасти авто",
             "gps_distance": "Відстань: {distance}", "gps_set": "ЛКМ: поставити точку",
             "gps_clear": "ПКМ/Backspace: прибрати точку", "gps_gunshop": "G: позначити збройовий магазин", "gps_house": "H: позначити дім",
-            "radio_on": "{station} · {genre} · {track} | ,/<: попередня | ./>: наступна",
+            "radio_on": "{station} · {genre} · {track} | 4: вкл/викл | 5: наступна станція",
             "radio_paused": "{station} · {genre} · {track} | ,/<: попередня | ./>: наступна",
-            "radio_off": "{station} · {genre} | ,/<: попередня | ./>: наступна",
+            "radio_off": "{station} · {genre} | 4: вкл/викл | 5: наступна станція",
         },
         "Русский": {
             "hint": "[F] Сесть / угнать авто", "enter": "[E] Войти в дом", "exit": "[E] Выйти из дома",
@@ -5818,9 +5818,9 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "steal_hint": "[F] Угнать авто",
             "gps_distance": "Расстояние: {distance}", "gps_set": "ЛКМ: поставить точку",
             "gps_clear": "ПКМ/Backspace: убрать точку", "gps_gunshop": "G: отметить оружейный магазин", "gps_house": "H: отметить дом",
-            "radio_on": "{station} · {genre} · {track} | ,/<: предыдущая | ./>: следующая",
+            "radio_on": "{station} · {genre} · {track} | 4: вкл/выкл | 5: следующая станция",
             "radio_paused": "{station} · {genre} · {track} | ,/<: предыдущая | ./>: следующая",
-            "radio_off": "{station} · {genre} | ,/<: предыдущая | ./>: следующая",
+            "radio_off": "{station} · {genre} | 4: вкл/выкл | 5: следующая станция",
         },
         "Español": {
             "hint": "[F] Entrar / robar coche", "enter": "[E] Entrar en casa", "exit": "[E] Salir de casa",
@@ -5848,9 +5848,9 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "steal_hint": "[F] Robar vehículo",
             "gps_distance": "Distancia: {distance}", "gps_set": "Clic izquierdo: marcar destino",
             "gps_clear": "Clic derecho/Retroceso: borrar destino", "gps_gunshop": "G: marcar armería", "gps_house": "H: marcar casa",
-            "radio_on": "{station} · {genre} · {track} | ,/<: anterior | ./>: siguiente",
+            "radio_on": "{station} · {genre} · {track} | 4: on/off | 5: siguiente estación",
             "radio_paused": "{station} · {genre} · {track} | ,/<: anterior | ./>: siguiente",
-            "radio_off": "{station} · {genre} | ,/<: anterior | ./>: siguiente",
+            "radio_off": "{station} · {genre} | 4: on/off | 5: siguiente estación",
         },
         "Deutsch": {
             "hint": "[F] Einsteigen / Auto stehlen", "enter": "[E] Haus betreten", "exit": "[E] Haus verlassen",
@@ -5878,9 +5878,9 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "steal_hint": "[F] Auto stehlen",
             "gps_distance": "Entfernung: {distance}", "gps_set": "Linksklick: Ziel setzen",
             "gps_clear": "Rechtsklick/Backspace: Ziel löschen", "gps_gunshop": "G: Waffenladen markieren", "gps_house": "H: Haus markieren",
-            "radio_on": "{station} · {genre} · {track} | ,/<: zurück | ./>: weiter",
+            "radio_on": "{station} · {genre} · {track} | 4: an/aus | 5: nächster Sender",
             "radio_paused": "{station} · {genre} · {track} | ,/<: zurück | ./>: weiter",
-            "radio_off": "{station} · {genre} | ,/<: vorheriger Sender | ./>: nächster Sender",
+            "radio_off": "{station} · {genre} | 4: an/aus | 5: nächster Sender",
         },
         "Français": {
             "hint": "[F] Monter / voler une voiture", "enter": "[E] Entrer dans la maison", "exit": "[E] Sortir de la maison",
@@ -5908,9 +5908,9 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "steal_hint": "[F] Voler la voiture",
             "gps_distance": "Distance : {distance}", "gps_set": "Clic gauche : définir la destination",
             "gps_clear": "Clic droit/Retour arrière : supprimer la destination", "gps_gunshop": "G : marquer l'armurerie", "gps_house": "H : marquer la maison",
-            "radio_on": "{station} · {genre} · {track} | ,/< : précédente | ./> : suivante",
+            "radio_on": "{station} · {genre} · {track} | 4: on/off | 5: station suivante",
             "radio_paused": "{station} · {genre} · {track} | ,/< : précédente | ./> : suivante",
-            "radio_off": "{station} · {genre} | ,/< : station précédente | ./> : station suivante",
+            "radio_off": "{station} · {genre} | 4: on/off | 5: station suivante",
         }
     }
 
@@ -7393,12 +7393,10 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                                 traffic.respond_to_horn(npc_cars, car.pos)
                                 if tutorial:
                                     tutorial["horn_used"] = True
-                        if keyboard.matches(event, pygame.K_COMMA):
-                            radio.cycle_station(-1)
-                        if keyboard.matches(event, pygame.K_PERIOD):
-                            radio.cycle_station(1)
-                        if keyboard.matches(event, pygame.K_v):
+                        if not phone_active and keyboard.matches(event, pygame.K_4):
                             radio.toggle()
+                        if not phone_active and keyboard.matches(event, pygame.K_5):
+                            radio.cycle_station(1)
                     elif not phone_active and keyboard.matches(event, pygame.K_e):
                         if (
                             atom.pos.distance_to(pygame.Vector2(_constants.GARAGE_POS))
@@ -7904,7 +7902,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                         track=radio.track_name,
                     ).split("|", 1)[0].strip()
                     status_surf = small_font.render(radio_status, True, (238, 164, 47))
-                    hint_surf = small_font.render("V  ,/. ", True, (170, 180, 195))
+                    hint_surf = small_font.render("4  on/off   5  next", True, (170, 180, 195))
                     plate_w = min(
                         screen.get_width() - 40,
                         max(status_surf.get_width(), hint_surf.get_width()) + 28,

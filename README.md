@@ -27,7 +27,7 @@ Game About Mister Atom
 
 ### Fixed
 
-- **In-game radio.** Radio stations now play during gameplay again (Asphalt FM, Night Shift 88, НРК). Press **V** in a car to turn the radio on/off, **, / .** to change station. The live playlist clock keeps running while tuned away, switching stations resumes at the current position, and volume follows the music setting. The main-menu theme remains separate.
+- **In-game radio.** Radio stations now play during gameplay again (Asphalt FM, Night Shift 88, НРК). Press **4** in a car to turn the radio on/off and **5** to switch to the next station. The live playlist clock keeps running while tuned away, switching stations resumes at the current position, and volume follows the music setting. The main-menu theme remains separate.
 
 ### Changed
 
