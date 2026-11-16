@@ -2352,6 +2352,26 @@ def _clip_headlight_beam(beam, beam_rect, world_origin, screen_origin, forward, 
 class Car:
     _ACCELERATION_BANDS = ((70.0, 0.9), (90.0, 0.35), (120.0, 0.16))
 
+    # Player vehicle handling tuning.  All values are expressed in the same
+    # units as the rest of the class: ``speed`` is roughly km/h / 8 and the
+    # steering angle is measured in degrees per frame at 60 FPS.
+    _MIN_GRIP = 0.18                # never lose all control, even on ice
+    _TRACTION_FLOOR = 0.35          # minimum throttle response on slick roads
+    _BRAKE_GRIP_FLOOR = 0.35        # locked wheels still slow the car a little
+    _HANDBRAKE_FORCE = 1.4          # handbrake vs. service brake strength
+    _HANDBRAKE_STEER_BOOST = 1.5    # extra steering lock while drifting
+    _REVERSE_SPEED_RATIO = 0.5      # reverse top speed relative to forward
+    _COAST_FRICTION_SCALE = 0.75    # maps Wheel upgrades onto rolling drag
+    _STEER_RESPONSE = 0.32          # how quickly the steering input settles
+    _STEER_MAX_DEG = 5.0            # tight lock at crawling speed
+    _STEER_MIN_DEG = 2.2            # calm lock at motorway speed
+    _STEER_FULL_SPEED_KMH = 140.0   # speed at which the lock reaches minimum
+    _STEER_GRIP_FLOOR = 0.45        # understeer on low-grip surfaces
+    _LONGITUDINAL_GRIP_FLOOR = 0.4
+    _DRIFT_MIN_KMH = 38.0           # no drifting at pedestrian speeds
+    _HARD_TURN_KMH = 65.0           # sustained turn needed to break traction
+    _HARD_TURN_INPUT = 0.55
+
     def __init__(self, x, y):
         self.pos = pygame.Vector2(x, y)
         self.angle = 0
@@ -2366,6 +2386,9 @@ class Car:
         self.engine_upgrade = 0
         self.wheel_upgrade = 0
         self.motion_velocity = pygame.Vector2()
+        # Smoothed steering input (-1 .. 1).  It makes turn-in and turn-out
+        # gradual instead of snapping the car to a new heading instantly.
+        self.steer_input = 0.0
 
         self.skid_marks = []
         self.just_hit = False
@@ -2419,6 +2442,85 @@ class Car:
             self.speed = min(current_kmh / 8, self.max_speed)
             remaining_frames -= applied_frames
 
+    def _apply_brake(self, frame_scale, force, grip):
+        """Decelerate toward a standstill, losing efficiency on slick roads."""
+        deceleration = force * max(self._BRAKE_GRIP_FLOOR, grip) * frame_scale
+        if self.speed > 0:
+            self.speed = max(0.0, self.speed - deceleration)
+        elif self.speed < 0:
+            self.speed = min(0.0, self.speed + deceleration)
+
+    def _coast(self, frame_scale, grip, multiplier=1.0):
+        """Rolling resistance; Wheel upgrades raise ``friction``."""
+        rate = min(
+            0.5,
+            self.friction * self._COAST_FRICTION_SCALE * (0.45 + 0.55 * grip) * multiplier,
+        )
+        self.speed *= (1.0 - rate) ** max(frame_scale, 0.0)
+
+    def _update_steering(
+        self, left_pressed, right_pressed, frame_scale, grip, handbrake_pressed
+    ):
+        """Smooth the input and apply a speed-sensitive, grip-limited lock."""
+        target = (1.0 if left_pressed else 0.0) - (1.0 if right_pressed else 0.0)
+        blend = 1.0 - (1.0 - self._STEER_RESPONSE) ** max(frame_scale, 0.0)
+        self.steer_input += (target - self.steer_input) * blend
+        if abs(self.steer_input) < 0.01:
+            self.steer_input = 0.0
+        if abs(self.speed) <= 0.5 or self.steer_input == 0.0:
+            return
+
+        current_kmh = abs(self.speed) * 8.0
+        speed_ratio = min(current_kmh / self._STEER_FULL_SPEED_KMH, 1.0)
+        steer = self._STEER_MAX_DEG + (self._STEER_MIN_DEG - self._STEER_MAX_DEG) * speed_ratio
+        if handbrake_pressed:
+            steer *= self._HANDBRAKE_STEER_BOOST
+        steer_grip = self._STEER_GRIP_FLOOR + (1.0 - self._STEER_GRIP_FLOOR) * grip
+        direction = 1 if self.speed > 0 else -1
+        self.angle += self.steer_input * steer * steer_grip * direction * frame_scale
+
+    def _resolve_collision(self, velocity, forward, npc_cars, col_mask):
+        """Stop, slide along a wall or bounce, without getting stuck jittering."""
+        step = velocity
+        impact_speed = velocity.length()
+
+        if impact_speed > 1.5:
+            self.just_hit = True
+            self.health = max(0.0, self.health - min(65.0, impact_speed * 2.0))
+            if self.health <= 0:
+                self.is_broken = True
+
+        def is_clear(position):
+            return traffic.can_move_to(self, position, npc_cars, col_mask)
+
+        # A glancing impact should scrape along the obstacle instead of
+        # stopping the car dead; keep whichever axis still has room.
+        slides = [
+            axis
+            for axis in (pygame.Vector2(step.x, 0), pygame.Vector2(0, step.y))
+            if axis.length_squared() > 0 and is_clear(self.pos + axis)
+        ]
+        if slides:
+            best = max(slides, key=lambda axis: axis.length_squared())
+            self.pos += best
+            if abs(step.x) > 0 and abs(best.x) < 1e-6:
+                self.motion_velocity.x = 0
+            if abs(step.y) > 0 and abs(best.y) < 1e-6:
+                self.motion_velocity.y = 0
+        elif impact_speed > 3.0:
+            # A solid hit rebounds proportionally to the impact energy.
+            bounce = min(0.5, 0.15 + impact_speed * 0.02)
+            self.motion_velocity *= -bounce
+        else:
+            # Gentle contact (e.g. holding the throttle into a wall) must not
+            # produce repeated damage or an oscillating car.
+            self.motion_velocity.update(0, 0)
+
+        self.speed = max(
+            -self.max_speed / 2,
+            min(self.max_speed, self.motion_velocity.dot(forward)),
+        )
+
     def update(
         self,
         keys,
@@ -2429,161 +2531,155 @@ class Car:
         surface_map=None,
         weather_grip=1.0,
     ):
+        frame_scale = max(0.0, frame_scale)
+        throttle = False
+        brake_reverse = False
+        handbrake_pressed = False
         left_pressed = False
         right_pressed = False
-        handbrake_pressed = False
         self.is_drifting = False
         self.is_braking = False
         surface_grip = _get_surface_grip(col_mask, surface_map, self.pos, self.angle)
         surface_grip *= max(0.1, min(1.0, weather_grip))
-        # A broken car does not respond to acceleration.
+        grip = max(self._MIN_GRIP, surface_grip)
+        # A broken car does not respond to controls.
         if self.is_broken:
             active = False
-            if abs(self.speed) < 0.1: self.speed = 0
 
         if not active:
-            if abs(self.speed) > 0.1:
-                self.speed *= 0.95 ** frame_scale
-            else:
-                self.speed = 0
+            self.steer_input *= 0.5 ** frame_scale
+            self._coast(frame_scale, grip, multiplier=1.6)
+            if abs(self.speed) <= 0.1:
+                self.speed = 0.0
         else:
-            # 1. Speed control.
+            # 1. Speed control. Handbrake outranks the brake, the brake
+            # outranks the throttle, and reverse is capped independently.
             throttle = keys[pygame.K_w] or keys[pygame.K_UP]
             brake_reverse = keys[pygame.K_s] or keys[pygame.K_DOWN]
             handbrake_pressed = keys[pygame.K_SPACE]
             self.is_braking = (
                 (brake_reverse and self.speed > 0)
                 or (throttle and self.speed < 0)
-                or (handbrake_pressed and abs(self.speed) > 0)
+                or (handbrake_pressed and abs(self.speed) > 0.1)
             )
 
             if handbrake_pressed:
-                if abs(self.speed) < 0.2:
-                    self.speed = 0
-                elif self.speed > 0:
-                    self.speed = max(0.0, self.speed - self.brake_force * 1.4 * frame_scale)
-                else:
-                    self.speed = min(0.0, self.speed + self.brake_force * 1.4 * frame_scale)
+                self._apply_brake(
+                    frame_scale, self.brake_force * self._HANDBRAKE_FORCE, grip
+                )
             elif brake_reverse and throttle:
-                # Brake has priority over gas when both are pressed.
-                if self.speed > 0.1:
-                    self.speed = max(0.0, self.speed - self.brake_force * frame_scale)
-                elif self.speed < -0.1:
-                    self.speed = min(0.0, self.speed + self.brake_force * frame_scale)
+                if abs(self.speed) > 0.1:
+                    self._apply_brake(frame_scale, self.brake_force, grip)
                 else:
-                    self.speed = 0
+                    self.speed = 0.0
             elif throttle:
                 if self.speed < -0.1:
-                    self.speed = min(0.0, self.speed + self.brake_force * frame_scale)
+                    self._apply_brake(frame_scale, self.brake_force, grip)
                 else:
-                    self._accelerate_forward(frame_scale, surface_grip)
+                    self._accelerate_forward(
+                        frame_scale, max(self._TRACTION_FLOOR, grip)
+                    )
             elif brake_reverse:
                 if self.speed > 0.1:
-                    self.speed = max(0.0, self.speed - self.brake_force * frame_scale)
+                    self._apply_brake(frame_scale, self.brake_force, grip)
                 else:
-                    current_accel = self.accel * frame_scale
+                    reverse_accel = (
+                        self.accel * max(self._TRACTION_FLOOR, grip) * frame_scale
+                    )
                     if abs(self.speed) > 10:
-                        current_accel = self.accel / 3 * frame_scale
-                    self.speed = max(self.speed - current_accel, -self.max_speed / 2)
+                        reverse_accel /= 3.0
+                    self.speed = max(
+                        self.speed - reverse_accel,
+                        -self.max_speed * self._REVERSE_SPEED_RATIO,
+                    )
             else:
-                self.speed *= 0.97 ** frame_scale
+                self._coast(frame_scale, grip)
 
             # 2. Steering.
             left_pressed = keys[pygame.K_a] or keys[pygame.K_LEFT]
             right_pressed = keys[pygame.K_d] or keys[pygame.K_RIGHT]
-            handbrake_pressed = handbrake_pressed and abs(self.speed) > 0.5
-            if abs(self.speed) > 0.5:
-                steer = 5.0 - (min(abs(self.speed) / 2, 1.0))
-                if handbrake_pressed:
-                    steer *= 1.5
-                direction = 1 if self.speed > 0 else -1
-                if left_pressed: self.angle += steer * direction * frame_scale
-                if right_pressed: self.angle -= steer * direction * frame_scale
+            self._update_steering(
+                left_pressed,
+                right_pressed,
+                frame_scale,
+                grip,
+                handbrake_pressed and abs(self.speed) > 0.5,
+            )
+        active_handbrake = handbrake_pressed and abs(self.speed) > 0.5
 
-        # 3. Movement and collision. At higher speed the car's momentum
-        # follows steering more slowly, so it slides sideways during turns.
-        current_kmh = abs(self.speed) * 8
-        is_turning = left_pressed != right_pressed
-        self.is_drifting = active and current_kmh > 30 and (is_turning or handbrake_pressed)
-        desired_velocity = pygame.Vector2(self.speed, 0).rotate(-self.angle + 180)
+        # 3. Movement and collision. Momentum is split into a longitudinal
+        # part (chasing engine speed) and a lateral part (bleeding off with
+        # grip), which gives understeer and controllable, sliding drifts.
+        current_kmh = abs(self.speed) * 8.0
+        hard_turn = active and abs(self.steer_input) > self._HARD_TURN_INPUT
+        drift_turn_speed = self._HARD_TURN_KMH * (0.55 + 0.45 * grip)
+        self.is_drifting = (
+            active
+            and current_kmh > self._DRIFT_MIN_KMH
+            and (
+                (active_handbrake and current_kmh > 25.0)
+                or (hard_turn and current_kmh > drift_turn_speed)
+            )
+        )
+        forward = pygame.Vector2(1, 0).rotate(-self.angle + 180)
         if self.is_drifting:
-            drift_intensity = min((current_kmh - 30) / 90, 1.0) ** 1.5
-            grip = (0.55 - 0.35 * drift_intensity) * surface_grip
-            if handbrake_pressed:
-                grip *= 0.28
-            if current_kmh >= 100:
-                speed_loss_kmh_per_second = 7.0 if current_kmh <= 110 else 10.0
-                speed_reduction = speed_loss_kmh_per_second * frame_scale / (60 * 8)
+            drift_intensity = min(
+                (current_kmh - self._DRIFT_MIN_KMH) / 90.0, 1.0
+            ) ** 1.5
+            lateral_grip = (0.55 - 0.35 * drift_intensity) * surface_grip
+            if active_handbrake:
+                lateral_grip *= 0.28
+            if current_kmh >= 100.0:
+                loss_per_second = 7.0 if current_kmh <= 110.0 else 10.0
+                speed_loss = loss_per_second * frame_scale / (60.0 * 8.0)
                 if self.speed > 0:
-                    self.speed = max(0.0, self.speed - speed_reduction)
+                    self.speed = max(0.0, self.speed - speed_loss)
                 elif self.speed < 0:
-                    self.speed = min(0.0, self.speed + speed_reduction)
-        elif current_kmh > 30:
-            grip = 0.42 * surface_grip * self.handling
+                    self.speed = min(0.0, self.speed + speed_loss)
         else:
-            grip = 0.65 * surface_grip * self.handling
+            lateral_grip = (
+                0.42 if current_kmh > 30.0 else 0.65
+            ) * surface_grip * self.handling
         if self.is_drifting:
-            grip *= self.handling
-        blend = 1 - (1 - grip) ** max(frame_scale, 0)
-        self.motion_velocity += (desired_velocity - self.motion_velocity) * blend
+            lateral_grip *= self.handling
+
+        long_grip = self._LONGITUDINAL_GRIP_FLOOR + (
+            1.0 - self._LONGITUDINAL_GRIP_FLOOR
+        ) * grip
+        long_blend = 1.0 - (1.0 - long_grip) ** frame_scale
+        lat_blend = 1.0 - (1.0 - max(0.01, min(0.95, lateral_grip))) ** frame_scale
+        side = pygame.Vector2(-forward.y, forward.x)
+        longitudinal = self.motion_velocity.dot(forward)
+        lateral = self.motion_velocity.dot(side)
+        self.motion_velocity = (
+            forward * (longitudinal + (self.speed - longitudinal) * long_blend)
+            + side * (lateral * (1.0 - lat_blend))
+        )
         velocity = self.motion_velocity
+        old_pos = pygame.Vector2(self.pos)
         next_pos = self.pos + velocity * frame_scale
-        # 1. Update existing smoke particles, even while the car is stationary.
+
+        # Smoke keeps updating even while the car is stationary.
         self.update_smoke_particles(frame_scale)
-
-        # 2. Create new particles when the car is damaged.
-        # Emit smoke only when health is below 50%.
         if self.health < self.max_health * 0.5:
-            # Lower health makes smoke appear more often.
-            spawn_chance = 10  # Base chance: once every 10 frames.
-
-            # At critical health (<20%), smoke appears almost continuously.
-            if self.health < self.max_health * 0.2:
-                spawn_chance = 2  # Very frequently.
-
-            # Add randomness so smoke does not look continuous.
+            spawn_chance = 2 if self.health < self.max_health * 0.2 else 10
             if random.random() < min(1.0, frame_scale / spawn_chance):
-                self.create_smoke_particle()  # <-- This method is defined below.
+                self.create_smoke_particle()
 
-        def check_at_pos(test_pos):
-            return not traffic.can_move_to(
-                self, test_pos, npc_cars, col_mask
-            )
-
-        if check_at_pos(next_pos):
-            impact_speed = velocity.length()
-            if impact_speed > 1.5:
-                self.just_hit = True
-                damage = min(65.0, impact_speed * 2.0)
-                self.health -= damage
-                if self.health <= 0:
-                    self.health = 0
-                    self.is_broken = True
-
-            if velocity.length_squared() > 0:
-                self.pos -= velocity.normalize() * 5 * frame_scale
-            bounce_factor = min(0.9, 0.45 + impact_speed * 0.04)
-            self.motion_velocity *= -bounce_factor
-            forward = pygame.Vector2(1, 0).rotate(-self.angle + 180)
-            self.speed = max(
-                -self.max_speed / 2,
-                min(self.max_speed, self.motion_velocity.dot(forward)),
-            )
-        else:
-            old_pos = pygame.Vector2(self.pos.x, self.pos.y)
+        if traffic.can_move_to(self, next_pos, npc_cars, col_mask):
             self.pos = next_pos
-
             # Tire tracks.
-            is_braking = active and ((keys[pygame.K_s] and self.speed > 2) or (keys[pygame.K_w] and self.speed < -2))
-            if is_braking or self.is_drifting:
-                forward_vec = pygame.Vector2(1, 0).rotate(-self.angle + 180)
+            if (self.is_braking and abs(self.speed) > 2.0) or self.is_drifting:
                 off_l = pygame.Vector2(0, 16).rotate(-self.angle + 180)
                 off_r = pygame.Vector2(0, -16).rotate(-self.angle + 180)
-                back_axle = forward_vec * 35
+                back_axle = forward * 35
                 p1_l, p1_r = (old_pos - back_axle) + off_l, (old_pos - back_axle) + off_r
                 p2_l, p2_r = (self.pos - back_axle) + off_l, (self.pos - back_axle) + off_r
                 self.skid_marks.append((p1_l, p2_l, p1_r, p2_r))
-                if len(self.skid_marks) > 60: self.skid_marks.pop(0)
+                if len(self.skid_marks) > 60:
+                    self.skid_marks.pop(0)
+        else:
+            self._resolve_collision(velocity, forward, npc_cars, col_mask)
 
     def create_smoke_particle(self):
         """Create one smoke particle at the center of the car."""
