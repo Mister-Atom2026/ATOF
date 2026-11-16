@@ -976,25 +976,13 @@ class GameRadio:
         return 0, 0.0
 
     def _play_live_track(self, *, force: bool = False) -> None:
-        if self.silent_mode:
-            pygame.mixer.music.stop()
-            self.is_on = False
-            self.is_playing = False
-            self._loaded_track = None
-            return
-        track_index, offset = self._live_track_position(self.station_index)
-        track_key = (self.station_index, track_index)
-        if not force and self._loaded_track == track_key and pygame.mixer.music.get_busy():
-            self.is_playing = True
-            return
-
-        track = _RADIO_STATIONS[self.station_index].tracks[track_index]
-        track_path = _ASSET_ROOT / track.path
-        pygame.mixer.music.load(str(track_path))
-        pygame.mixer.music.play(start=offset)
-        self._loaded_track = track_key
-        self.is_playing = True
-        configure_audio(self.settings)
+        # Music is allowed only in the main menu.
+        pygame.mixer.music.stop()
+        self.is_on = False
+        self.is_playing = False
+        self._loaded_track = None
+        self.silent_mode = True
+        return
 
     def toggle(self) -> None:
         if self.silent_mode:
@@ -2902,24 +2890,29 @@ def draw_gta_minimap(
     outer_r = half_size + 12
     frame_surf = pygame.Surface((outer_r * 2 + 4, outer_r * 2 + 4), pygame.SRCALPHA)
     fc = (outer_r + 2, outer_r + 2)
-    # soft drop shadow
-    pygame.draw.circle(frame_surf, (0, 0, 0, 70), (fc[0] + 2, fc[1] + 4), outer_r)
+    # soft drop shadow / outer glow
+    pygame.draw.circle(frame_surf, (0, 0, 0, 80), (fc[0] + 3, fc[1] + 5), outer_r)
+    pygame.draw.circle(frame_surf, (20, 28, 40, 90), fc, outer_r + 1)
     # dark glass base ring
-    pygame.draw.circle(frame_surf, (18, 20, 26, 235), fc, outer_r)
-    pygame.draw.circle(frame_surf, (40, 46, 58, 220), fc, outer_r - 3)
-    pygame.draw.circle(frame_surf, (255, 255, 255, 28), fc, outer_r, 1)
-    pygame.draw.circle(frame_surf, (255, 255, 255, 18), fc, half_size + 2, 1)
+    pygame.draw.circle(frame_surf, (16, 20, 28, 240), fc, outer_r)
+    pygame.draw.circle(frame_surf, (34, 42, 54, 230), fc, outer_r - 4)
+    pygame.draw.circle(frame_surf, (58, 72, 92, 160), fc, outer_r - 8, 1)
+    # rim lights
+    pygame.draw.circle(frame_surf, (255, 255, 255, 34), fc, outer_r, 1)
+    pygame.draw.circle(frame_surf, (255, 255, 255, 20), fc, half_size + 2, 1)
+    pygame.draw.arc(frame_surf, (255, 255, 255, 55), (fc[0]-outer_r+2, fc[1]-outer_r+2, (outer_r-2)*2, (outer_r-2)*2), math.radians(200), math.radians(330), 2)
+    pygame.draw.arc(frame_surf, (255, 255, 255, 25), (fc[0]-half_size-1, fc[1]-half_size-1, (half_size+1)*2, (half_size+1)*2), math.radians(20), math.radians(120), 1)
     screen.blit(frame_surf, (center_on_screen[0] - fc[0], center_on_screen[1] - fc[1]))
 
     health_start, health_end = -88, 148
     hunger_start, hunger_end = 152, 268
     ring_radius, ring_width = half_size + 9, 7
-    track_base = (35, 40, 50)
+    track_base = (30, 36, 46)
     # arc tracks with depth
     _draw_hud_arc(screen, center_on_screen, ring_radius, health_start, health_end, track_base, ring_width)
-    _draw_hud_arc(screen, center_on_screen, ring_radius, health_start, health_end, (60, 68, 82), 1)
+    _draw_hud_arc(screen, center_on_screen, ring_radius, health_start, health_end, (70, 82, 100), 1)
     _draw_hud_arc(screen, center_on_screen, ring_radius, hunger_start, hunger_end, track_base, ring_width)
-    _draw_hud_arc(screen, center_on_screen, ring_radius, hunger_start, hunger_end, (60, 68, 82), 1)
+    _draw_hud_arc(screen, center_on_screen, ring_radius, hunger_start, hunger_end, (70, 82, 100), 1)
 
     def draw_pretty_arc(start, end, ratio, color_main, glow_main):
         if ratio <= 0:
@@ -2931,16 +2924,16 @@ def draw_gta_minimap(
         gs = outer_r * 2 + 20
         glow_surf = pygame.Surface((gs, gs), pygame.SRCALPHA)
         gc = (gs // 2, gs // 2)
-        _draw_hud_arc(glow_surf, gc, ring_radius, a1, a2, (*glow_main, 70), ring_width + 6)
-        _draw_hud_arc(glow_surf, gc, ring_radius, a1, a2, (*glow_main, 35), ring_width + 10)
+        _draw_hud_arc(glow_surf, gc, ring_radius, a1, a2, (*glow_main, 80), ring_width + 8)
+        _draw_hud_arc(glow_surf, gc, ring_radius, a1, a2, (*glow_main, 40), ring_width + 4)
         screen.blit(glow_surf, (center_on_screen[0] - gc[0], center_on_screen[1] - gc[1]))
         _draw_hud_arc(screen, center_on_screen, ring_radius, a1, a2, color_main, ring_width)
-        highlight = (min(255, color_main[0] + 60), min(255, color_main[1] + 60), min(255, color_main[2] + 60))
+        highlight = (min(255, color_main[0] + 70), min(255, color_main[1] + 70), min(255, color_main[2] + 70))
         _draw_hud_arc(screen, center_on_screen, ring_radius - 2, a1, a2, highlight, 2)
         # rounded end cap
         ang = math.radians(a2)
         cap = (round(center_on_screen[0] + math.cos(ang) * ring_radius), round(center_on_screen[1] + math.sin(ang) * ring_radius))
-        pygame.draw.circle(screen, glow_main, cap, max(4, ring_width // 2 + 1))
+        pygame.draw.circle(screen, (*glow_main, 255), cap, max(4, ring_width // 2 + 1))
         pygame.draw.circle(screen, color_main, cap, max(3, ring_width // 2))
         pygame.draw.circle(screen, highlight, cap, 2)
 
@@ -2958,26 +2951,52 @@ def draw_gta_minimap(
         hu_main, hu_glow = (255, 92, 82), (255, 92, 82)
     draw_pretty_arc(hunger_start, hunger_end, hunger_ratio, hu_main, hu_glow)
 
+    # Frosted glass feel: blur + cool tint while keeping markers readable
+    frosted = mini_surf.copy()
+    small_size = max(28, size // 5)
+    blurred = pygame.transform.smoothscale(frosted, (small_size, small_size))
+    blurred = pygame.transform.smoothscale(blurred, (size, size))
+    blurred.set_alpha(95)
+    mini_surf.blit(blurred, (0, 0))
+    tint = pygame.Surface((size, size), pygame.SRCALPHA)
+    pygame.draw.circle(tint, (170, 210, 245, 28), (half_size, half_size), half_size - 1)
+    pygame.draw.circle(tint, (255, 255, 255, 10), (half_size, half_size - size // 10), half_size - 8)
+    mini_surf.blit(tint, (0, 0))
+    # keep markers readable: redraw player + destination on top
+    pygame.draw.circle(mini_surf, (255, 60, 60), (int(px), int(py)), 6)
+    pygame.draw.circle(mini_surf, (255, 255, 255), (int(px), int(py)), 6, 2)
+    if destination is not None:
+        _draw_gps_marker(mini_surf, marker_pos, 9)
+
     # Put the full circular radar above its backing rim and progress arcs.
     screen.blit(mini_surf, (x, y))
 
-    # Modern glass highlights/reflections
+    # Enhanced glass highlights/reflections and rim
     glass = pygame.Surface((size, size), pygame.SRCALPHA)
-    # top-left glossy sweep
-    pygame.draw.ellipse(glass, (255, 255, 255, 42), (-size * 0.1, -size * 0.25, size * 0.95, size * 0.75))
-    pygame.draw.ellipse(glass, (255, 255, 255, 0), (size * 0.05, -size * 0.05, size * 0.8, size * 0.7))
-    # clip highlight to circle
+    # broad glossy sweep and secondary sheen
+    pygame.draw.ellipse(glass, (255, 255, 255, 58), (-size * 0.10, -size * 0.24, size * 0.96, size * 0.76))
+    pygame.draw.ellipse(glass, (255, 255, 255, 22), (size * 0.00, -size * 0.04, size * 0.66, size * 0.52))
+    pygame.draw.ellipse(glass, (210, 235, 255, 20), (size * 0.18, size * 0.08, size * 0.52, size * 0.30))
+    # inner curvature shading
+    pygame.draw.ellipse(glass, (0, 0, 0, 28), (size * 0.04, size * 0.48, size * 0.92, size * 0.68))
+    pygame.draw.circle(glass, (0, 0, 0, 18), (half_size, half_size), half_size - 3, 10)
+    # clip highlights to circle
     clip_mask = pygame.Surface((size, size), pygame.SRCALPHA)
     pygame.draw.circle(clip_mask, (255, 255, 255, 255), (half_size, half_size), half_size - 2)
     glass.blit(clip_mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
-    # rim highlights
-    pygame.draw.circle(glass, (255, 255, 255, 55), (half_size - size // 5, half_size - size // 4), half_size // 3)
+    # specular hotspots and edge refraction-like rim
+    pygame.draw.circle(glass, (255, 255, 255, 70), (half_size - size // 5, half_size - size // 4), max(9, half_size // 4))
+    pygame.draw.circle(glass, (255, 255, 255, 30), (half_size + size // 4, half_size + size // 7), max(6, half_size // 6))
+    pygame.draw.circle(glass, (180, 220, 255, 22), (half_size + size // 6, half_size - size // 5), max(5, half_size // 7))
     glass.blit(clip_mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
-    pygame.draw.circle(glass, (255, 255, 255, 22), (half_size, half_size), half_size - 1, 2)
-    pygame.draw.arc(glass, (255, 255, 255, 70), (3, 3, size - 6, size - 6), math.radians(200), math.radians(320), 2)
+    pygame.draw.circle(glass, (255, 255, 255, 34), (half_size, half_size), half_size - 1, 2)
+    pygame.draw.circle(glass, (140, 180, 220, 24), (half_size, half_size), half_size - 3, 1)
+    pygame.draw.arc(glass, (255, 255, 255, 95), (2, 2, size - 4, size - 4), math.radians(198), math.radians(328), 2)
+    pygame.draw.arc(glass, (255, 255, 255, 42), (4, 4, size - 8, size - 8), math.radians(16), math.radians(115), 1)
+    pygame.draw.arc(glass, (120, 170, 220, 30), (3, 3, size - 6, size - 6), math.radians(30), math.radians(150), 1)
     screen.blit(glass, (x, y))
-    pygame.draw.circle(screen, (210, 225, 245), center_on_screen, half_size, 2)
-    pygame.draw.circle(screen, (120, 140, 170), center_on_screen, half_size + 1, 1)
+    pygame.draw.circle(screen, (228, 242, 255), center_on_screen, half_size, 2)
+    pygame.draw.circle(screen, (150, 175, 205), center_on_screen, half_size + 1, 1)
 
     if distance is not None:
         text = text_labels.get("gps_distance", "Distance: {distance}").format(
@@ -4173,9 +4192,15 @@ def draw_interaction_prompt(
 
     # glass panel
     panel_surf = pygame.Surface((panel.width, panel.height), pygame.SRCALPHA)
-    panel_surf.fill((18, 22, 30, 210))
+    panel_surf.fill((16, 22, 30, 205))
+    # subtle vertical sheen
+    sheen = pygame.Surface((panel.width, panel.height), pygame.SRCALPHA)
+    pygame.draw.ellipse(sheen, (255, 255, 255, 22), (-20, -panel.height * 0.6, panel.width * 0.8, panel.height * 1.1))
+    pygame.draw.rect(sheen, (255, 255, 255, 10), (0, 0, panel.width, panel.height // 2), border_radius=12)
+    panel_surf.blit(sheen, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
     target.blit(panel_surf, panel.topleft)
-    pygame.draw.rect(target, (90, 105, 130), panel, 1, border_radius=12)
+    pygame.draw.rect(target, (120, 145, 175, 120), panel, 1, border_radius=12)
+    pygame.draw.rect(target, (255, 255, 255, 40), panel.inflate(-2, -2), 1, border_radius=11)
     pygame.draw.rect(target, (212, 91, 18), (panel.x, panel.y, 3, panel.height), border_radius=12)
 
     key_rect = pygame.Rect(panel.x + 10, panel.centery - key_size // 2, key_size, key_size)
@@ -5101,70 +5126,128 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
         lang = SUPPORTED_LANGUAGES[settings.get("lang_idx", 1)]
         tut_steps = {
             "English": [
-                ("Get outside", "Leave the house and explore the city.", "Move with W/A/S/D or arrows. Press E at the door to exit the house."),
-                ("Get in a car", "Take a car from the garage or enter any car.", "Go to the garage and press E to take a car, or press F near a car."),
-                ("Drive", "Drive and try braking/reverse, then get out.", "W/S accelerate/brake, A/D steer, Space handbrake. F to exit."),
-                ("Visit & interact", "Visit a location and interact with it.", "Try the house, gun shop, or garage and press E where prompted."),
-                ("Combat basics", "Open weapon wheel, fire and reload.", "Middle mouse: weapon wheel. LMB: fire. R: reload."),
-                ("Complete", "Tutorial complete! Explore freely.", "Press Enter to finish, or Tab to skip steps, Esc for menu."),
+                ("Movement & HUD", "Move around and learn the basics.", "WASD/arrows: move. Shift: sprint. Watch HUD: health, hunger, wanted, minimap, money (₭)."),
+                ("House & interaction", "Leave the house and explore the city.", "E: interact/enter/exit. Use E at the house door to go outside, then come back in."),
+                ("Sleep, save & hunger", "Learn survival basics inside the house.", "E/T by the bed: sleep and save (+income days apply). Open fridge with E and eat to restore hunger."),
+                ("Phone & map", "Use the phone and the full map.", "P: phone (apps/info). Tab: full map. On map: LMB set GPS, G gun shop, H home, RMB/Backspace/Delete clear."),
+                ("Garage & your car", "Use the garage and your main vehicle.", "At garage E: open menu, take/store car, upgrades. Trunk (E at rear) opens on your main car and stolen cars you hijacked."),
+                ("Driving controls", "Drive and test vehicle controls.", "F: enter/exit. W/S: accelerate/brake/reverse. A/D: steer. Space: handbrake. H: headlights. E: horn (while driving)."),
+                ("Steal & repair", "Steal an NPC car and learn repair.", "F near an NPC car to steal it. If damaged/broken, hold R to repair. Wanted level can rise for crimes."),
+                ("Gun shop & ammo", "Visit the gun shop and buy ammo.", "Find gun shop (G on map). Enter with E, at counter E browse/buy ammo for owned firearms (₭)."),
+                ("Weapons & combat", "Use the weapon wheel, shoot and reload.", "MMB: weapon wheel (2 firearms, knife, unarmed). LMB: shoot/melee. R: reload. Knife works in close range."),
+                ("Storage & trunk", "Store items in nightstand and car trunk.", "House nightstand (E): move weapons (7 slots). Car trunk (E at rear of main/stolen car): store/take items."),
+                ("Economy & wanted", "Understand money and wanted mechanics.", "Currency: krotiks (₭). Shop gives +100 ₭ per in-game day. Crimes raise wanted level; police may chase."),
+                ("Complete", "Tutorial complete — all core mechanics covered.", "You can keep exploring. Enter: finish tutorial, Tab: skip step, Esc: menu."),
             ],
             "Українська": [
-                ("Вийдіть надвір", "Вийдіть із дому та огляньте місто.", "Рухайтесь W/A/S/D або стрілками. Натисніть E біля виходу з дому."),
-                ("Сядьте в авто", "Візьміть авто з гаража або сядьте в будь-яке авто.", "Підійдіть до гаража й натисніть E або натисніть F біля авто."),
-                ("Поїздка", "Проїдьте, спробуйте гальмування/задній хід і вийдіть.", "W/S — газ/гальмо, A/D — кермо, Space — ручник, F — вийти."),
-                ("Локації та взаємодія", "Зайдіть у локацію та взаємодійте з нею.", "Спробуйте дім, збройовий магазин або гараж і натисніть E за підказкою."),
-                ("Бій", "Відкрийте колесо зброї, зробіть постріл і перезарядіться.", "Середня кнопка миші — колесо, ЛКМ — вогонь, R — перезарядка."),
-                ("Завершено", "Навчання завершено! Можете досліджувати місто.", "Enter — завершити, Tab — пропустити крок, Esc — меню."),
+                ("Рух і HUD", "Рухайтесь та ознайомтесь з інтерфейсом.", "WASD/стрілки: рух. Shift: біг. HUD: здоров’я, голод, розшук, мінімапа, гроші (₭)."),
+                ("Дім і взаємодія", "Вийдіть із дому та поверніться.", "E: взаємодія/вхід/вихід. Натисніть E біля дверей, щоб вийти надвір і зайти назад."),
+                ("Сон, збереження, голод", "Базові механіки виживання вдома.", "E/T біля ліжка: сон і збереження (+дохід за дні). Холодильник (E): їжа відновлює голод."),
+                ("Телефон і карта", "Користуйтесь телефоном і мапою.", "P: телефон. Tab: повна мапа. На мапі: ЛКМ — точка GPS, G — збройова, H — дім, ПКМ/Backspace/Delete — очистити."),
+                ("Гараж і авто", "Користуйтесь гаражем і своїм авто.", "Біля гаража E: меню, взяти/поставити авто, апгрейди. Багажник (E ззаду) — у вашого основного та викрадених вами авто."),
+                ("Керування авто", "Керуйте автомобілем.", "F: сісти/вийти. W/S: газ/гальмо/задній хід. A/D: кермо. Space: ручник. H: фари. E: сигнал (за кермом)."),
+                ("Викрадення й ремонт", "Викрадіть авто та дізнайтесь про ремонт.", "F біля NPC-авто — викрасти. Якщо пошкоджене, тримайте R для ремонту. Злочини піднімають розшук."),
+                ("Збройова й патрони", "Відвідайте збройову та купіть патрони.", "Знайдіть збройову (G на мапі). E — увійти, біля прилавку E — купити патрони для наявної зброї (₭)."),
+                ("Зброя та бій", "Колесо зброї, стрільба, перезарядка.", "Середня кнопка миші: колесо (2 вогнепальні, ніж, без зброї). ЛКМ: вогонь/удар ножем. R: перезарядка."),
+                ("Сховище й багажник", "Тумбочка вдома та багажник авто.", "Тумбочка (E): переносіть зброю (7 слотів). Багажник (E ззаду основного/викраденого авто): зберігайте речі."),
+                ("Економіка й розшук", "Гроші та рівень розшуку.", "Валюта: кротики (₭). Магазин дає +100 ₭ за ігровий день. Злочини піднімають розшук — поліція може переслідувати."),
+                ("Завершено", "Навчання завершено — основні механіки пройдено.", "Можете продовжити дослідження. Enter: завершити, Tab: пропустити крок, Esc: меню."),
             ],
             "Русский": [
-                ("Выйдите на улицу", "Выйдите из дома и осмотритесь в городе.", "Двигайтесь W/A/S/D или стрелками. E у выхода из дома."),
-                ("Сядьте в авто", "Возьмите авто из гаража или сядьте в любое авто.", "Подойдите к гаражу и нажмите E или F рядом с авто."),
-                ("Поездка", "Проедьте, попробуйте торможение/задний ход и выйдите.", "W/S — газ/тормоз, A/D — руль, Space — ручник, F — выйти."),
-                ("Локации", "Зайдите в локацию и взаимодействуйте.", "Попробуйте дом, оружейный магазин или гараж (E)."),
-                ("Бой", "Откройте колесо оружия, выстрелите и перезарядитесь.", "Средняя кнопка мыши, ЛКМ, R."),
-                ("Готово", "Обучение завершено!", "Enter — завершить, Tab — пропустить, Esc — меню."),
+                ("Движение и HUD", "Двигайтесь и изучите интерфейс.", "WASD/стрелки: движение. Shift: бег. HUD: здоровье, голод, розыск, миникарта, деньги (₭)."),
+                ("Дом и взаимодействие", "Выйдите из дома и вернитесь.", "E: взаимодействие/вход/выход. Нажмите E у двери, чтобы выйти и зайти обратно."),
+                ("Сон, сохранение, голод", "Основы выживания дома.", "E/T у кровати: сон и сохранение (+доход за дни). Холодильник (E): еда восстанавливает голод."),
+                ("Телефон и карта", "Используйте телефон и карту.", "P: телефон. Tab: карта. На карте: ЛКМ — точка GPS, G — оружейный, H — дом, ПКМ/Backspace/Delete — очистить."),
+                ("Гараж и авто", "Используйте гараж и своё авто.", "У гаража E: меню, взять/поставить авто, улучшения. Багажник (E сзади) — у основного и угнанных вами авто."),
+                ("Управление авто", "Управляйте автомобилем.", "F: сесть/выйти. W/S: газ/тормоз/задний ход. A/D: руль. Space: ручник. H: фары. E: сигнал (за рулём)."),
+                ("Угон и ремонт", "Угоните авто и узнайте о ремонте.", "F рядом с NPC-авто — угнать. Если повреждено, удерживайте R для ремонта. Преступления повышают розыск."),
+                ("Оружейный и патроны", "Посетите оружейный магазин и купите патроны.", "Найдите магазин (G на карте). E — войти, у прилавка E — купить патроны (₭)."),
+                ("Оружие и бой", "Колесо оружия, стрельба, перезарядка.", "Средняя кнопка мыши: колесо. ЛКМ: огонь/удар ножом. R: перезарядка."),
+                ("Хранилище и багажник", "Тумбочка дома и багажник авто.", "Тумбочка (E): оружие (7 слотов). Багажник (E сзади основного/угнанного авто): хранение вещей."),
+                ("Экономика и розыск", "Деньги и уровень розыска.", "Валюта: кротики (₭). Магазин даёт +100 ₭ за игровой день. Преступления повышают розыск."),
+                ("Готово", "Обучение завершено — основные механики пройдены.", "Можно продолжить исследование. Enter: завершить, Tab: пропустить шаг, Esc: меню."),
             ],
             "Español": [
-                ("Sal de casa", "Sal de la casa y explora la ciudad.", "Muévete con W/A/S/D o flechas. Pulsa E en la puerta para salir."),
-                ("Entra en un coche", "Saca un coche del garaje o entra en cualquiera.", "Ve al garaje y pulsa E, o pulsa F cerca de un coche."),
-                ("Conduce", "Conduce, prueba frenos/marcha atrás y sal.", "W/S acelerar/frenar, A/D girar, Espacio freno de mano, F salir."),
-                ("Visita e interactúa", "Visita un lugar e interactúa.", "Prueba la casa, la armería o el garaje y pulsa E."),
-                ("Combate", "Abre la rueda, dispara y recarga.", "Botón central, clic izquierdo, R."),
-                ("Listo", "¡Tutorial completado!", "Enter para terminar, Tab para saltar, Esc para menú."),
+                ("Movimiento y HUD", "Muévete y conoce la interfaz.", "WASD/flechas: mover. Shift: correr. HUD: salud, hambre, búsqueda, minimapa, dinero (₭)."),
+                ("Casa e interacción", "Sal de la casa y vuelve a entrar.", "E: interactuar/entrar/salir. Pulsa E en la puerta para salir y volver."),
+                ("Dormir, guardar y hambre", "Supervivencia básica en casa.", "E/T junto a la cama: dormir y guardar. Nevera (E): comer restaura el hambre."),
+                ("Teléfono y mapa", "Usa el teléfono y el mapa.", "P: teléfono. Tab: mapa. En mapa: clic izq. GPS, G armería, H casa, clic der./Backspace/Borrar limpiar."),
+                ("Garaje y tu coche", "Usa el garaje y tu vehículo principal.", "En el garaje E: menú, sacar/guardar, mejoras. Maletero (E atrás) en tu coche principal y robados."),
+                ("Conducir", "Prueba los controles del vehículo.", "F: entrar/salir. W/S: acelerar/frenar/marcha atrás. A/D: girar. Espacio: freno de mano. H: faros. E: bocina (conduciendo)."),
+                ("Robar y reparar", "Roba un coche y aprende a reparar.", "F cerca de un coche NPC para robarlo. Si está dañado, mantén R para reparar. Los delitos suben la búsqueda."),
+                ("Armería y munición", "Visita la armería y compra munición.", "Encuentra la armería (G en mapa). E para entrar, en mostrador E para comprar munición (₭)."),
+                ("Armas y combate", "Rueda de armas, disparar y recargar.", "Botón central: rueda. Clic izq.: disparar/cuchillo. R: recargar."),
+                ("Almacenamiento y maletero", "Mesita y maletero del coche.", "Mesita (E): guarda armas (7). Maletero (E atrás del coche principal/robado): guardar/sacar."),
+                ("Economía y búsqueda", "Dinero y nivel de búsqueda.", "Moneda: krotiks (₭). La tienda da +100 ₭ por día. Los delitos aumentan la búsqueda."),
+                ("Listo", "Tutorial completado — mecánicas principales cubiertas.", "Puedes seguir explorando. Enter: terminar, Tab: saltar, Esc: menú."),
             ],
             "Deutsch": [
-                ("Nach draußen", "Verlasse das Haus und erkunde die Stadt.", "Bewege dich mit W/A/S/D oder Pfeilen. E an der Tür zum Verlassen."),
-                ("Ins Auto", "Nimm ein Auto aus der Garage oder steig in eines ein.", "Zur Garage gehen und E drücken oder F nahe einem Auto."),
-                ("Fahren", "Fahre, teste Bremsen/Rückwärtsgang und steig aus.", "W/S Gas/Bremse, A/D lenken, Leertaste Handbremse, F aussteigen."),
-                ("Orte & Interaktion", "Besuche einen Ort und interagiere.", "Haus, Waffenladen oder Garage ausprobieren (E)."),
-                ("Kampf", "Waffenrad öffnen, schießen, nachladen.", "Mittlere Maustaste, Linksklick, R."),
-                ("Fertig", "Tutorial abgeschlossen!", "Enter beenden, Tab überspringen, Esc Menü."),
+                ("Bewegung & HUD", "Bewege dich und lerne die Oberfläche kennen.", "WASD/Pfeile: bewegen. Shift: sprinten. HUD: Leben, Hunger, Fahndung, Minikarte, Geld (₭)."),
+                ("Haus & Interaktion", "Verlasse das Haus und kehre zurück.", "E: interagieren/rein/raus. Drücke E an der Tür zum Verlassen und Eintreten."),
+                ("Schlafen, Speichern, Hunger", "Überlebensgrundlagen im Haus.", "E/T am Bett: schlafen und speichern. Kühlschrank (E): Essen stellt Hunger wieder her."),
+                ("Telefon & Karte", "Nutze Telefon und Karte.", "P: Telefon. Tab: Karte. Auf Karte: Linksklick GPS, G Waffenladen, H Haus, Rechtsklick/Backspace/Entf löschen."),
+                ("Garage & Auto", "Nutze Garage und dein Hauptfahrzeug.", "Bei Garage E: Menü, nehmen/parken, Upgrades. Kofferraum (E hinten) bei Haupt- und gestohlenen Autos."),
+                ("Fahren", "Teste die Fahrzeugsteuerung.", "F: ein-/aussteigen. W/S: Gas/Bremse/Rückwärts. A/D: lenken. Leertaste: Handbremse. H: Scheinwerfer. E: Hupe (beim Fahren)."),
+                ("Stehlen & Reparieren", "Stiehl ein Auto und lerne Reparatur.", "F nahe NPC-Auto zum Stehlen. Bei Schaden R halten zum Reparieren. Verbrechen erhöhen Fahndung."),
+                ("Waffenladen & Munition", "Besuche den Waffenladen und kaufe Munition.", "Waffenladen finden (G auf Karte). E hinein, am Tresen E Munition kaufen (₭)."),
+                ("Waffen & Kampf", "Waffenrad, Schießen, Nachladen.", "Mittlere Maustaste: Rad. Linksklick: schießen/Messer. R: nachladen."),
+                ("Lager & Kofferraum", "Nachttisch und Kofferraum.", "Nachttisch (E): Waffen lagern (7). Kofferraum (E hinten am Haupt/gestohlenen Auto)."),
+                ("Wirtschaft & Fahndung", "Geld und Fahndungsstufe.", "Währung: Krotiks (₭). Laden gibt +100 ₭ pro Spieltag. Verbrechen erhöhen Fahndung."),
+                ("Fertig", "Tutorial abgeschlossen — Kernmechaniken erklärt.", "Weiter erkunden. Enter: beenden, Tab: Schritt überspringen, Esc: Menü."),
             ],
             "Français": [
-                ("Sortir", "Sortez de la maison et explorez la ville.", "Déplacez-vous avec W/A/S/D ou les flèches. E à la porte pour sortir."),
-                ("Monter en voiture", "Prenez une voiture au garage ou montez dans une voiture.", "Allez au garage et appuyez sur E, ou F près d'une voiture."),
-                ("Conduire", "Conduisez, testez frein/marche arrière puis descendez.", "W/S accélérer/freiner, A/D tourner, Espace frein à main, F sortir."),
-                ("Lieux et interaction", "Visitez un lieu et interagissez.", "Essayez la maison, l'armurerie ou le garage (E)."),
-                ("Combat", "Ouvrez la roue, tirez et rechargez.", "Bouton central, clic gauche, R."),
-                ("Terminé", "Tutoriel terminé !", "Entrée terminer, Tab passer, Échap menu."),
+                ("Déplacement & HUD", "Déplacez-vous et découvrez l'interface.", "WASD/flèches : bouger. Maj : sprinter. HUD : santé, faim, recherche, minicarte, argent (₭)."),
+                ("Maison & interaction", "Sortez de la maison et revenez.", "E : interagir/entrer/sortir. Appuyez sur E à la porte pour sortir puis rentrer."),
+                ("Dormir, sauvegarder, faim", "Bases de survie dans la maison.", "E/T près du lit : dormir et sauvegarder. Frigo (E) : manger restaure la faim."),
+                ("Téléphone & carte", "Utilisez le téléphone et la carte.", "P : téléphone. Tab : carte. Sur la carte : clic gauche GPS, G armurerie, H maison, clic droit/Retour/Suppr effacer."),
+                ("Garage & voiture", "Utilisez le garage et votre voiture principale.", "Au garage E : menu, prendre/ranger, améliorations. Coffre (E arrière) sur voiture principale et volée."),
+                ("Conduite", "Testez les commandes du véhicule.", "F : entrer/sortir. W/S : accélérer/freiner/marche arrière. A/D : tourner. Espace : frein à main. H : phares. E : klaxon (en conduisant)."),
+                ("Vol & réparation", "Volez une voiture et apprenez la réparation.", "F près d'une voiture PNJ pour la voler. Si endommagée, maintenir R pour réparer. Les crimes augmentent la recherche."),
+                ("Armurerie & munitions", "Visitez l'armurerie et achetez des munitions.", "Trouvez l'armurerie (G sur carte). E pour entrer, au comptoir E pour acheter des munitions (₭)."),
+                ("Armes & combat", "Roue des armes, tirer, recharger.", "Bouton central : roue. Clic gauche : tirer/couteau. R : recharger."),
+                ("Rangement & coffre", "Table de chevet et coffre.", "Table de chevet (E) : ranger armes (7). Coffre (E arrière voiture principale/volée)."),
+                ("Économie & recherche", "Argent et niveau de recherche.", "Monnaie : krotiks (₭). Le magasin donne +100 ₭ par jour. Les crimes augmentent la recherche."),
+                ("Terminé", "Tutoriel terminé — mécaniques principales couvertes.", "Vous pouvez continuer. Entrée : terminer, Tab : passer, Échap : menu."),
             ],
-        }.get(lang, [])
+        }.get(lang, tut_steps["English"])
         tutorial = {
             "active": True,
             "steps": tut_steps,
             "index": 0,
             "done_timer": 0.0,
+            "step_done_flash": 0.0,
             "moved": 0.0,
+            "left_house": False,
+            "returned_house": False,
+            "slept_or_saved": False,
+            "fridge_used": False,
+            "phone_opened": False,
+            "map_opened": False,
+            "map_marker_set": False,
             "entered_car": False,
             "drove": False,
             "exited_car": False,
-            "visited_place": False,
+            "horn_used": False,
+            "stole_car": False,
+            "repaired_car": False,
+            "visited_gunshop": False,
+            "bought_ammo": False,
             "opened_wheel": False,
             "fired": False,
             "reloaded": False,
-            "left_house": False,
+            "nightstand_used": False,
+            "trunk_used": False,
+            "visited_target": False,
             "last_pos": None,
             "completed": False,
+            "tab_held": False,
+            "initialized_step": -1,
+            "was_in_car": False,
+            "prev_wheel_open": False,
+            "prev_ammo": 0,
+            "prev_reserve": 0,
+            "prev_money": 0,
+            "prev_game_state": "HOUSE",
         }
     wanted = WantedLevel(
         game_save.get("wanted_level", 0) if game_save else 0,
@@ -5630,6 +5713,8 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
         nonlocal car, in_car
         if car not in parked_cars and not getattr(car, "is_police", False):
             parked_cars.append(car)
+        if tutorial:
+            tutorial["stole_car"] = True
         stolen_position = pygame.Vector2(npc.pos)
         stolen_angle = npc.angle
         stolen_police = npc.is_police
@@ -5691,16 +5776,28 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             return True
         i = tutorial["index"]
         if i == 0:
-            return bool(tutorial.get("left_house")) or tutorial.get("moved", 0) > 350
+            return bool(tutorial.get("moved", 0) > 220)
         if i == 1:
-            return bool(tutorial.get("entered_car"))
+            return bool(tutorial.get("left_house")) and bool(tutorial.get("returned_house"))
         if i == 2:
-            return bool(tutorial.get("drove")) and bool(tutorial.get("exited_car"))
+            return bool(tutorial.get("fridge_used")) or bool(tutorial.get("slept_or_saved"))
         if i == 3:
-            return bool(tutorial.get("visited_target"))
+            return bool(tutorial.get("phone_opened")) and bool(tutorial.get("map_opened"))
         if i == 4:
-            return bool(tutorial.get("opened_wheel")) and bool(tutorial.get("fired")) and bool(tutorial.get("reloaded"))
+            return bool(tutorial.get("entered_car")) or bool(tutorial.get("left_house"))
         if i == 5:
+            return bool(tutorial.get("drove"))
+        if i == 6:
+            return bool(tutorial.get("stole_car")) or bool(tutorial.get("repaired_car")) or bool(tutorial.get("horn_used"))
+        if i == 7:
+            return bool(tutorial.get("visited_gunshop")) or bool(tutorial.get("bought_ammo"))
+        if i == 8:
+            return bool(tutorial.get("opened_wheel")) and (bool(tutorial.get("fired")) or bool(tutorial.get("reloaded")))
+        if i == 9:
+            return bool(tutorial.get("nightstand_used")) or bool(tutorial.get("trunk_used"))
+        if i == 10:
+            return True  # informational step (economy/wanted)
+        if i == 11:
             return bool(tutorial.get("completed", False))
         return False
 
@@ -5709,23 +5806,29 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             return
         i = min(tutorial["index"], len(tutorial["steps"]) - 1)
         title, task, hint = tutorial["steps"][i]
-        panel = pygame.Surface((screen.get_width() - 40, 132), pygame.SRCALPHA)
-        panel.fill((18, 14, 10, 225))
+        panel_w = screen.get_width() - 40
+        panel_h = 150
+        panel = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+        panel.fill((16, 20, 28, 230))
         screen.blit(panel, (20, 20))
-        pygame.draw.rect(screen, (212, 91, 18), (20, 20, screen.get_width()-40, 132), 2, border_radius=10)
-        tfont = _cached_ui_font(None, 30, bold=True)
+        pygame.draw.rect(screen, (70, 90, 120), (20, 20, panel_w, panel_h), 1, border_radius=12)
+        pygame.draw.rect(screen, (212, 91, 18), (20, 20, 4, panel_h), border_radius=12)
+        tfont = _cached_ui_font(None, 30, weight="semibold")
         bfont = _cached_ui_font(None, 24)
         sfont = _cached_ui_font(None, 20)
-        screen.blit(tfont.render(f"{i+1}/{len(tutorial['steps'])}  {title}", True, (238,164,47)), (36, 30))
-        screen.blit(bfont.render(task, True, (255,255,255)), (36, 66))
-        screen.blit(sfont.render(hint, True, (210,210,210)), (36, 96))
-        controls = "Tab: skip step   Esc: menu" if lang == "English" else "Tab: пропустити крок   Esc: меню" if lang.startswith("Укр") else "Tab: skip   Esc: menu"
+        screen.blit(tfont.render(f"{i+1}/{len(tutorial['steps'])}  {title}", True, (245, 235, 220)), (36, 30))
+        screen.blit(bfont.render(task, True, (255, 255, 255)), (36, 66))
+        # wrap-ish hint: render as single line (kept short in data)
+        screen.blit(sfont.render(hint, True, (210, 218, 230)), (36, 98))
+        lang_name = SUPPORTED_LANGUAGES[settings.get("lang_idx", 1)]
         if i == len(tutorial["steps"]) - 1:
-            controls = "Enter/Esc: finish" if lang == "English" else "Enter/Esc: завершити" if lang.startswith("Укр") else "Enter/Esc: finish"
-        screen.blit(sfont.render(controls, True, (170,170,170)), (36, 122))
+            controls = "Enter: finish   Esc: menu" if lang_name == "English" else "Enter: завершити   Esc: меню" if lang_name == "Українська" else "Enter: finish   Esc: menu"
+        else:
+            controls = "N: skip step   Tab: map   Esc: menu" if lang_name == "English" else "N: пропустити крок   Tab: мапа   Esc: меню" if lang_name == "Українська" else "N: skip step   Tab: map   Esc: menu"
+        screen.blit(sfont.render(controls, True, (170, 180, 195)), (36, 124))
         if tutorial.get("step_done_flash", 0) > 0:
-            msg = "Step completed!" if lang == "English" else "Крок виконано!" if lang.startswith("Укр") else "Step completed!"
-            done = bfont.render(msg, True, (120,230,140))
+            msg = "Step completed!" if lang_name == "English" else "Крок виконано!" if lang_name == "Українська" else "Step completed!"
+            done = bfont.render(msg, True, (120, 230, 140))
             screen.blit(done, done.get_rect(topright=(screen.get_width()-36, 30)))
 
     def car_record(vehicle, name=None):
@@ -5992,28 +6095,9 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
     _gunshop_music_channel = None
 
     def _ensure_gunshop_music():
-        nonlocal _gunshop_music, _gunshop_music_channel
-        if _gunshop_music is None:
-            music_path = _ASSET_ROOT / "radio" / "gunshop" / "malt_shop_bop.mp3"
-            if music_path.exists():
-                try:
-                    _gunshop_music = pygame.mixer.Sound(str(music_path))
-                except (pygame.error, OSError):
-                    _gunshop_music = False
-            else:
-                _gunshop_music = False
-        if _gunshop_music and _gunshop_music is not False:
-            if _gunshop_music_channel is None or not _gunshop_music_channel.get_busy():
-                try:
-                    _gunshop_music_channel = _gunshop_music.play(loops=-1)
-                except (pygame.error, AttributeError):
-                    _gunshop_music_channel = None
-            if _gunshop_music_channel:
-                vol = settings.get("music_volume", 20) / 100.0 * 0.5
-                try:
-                    _gunshop_music_channel.set_volume(vol)
-                except (pygame.error, AttributeError):
-                    pass
+        # Music is allowed only in the main menu.
+        _stop_gunshop_music()
+        return
 
     def _stop_gunshop_music():
         nonlocal _gunshop_music_channel
@@ -6116,6 +6200,8 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                             if amount > 0 and money >= price:
                                 money -= price
                                 total_spent += price
+                                if tutorial:
+                                    tutorial["bought_ammo"] = True
                                 weapons.reserve_ammo_by_weapon[wtype] = min(
                                     WeaponWheel.WEAPON_STATS[wtype]["reserve_max"],
                                     weapons.reserve_ammo_by_weapon.get(wtype, 0) + amount,
@@ -6166,10 +6252,16 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
     def _near_car_trunk():
         if in_car:
             return None, None
-        candidates = [("player_car", car)] + [(f"parked_{i}", pc) for i,pc in enumerate(parked_cars)]
+
+        def _trunk_allowed(veh):
+            vehicle_class = getattr(veh, "vehicle_class", "")
+            # only player's main car and cars stolen by the player
+            return vehicle_class == "sport" or str(vehicle_class).startswith("stolen-")
+
+        candidates = [("player_car", car)] + [(f"parked_{i}", pc) for i, pc in enumerate(parked_cars)]
         for key, veh in candidates:
             try:
-                if atom.pos.distance_to(_car_trunk_point(veh)) < 55:
+                if _trunk_allowed(veh) and atom.pos.distance_to(_car_trunk_point(veh)) < 55:
                     return key, veh
             except Exception:
                 pass
@@ -6522,12 +6614,16 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                             fridge_selection = selected_number
                             if consume_fridge_food(survival, fridge_stock, fridge_selection):
                                 fridge_menu_open = False
+                                if tutorial:
+                                    tutorial["fridge_used"] = True
                                 phone_click_sfx.play()
                         elif keyboard.matches(event, pygame.K_e) or event.key in (
                             pygame.K_RETURN, pygame.K_KP_ENTER
                         ):
                             if consume_fridge_food(survival, fridge_stock, fridge_selection):
                                 fridge_menu_open = False
+                                if tutorial:
+                                    tutorial["fridge_used"] = True
                                 phone_click_sfx.play()
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     panel, rows, close_rect = fridge_menu_layout(screen.get_size())
@@ -6591,13 +6687,16 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                 if event.key == pygame.K_F3:
                     show_debug = not show_debug
                 if event.key == pygame.K_TAB:
-                    if not tutorial:
-                        full_screen_map(
-                            screen, full_map_img, (car if in_car else atom),
-                            current_world_width, current_world_height,
-                            controls=keyboard, gps=gps, labels=t,
-                            gunshop_pos=GUNSHOP_POS,
-                        )
+                    full_screen_map(
+                        screen, full_map_img, (car if in_car else atom),
+                        current_world_width, current_world_height,
+                        controls=keyboard, gps=gps, labels=t,
+                        gunshop_pos=GUNSHOP_POS,
+                    )
+                    if tutorial:
+                        tutorial["map_opened"] = True
+                        if gps and getattr(gps, "destination", None) is not None:
+                            tutorial["map_marker_set"] = True
                 if event.key == pygame.K_ESCAPE:
                     radio_was_playing = radio.is_playing
                     radio.pause()
@@ -6681,6 +6780,8 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                             else:
                                 play_car_horn(car_sfx, horn_chan)
                                 traffic.respond_to_horn(npc_cars, car.pos)
+                                if tutorial:
+                                    tutorial["horn_used"] = True
                         if keyboard.matches(event, pygame.K_COMMA):
                             radio.cycle_station(-1)
                         if keyboard.matches(event, pygame.K_PERIOD):
@@ -6703,6 +6804,8 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                             trunk_key, _veh = _near_car_trunk()
                             if trunk_key:
                                 res = _trunk_menu(trunk_key)
+                                if tutorial and res != "EXIT":
+                                    tutorial["trunk_used"] = True
                                 if res == "EXIT":
                                     return "EXIT"
                                 keyboard._pressed_scancodes.clear()
@@ -6723,6 +6826,8 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                         fridge_menu_open = True
                     elif pressed_e and atom_h.pos.distance_to(HOUSE_NIGHTSTAND_POS) < HOUSE_NIGHTSTAND_RADIUS:
                         res = _nightstand_menu()
+                        if tutorial and res != "EXIT":
+                            tutorial["nightstand_used"] = True
                         if res == "EXIT":
                             return "EXIT"
                         keyboard._pressed_scancodes.clear()
@@ -7301,9 +7406,12 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                 tutorial["prev_ammo"] = weapons.ammo
                 tutorial["prev_reserve"] = weapons.reserve_ammo
                 tutorial["prev_game_state"] = game_state
-                # starting in house means not "left" yet
+                tutorial["prev_money"] = money
+                tutorial["tab_held"] = False
+                tutorial["n_held"] = False
                 if game_state == "CITY":
                     tutorial["left_house"] = True
+
             # movement tracking
             if game_state == "HOUSE":
                 tutorial["moved"] += atom_h.pos.distance_to(tutorial["last_pos"])
@@ -7316,22 +7424,29 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                 tutorial["last_pos"].update(atom.pos)
             else:
                 tutorial["last_pos"].update(atom.pos)
-            # left house / visited targets
+
+            # house/locations progress
             if game_state == "CITY":
                 tutorial["left_house"] = True
-            if tutorial.get("left_house") and game_state in ("HOUSE", "GUNSHOP"):
-                # counts as visiting/interacting with a location after going outside
-                if tutorial["index"] >= 3:
-                    tutorial["visited_target"] = True
-            # car transitions
+            if game_state == "HOUSE" and tutorial.get("left_house"):
+                tutorial["returned_house"] = True
+            if game_state == "GUNSHOP":
+                tutorial["visited_gunshop"] = True
+
+            # car transitions / driving
             if in_car and not tutorial.get("was_in_car", False):
                 tutorial["entered_car"] = True
             if (not in_car) and tutorial.get("was_in_car", False) and tutorial.get("entered_car"):
                 tutorial["exited_car"] = True
             tutorial["was_in_car"] = in_car
-            if in_car and abs(getattr(car, "speed", 0)) > 1.0:
+            if in_car and abs(getattr(car, "speed", 0)) > 0.8:
                 tutorial["drove"] = True
-            # wheel/fire/reload
+            if in_car and keyboard[pygame.K_h]:
+                tutorial["horn_used"] = True
+            if in_car and getattr(car, "is_broken", False) and keyboard[pygame.K_r]:
+                tutorial["repaired_car"] = True
+
+            # weapons
             if weapons.wheel_open:
                 tutorial["opened_wheel"] = True
             if weapons.ammo < tutorial.get("prev_ammo", weapons.ammo):
@@ -7341,45 +7456,45 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             tutorial["prev_ammo"] = weapons.ammo
             tutorial["prev_reserve"] = weapons.reserve_ammo
             tutorial["prev_wheel_open"] = weapons.wheel_open
+
+            # general state
+            if phone_active:
+                tutorial["phone_opened"] = True
+            if gps and getattr(gps, "destination", None) is not None:
+                tutorial["map_marker_set"] = True
+            if money < tutorial.get("prev_money", money):
+                # likely ammo purchase or other spend
+                if tutorial.get("index", 0) >= 7:
+                    tutorial["bought_ammo"] = True
+            tutorial["prev_money"] = money
             tutorial["prev_game_state"] = game_state
 
-            # skip/finish controls
-            if tutorial["index"] < len(tutorial["steps"]) - 1 and keyboard.matches_last_frame_tab if False else False:
-                pass
-            # handle tab/enter via key state edge? easier: check events already consumed; use keyboard scancode presses this frame not directly available.
-            # We'll use pygame.key.get_pressed is unreliable for edge; instead check in event loop below not possible now.
-            # Simple: allow skip with holding TAB detected via keyboard state
-            if keyboard[pygame.K_TAB] and not tutorial.get("tab_held", False):
-                tutorial["tab_held"] = True
+            # step init (light resets for action steps)
+            if tutorial.get("initialized_step") != tutorial["index"]:
+                tutorial["initialized_step"] = tutorial["index"]
+                if tutorial["index"] == 8:
+                    tutorial["opened_wheel"] = False
+                    tutorial["fired"] = False
+                    tutorial["reloaded"] = False
+
+            # skip/finish controls (N to skip, so Tab can be used for map)
+            if keyboard[pygame.K_n] and not tutorial.get("n_held", False):
+                tutorial["n_held"] = True
                 if tutorial["index"] < len(tutorial["steps"]) - 1:
                     tutorial["index"] += 1
-                    tutorial["done_timer"] = 0.0
                     tutorial["step_done_flash"] = 0.0
-            elif not keyboard[pygame.K_TAB]:
-                tutorial["tab_held"] = False
+            elif not keyboard[pygame.K_n]:
+                tutorial["n_held"] = False
+
             if tutorial["index"] == len(tutorial["steps"]) - 1 and (keyboard[pygame.K_RETURN] or keyboard[pygame.K_KP_ENTER]):
                 tutorial["completed"] = True
-                # exit tutorial to menu
                 _stop_gunshop_music()
                 radio.stop()
                 return "MENU"
 
-            # reset per-step flags when entering combat step
-            if tutorial.get("initialized_step") != tutorial["index"]:
-                tutorial["initialized_step"] = tutorial["index"]
-                if tutorial["index"] == 4:
-                    tutorial["opened_wheel"] = False
-                    tutorial["fired"] = False
-                    tutorial["reloaded"] = False
-                if tutorial["index"] == 1:
-                    tutorial["entered_car"] = in_car
-                if tutorial["index"] == 2:
-                    tutorial["exited_car"] = not in_car if tutorial.get("entered_car") else False
-                    tutorial["drove"] = False
-
             if _tutorial_step_completed() and tutorial["index"] < len(tutorial["steps"]) - 1:
                 tutorial["step_done_flash"] = tutorial.get("step_done_flash", 0) + frame_scale / 60.0
-                if tutorial["step_done_flash"] >= 0.8:
+                if tutorial["step_done_flash"] >= 0.9:
                     tutorial["index"] += 1
                     tutorial["step_done_flash"] = 0.0
             elif not (_tutorial_step_completed() and tutorial["index"] < len(tutorial["steps"]) - 1):
@@ -7397,6 +7512,8 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                 atom.health = atom.max_health
                 atom_h.pos.update(HOUSE_SLEEP_SPOT)
             save_sleep_game()
+            if tutorial:
+                tutorial["slept_or_saved"] = True
             sleep_requested = False
             wake_fade_started = time.perf_counter()
 
