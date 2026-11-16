@@ -147,6 +147,17 @@ class LocalizationCompletenessTests(unittest.TestCase):
             for key in keys:
                 self.assertTrue(labels.get(key), f'{lang}.{key} missing')
 
+    def test_legacy_save_keeps_starter_pistol(self):
+        wheel = engine.WeaponWheel(
+            ammo=11, reserve_ammo=36, selected="shotgun", carried_firearms=None
+        )
+        types = [item["type"] for item in wheel.carried_firearms]
+        self.assertIn("shotgun", types)
+        self.assertIn("pistol", types)
+        pistol = next(item for item in wheel.carried_firearms if item["type"] == "pistol")
+        self.assertEqual(pistol["ammo"], 7)
+        self.assertEqual(pistol["reserve"], 30)
+
     def test_keys_work_with_cyrillic_layout(self):
         scancode_k = getattr(pygame, 'KSCAN_K', None)
         scancode_j = getattr(pygame, 'KSCAN_J', None)

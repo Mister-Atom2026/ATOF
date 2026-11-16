@@ -1,6 +1,13 @@
 # ATOF
 Game About Mister Atom
 
+## Pre-release 0.9.1 Alpha 7
+
+### Fixed
+
+- **Parked cars are solid again.** Cars left behind after a hijack are now included in vehicle and pedestrian collision checks. They no longer behave like part of the map: you can crash into them, they block movement, and their trunk interaction works as before. This applies each time you abandon one stolen car and take another.
+- **Starter pistol in older saves.** Legacy saves stored only one weapon, so switching to a shotgun or rifle silently dropped the Mathew 37. Such saves now restore the pistol with its default 7/30 ammo while keeping the weapon you were carrying.
+
 ## Pre-release 0.9.1 Alpha 6
 
 ### Fixed

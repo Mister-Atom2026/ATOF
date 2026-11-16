@@ -235,5 +235,24 @@ class CarPhysicsTests(unittest.TestCase):
         self.assertTrue(car.skid_marks)
 
 
+class CollisionObstacleTests(unittest.TestCase):
+    def test_parked_cars_are_solid_obstacles(self):
+        current = engine.Car(0, 0)
+        parked = engine.Car(200, 0)
+        npc = engine.Car(400, 0)
+        obstacles = engine.collision_obstacles([npc], [parked], current)
+        self.assertIn(parked, obstacles)
+        self.assertIn(npc, obstacles)
+        self.assertNotIn(current, obstacles)
+
+    def test_dead_and_current_cars_are_excluded(self):
+        current = engine.Car(0, 0)
+        dead = engine.Car(100, 0)
+        dead.is_alive = False
+        parked = engine.Car(200, 0)
+        obstacles = engine.collision_obstacles([dead], [current, parked], current)
+        self.assertEqual(obstacles, [parked])
+
+
 if __name__ == "__main__":
     unittest.main()

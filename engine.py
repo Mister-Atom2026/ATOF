@@ -33,6 +33,17 @@ from wanted_system import WantedState
 
 _log = logging.getLogger(__name__)
 
+
+def collision_obstacles(npc_cars, parked_cars=None, current_car=None):
+    """All solid cars the player can hit: live traffic plus parked vehicles."""
+    obstacles = [car for car in (npc_cars or []) if getattr(car, "is_alive", True)]
+    obstacles.extend(
+        car for car in (parked_cars or [])
+        if car is not current_car and getattr(car, "is_alive", True)
+    )
+    return obstacles
+
+
 WIDTH = _constants.WIDTH
 HEIGHT = _constants.HEIGHT
 FPS = _constants.FPS
@@ -1591,8 +1602,34 @@ class WeaponWheel:
             self.ammo_by_weapon[legacy_weapon] = legacy_ammo
             self.reserve_ammo_by_weapon[legacy_weapon] = legacy_reserve
             self.carried_firearms = [{"type": legacy_weapon, "ammo": legacy_ammo, "reserve": legacy_reserve}] if selected != "none" else []
+            # Legacy saves stored only one weapon, so upgrading to a shotgun or
+            # rifle silently dropped the starter pistol. Restore it from defaults.
+            if not any(item["type"] == "pistol" for item in self.carried_firearms):
+                pistol_stats = self.WEAPON_STATS["pistol"]
+                pistol_ammo = self.ammo_by_weapon.get(
+                    "pistol", self.STARTING_AMMO.get("pistol", pistol_stats["mag_size"])
+                )
+                pistol_reserve = self.reserve_ammo_by_weapon.get(
+                    "pistol", self.STARTING_RESERVE_AMMO.get("pistol", 0)
+                )
+                self.carried_firearms.append(
+                    {
+                        "type": "pistol",
+                        "ammo": bounded_count(
+                            pistol_ammo, pistol_stats["mag_size"], pistol_stats["mag_size"]
+                        ),
+                        "reserve": bounded_count(
+                            pistol_reserve,
+                            self.STARTING_RESERVE_AMMO.get("pistol", 0),
+                            pistol_stats["reserve_max"],
+                        ),
+                    }
+                )
             self.carried_knife = False
-            self.selected = legacy_weapon if self.carried_firearms else "none"
+            carried_types = {item["type"] for item in self.carried_firearms}
+            self.selected = selected if selected in carried_types else (
+                self.carried_firearms[0]["type"] if self.carried_firearms else "none"
+            )
         else:
             self.carried_firearms = []
             for item in (carried_firearms or [])[:2]:
@@ -7568,13 +7605,16 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                             fresh.pos, npc_cars
                         )
                     )
+            # Parked cars are solid world objects, not decoration — include them
+            # in every vehicle/pedestrian collision check.
+            traffic_obstacles = collision_obstacles(npc_cars, parked_cars, car)
             if in_car:
                 previous_car_pos = pygame.Vector2(car.pos)
                 car.update(
                     keys,
                     col_mask,
                     True,
-                    npc_cars,
+                    traffic_obstacles,
                     frame_scale,
                     surface_map=world_bg,
                     weather_grip=weather.grip_multiplier,
@@ -7609,7 +7649,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                     keys,
                     col_mask,
                     car,
-                    npc_cars,
+                    traffic_obstacles,
                     frame_scale,
                     cursor_world=camera.screen_to_world(pygame.mouse.get_pos()),
                     armed=(
@@ -7623,7 +7663,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                     keys,
                     col_mask,
                     False,
-                    npc_cars,
+                    traffic_obstacles,
                     frame_scale,
                     surface_map=world_bg,
                     weather_grip=weather.grip_multiplier,

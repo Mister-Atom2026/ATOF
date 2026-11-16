@@ -5,8 +5,8 @@ import pygame
 
 from settings_manager import load_settings, load_statistics, save_settings
 
-VERSION = "0.9.1-alpha.6"
-RELEASE_NAME = "Alpha 6"
+VERSION = "0.9.1-alpha.7"
+RELEASE_NAME = "Alpha 7"
 APP_SETTINGS = load_settings()
 
 import constants
