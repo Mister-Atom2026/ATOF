@@ -3,12 +3,26 @@ Game About Mister Atom
 
 ## Pre-release 0.9.0 Alpha 6
 
-- **Radar/prompts readability:** removed the frosted-glass blur and glossy highlights from the radar itself (the glass treatment stays on the health/hunger status arcs); rewrote contextual interaction prompts with an opaque dark plate, stroked text and a clearly separated keycap so they stay readable over any texture.
-- **Car theft fix:** stealing a vehicle no longer makes the car you arrived in or nearby traffic disappear — the previous car is always preserved (including stolen police cars), damaged neighbours finish their wreck animation, and respawns no longer appear on top of existing cars.
-- **Vehicle physics:** reworked player car handling (grip, rain/ice, handbrake, drift, collision sliding) and traffic physics (realistic speeds, smooth acceleration/braking, obstacle avoidance, weather grip).
-- **Wanted, fines & bribes:** violations now issue fines in ₭; press **B** in the city to pay a bribe (cost = 400 ₭ × wanted stars + outstanding fines) and clear one star, or pay only the fine. Fines persist in saves.
-- **UI from 14-agent research:** compared GTA V/VI, RDR1/2, Mafia III and Mafia: The Old Country (six research reports in `docs/ui_research_*.md`); added a compact objective chip, distance display, unified map marker glyphs+legend, consistent menu palette helpers and six-language labels.
-- **Navigation keys:** `K` opens the quick-locations menu, `J` toggles the journal; both are rebindable in Settings → Controls and work with any keyboard layout (letters are matched by physical key position).
+A large parallel run of 14 agents: 6 researched the UI of other games, 8 fixed bugs and improved mechanics.
+
+### Fixed
+
+- **Cars disappearing when hijacking.** Previously the car you arrived in (especially a stolen police car) and nearby cars within ~100 px disappeared together with their collisions. The previous car is now always preserved, damaged cars finish their wreck animation, and respawns no longer appear on top of existing cars.
+- **Interaction prompts.** An opaque dark plate, stroked text and a clearly separated keycap — white text no longer blends into light/dark texture stripes.
+- **Radar.** Removed the frosted-glass blur and glossy highlights from the radar itself; the glass treatment stays on the health/hunger status arcs.
+
+### Improved
+
+- **Vehicle physics:** grip, rain/ice, handbrake, drift, collision sliding, realistic traffic speeds and braking, obstacle avoidance, weather grip for all traffic.
+- **Wanted, fines & bribes:** violations now issue fines in ₭; press **B** in the city to pay a bribe (400 ₭ × wanted stars + outstanding fines) and clear one star, or pay only the fine. Fines persist in saves.
+- **UI from 14-agent research:** six reports (`docs/ui_research_*.md`) covering GTA V/VI, RDR1/2, Mafia III and Mafia: The Old Country. Added a compact objective chip with distance, unified map marker glyphs and a legend, shared menu palette helpers, and six-language labels.
+- **Navigation keys:** `K` opens the quick-locations menu, `J` toggles the journal. Both are rebindable in Settings → Controls and work with any keyboard layout (letters are matched by physical key position).
+
+### Checks
+
+- `py_compile` — OK; `python3 -m unittest discover -s tests -q` — **279/279 OK**. Manual smoke/playtest recommended: car hijacking, rain/drift, bribes, prompts over different textures, map markers/legend.
+
+> Note: the `v0.9.0-alpha.4` tag was previously corrected to commit `85c61df`; Alpha 5 and Alpha 6 are separate releases.
 
 ## Pre-release 0.9.0 Alpha 5
 
