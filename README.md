@@ -9,7 +9,6 @@ Game About Mister Atom
 - **Wanted, fines & bribes:** violations now issue fines in ₭; press **B** in the city to pay a bribe (cost = 400 ₭ × wanted stars + outstanding fines) and clear one star, or pay only the fine. Fines persist in saves.
 - **UI from 14-agent research:** compared GTA V/VI, RDR1/2, Mafia III and Mafia: The Old Country (six research reports in `docs/ui_research_*.md`); added a compact objective chip, distance display, unified map marker glyphs+legend, consistent menu palette helpers and six-language labels.
 - **Navigation keys:** `K` opens the quick-locations menu, `J` toggles the journal; both are rebindable in Settings → Controls and work with any keyboard layout (letters are matched by physical key position).
-- **Checks:** `py_compile` OK; **279 tests passing**. Manual smoke/playtest still recommended.
 
 ## Pre-release 0.9.0 Alpha 5
 
