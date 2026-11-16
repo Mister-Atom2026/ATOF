@@ -147,7 +147,8 @@ class HijackPreservationTests(unittest.TestCase):
         self.assertEqual(new_car.vehicle_class, "stolen-police")
         self.assertTrue(state["in_car"])
         self.assertEqual(tuple(state["atom"].pos), (600, 700))
-        state["wanted"].raise_level.assert_called_once_with(3)
+        state["wanted"].raise_level.assert_called_once()
+        self.assertEqual(state["wanted"].raise_level.call_args.args[0], 3)
 
     def test_only_target_npc_is_retired_neighbors_stay_intact(self):
         target = _traffic_car(600, 700)
