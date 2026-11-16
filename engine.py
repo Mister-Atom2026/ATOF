@@ -51,15 +51,22 @@ MINIMAP_RIM_OUTSET = 10
 SPEEDOMETER_RADAR_GAP = 12
 
 
-@lru_cache(maxsize=64)
-def _cached_ui_font(name: str | None, size: int, bold: bool = False):
+@lru_cache(maxsize=128)
+def _cached_ui_font(name: str | None = None, size: int = 24, bold: bool = False, weight: str | None = None):
     """Reuse UI fonts instead of constructing system fonts during each frame."""
+    if weight is None:
+        weight = "semibold" if bold else "regular"
+    # allow legacy callers that pass name as size-like in some cases? no, keep signature stable
+    font_path = _resolve_font_path(weight)
     try:
-        font = pygame.font.Font(str(_FONT_PATH), size)
+        font = pygame.font.Font(str(font_path), int(size))
     except (pygame.error, OSError):
-        font = pygame.font.Font(None, size)
-    if bold:
-        font.set_bold(True)
+        try:
+            font = pygame.font.Font(str(_FONT_PATH), int(size))
+        except (pygame.error, OSError):
+            font = pygame.font.Font(None, int(size))
+        if bold and weight in ("regular", "medium"):
+            font.set_bold(True)
     return font
 
 
@@ -339,7 +346,23 @@ _audio_settings: dict[str, float] = {key: value / 100 for key, value in _AUDIO_D
 _MENU_SOUND_LEVELS = {"hover": 0.22, "click": 0.38}
 _ASSET_ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 _FONT_PATH = _ASSET_ROOT / "static.ttf"
+_FONT_DIR = _ASSET_ROOT / "assets" / "fonts" / "Inter"
+_FONT_FILES = {
+    "regular": _FONT_DIR / "Inter-Regular.ttf",
+    "medium": _FONT_DIR / "Inter-Medium.ttf",
+    "semibold": _FONT_DIR / "Inter-SemiBold.ttf",
+    "bold": _FONT_DIR / "Inter-Bold.ttf",
+}
 _image_cache: dict[tuple[Path, bool], pygame.Surface] = {}
+
+
+def _resolve_font_path(weight: str = "regular") -> Path:
+    path = _FONT_FILES.get(weight, _FONT_FILES["regular"])
+    if path.exists():
+        return path
+    if _FONT_PATH.exists():
+        return _FONT_PATH
+    return _FONT_FILES["regular"]
 
 
 def load_image(relative_path: str, *, alpha: bool = False) -> pygame.Surface:
@@ -828,14 +851,18 @@ def load_game_audio() -> GameAudio:
 
 def load_game_fonts() -> tuple[pygame.font.Font, pygame.font.Font]:
     """Load the bundled game fonts consistently on every platform."""
-    font_path = str(_ASSET_ROOT / "static.ttf")
+    regular = _resolve_font_path("regular")
+    medium = _resolve_font_path("medium")
     try:
-        return pygame.font.Font(font_path, 40), pygame.font.Font(font_path, 25)
+        return pygame.font.Font(str(medium), 40), pygame.font.Font(str(regular), 25)
     except (pygame.error, OSError):
-        return (
-            pygame.font.Font(None, 40),
-            pygame.font.Font(None, 25),
-        )
+        try:
+            return pygame.font.Font(str(_FONT_PATH), 40), pygame.font.Font(str(_FONT_PATH), 25)
+        except (pygame.error, OSError):
+            return (
+                pygame.font.Font(None, 40),
+                pygame.font.Font(None, 25),
+            )
 
 
 def is_at_sleep_spot(game_state, position) -> bool:
@@ -1742,47 +1769,134 @@ class WeaponWheel:
     def draw(self, screen, labels) -> None:
         if not self.wheel_open:
             return
-        center = pygame.Vector2(screen.get_size()) / 2
-        pygame.draw.circle(screen, (12, 12, 18), center, 148)
-        pygame.draw.circle(screen, (180, 180, 190), center, 148, 2)
+        sw, sh = screen.get_size()
+        center = pygame.Vector2(sw / 2, sh / 2)
+        # Dim background
+        overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 110))
+        screen.blit(overlay, (0, 0))
+
         slots = self.wheel_slots
+        outer_r = 168
+        inner_r = 58
+        sector_count = max(1, len(slots))
+        step = 360 / sector_count
+
+        # Glass base ring
+        ring_surf = pygame.Surface((outer_r * 2 + 20, outer_r * 2 + 20), pygame.SRCALPHA)
+        rc = (ring_surf.get_width() // 2, ring_surf.get_height() // 2)
+        pygame.draw.circle(ring_surf, (18, 20, 28, 230), rc, outer_r)
+        pygame.draw.circle(ring_surf, (35, 40, 52, 220), rc, outer_r - 10)
+        pygame.draw.circle(ring_surf, (255, 255, 255, 28), rc, outer_r, 2)
+        pygame.draw.circle(ring_surf, (255, 255, 255, 18), rc, inner_r, 1)
+        screen.blit(ring_surf, (int(center.x - rc[0]), int(center.y - rc[1])))
+
+        # Draw sectors and slot content
+        def sector_points(index):
+            # sector centered on slot direction (0=top,1=right,...), spans 90 degrees
+            mid = -90 + index * step
+            a1 = math.radians(mid - step / 2)
+            a2 = math.radians(mid + step / 2)
+            pts = []
+            for t in range(0, 11):
+                a = a1 + (a2 - a1) * t / 10
+                pts.append((center.x + math.cos(a) * outer_r, center.y + math.sin(a) * outer_r))
+            for t in range(10, -1, -1):
+                a = a1 + (a2 - a1) * t / 10
+                pts.append((center.x + math.cos(a) * inner_r, center.y + math.sin(a) * inner_r))
+            return pts
+
         positions = tuple(
-            center + pygame.Vector2(0, -88).rotate(index * 90)
+            center + pygame.Vector2(0, -(inner_r + outer_r) / 2).rotate(index * step)
             for index in range(len(slots))
         )
-        font = _cached_ui_font(None, 24)
+
+        for index, weapon in enumerate(slots):
+            selected = weapon == self.selected
+            pts = sector_points(index)
+            seg = pygame.Surface((sw, sh), pygame.SRCALPHA)
+            if selected:
+                pygame.draw.polygon(seg, (212, 108, 36, 175), pts)
+                pygame.draw.polygon(seg, (255, 185, 110, 210), pts, 2)
+            else:
+                pygame.draw.polygon(seg, (255, 255, 255, 18), pts)
+                pygame.draw.polygon(seg, (255, 255, 255, 30), pts, 1)
+            screen.blit(seg, (0, 0))
+
+        # divider lines
+        for index in range(sector_count):
+            ang = math.radians(-90 + index * step - step / 2)
+            p1 = (center.x + math.cos(ang) * inner_r, center.y + math.sin(ang) * inner_r)
+            p2 = (center.x + math.cos(ang) * outer_r, center.y + math.sin(ang) * outer_r)
+            pygame.draw.line(screen, (255, 255, 255, 40) if False else (90, 100, 120), p1, p2, 2)
+
+        font = _cached_ui_font(None, 22, weight="medium")
+        small = _cached_ui_font(None, 18)
         for weapon, position in zip(slots, positions):
-            selected = weapon == self.selected or (weapon is None and False)
-            pygame.draw.circle(
-                screen,
-                (212, 91, 18) if selected else (58, 58, 68),
-                position,
-                48,
-            )
+            selected = weapon == self.selected
             texture = self.weapon_textures.get(weapon) if weapon else None
+            icon_center = (int(position.x), int(position.y - 10))
             if texture is not None:
                 icon = texture
-                if max(icon.get_size()) < 36:
+                if max(icon.get_size()) < 40:
                     scale = 3
                     icon = pygame.transform.scale(icon, (icon.get_width() * scale, icon.get_height() * scale))
-                if max(icon.get_size()) > 42:
-                    scale = 42 / max(icon.get_size())
+                if max(icon.get_size()) > 54:
+                    scale = 54 / max(icon.get_size())
                     icon = pygame.transform.smoothscale(
                         icon,
                         (max(1, round(icon.get_width() * scale)), max(1, round(icon.get_height() * scale))),
                     )
-                screen.blit(icon, icon.get_rect(center=(int(position.x), int(position.y - 8))))
+                screen.blit(icon, icon.get_rect(center=icon_center))
             elif weapon == "knife":
-                # simple knife icon
-                p = (int(position.x), int(position.y - 10))
-                pygame.draw.line(screen, (220,220,230), (p[0]-10,p[1]+12), (p[0]+12,p[1]-10), 4)
-                pygame.draw.line(screen, (140,90,40), (p[0]-14,p[1]+16), (p[0]-6,p[1]+8), 6)
+                p = icon_center
+                pygame.draw.line(screen, (235, 235, 245), (p[0]-12, p[1]+14), (p[0]+14, p[1]-12), 5)
+                pygame.draw.line(screen, (150, 95, 45), (p[0]-16, p[1]+18), (p[0]-6, p[1]+8), 7)
             elif weapon == "none":
-                pygame.draw.line(screen, (200,80,80), (position.x-14, position.y-14), (position.x+14, position.y+14), 4)
-                pygame.draw.line(screen, (200,80,80), (position.x+14, position.y-14), (position.x-14, position.y+14), 4)
+                pygame.draw.circle(screen, (220, 90, 90), icon_center, 18, 3)
+                pygame.draw.line(screen, (220, 90, 90), (icon_center[0]-10, icon_center[1]-10), (icon_center[0]+10, icon_center[1]+10), 3)
+            elif weapon is None:
+                pygame.draw.circle(screen, (120, 120, 130), icon_center, 14, 2)
+
             key = weapon if weapon else "empty_slot"
-            label = font.render(labels.get(key, key.replace('_',' ').title() if key else "-"), True, (255, 255, 255))
-            screen.blit(label, label.get_rect(center=(int(position.x), int(position.y + 28))))
+            label_text = labels.get(key, key.replace('_', ' ').title() if key else "-")
+            color = (255, 255, 255) if selected else (220, 225, 235)
+            label = font.render(label_text, True, color)
+            screen.blit(label, label.get_rect(center=(int(position.x), int(position.y + 24))))
+
+            # ammo/count hint
+            ammo_text = ""
+            if weapon in self.FIREARM_TYPES:
+                for item in self.carried_firearms:
+                    if item.get("type") == weapon:
+                        ammo_text = f"{item.get('ammo', 0)}/{item.get('reserve', 0)}"
+                        break
+            elif weapon == "knife":
+                ammo_text = ""
+            if ammo_text:
+                asurf = small.render(ammo_text, True, (255, 210, 150) if selected else (190, 200, 215))
+                screen.blit(asurf, asurf.get_rect(center=(int(position.x), int(position.y + 44))))
+
+        # center hub with current selection
+        hub_r = inner_r - 6
+        pygame.draw.circle(screen, (20, 22, 30), center, hub_r)
+        pygame.draw.circle(screen, (212, 91, 18), center, hub_r, 2)
+        pygame.draw.circle(screen, (255, 255, 255, 30) if False else (70, 78, 95), center, hub_r, 1)
+        cur_key = self.selected if self.selected else "none"
+        cur_name = labels.get(cur_key, cur_key.replace('_', ' ').title())
+        name_font = _cached_ui_font(None, 20, weight="semibold")
+        name_s = name_font.render(cur_name, True, (245, 245, 250))
+        screen.blit(name_s, name_s.get_rect(center=(int(center.x), int(center.y - 8))))
+        if self.selected in self.FIREARM_TYPES:
+            info = f"{self.ammo}/{self.reserve_ammo}"
+            info_s = small.render(info, True, (255, 200, 120))
+            screen.blit(info_s, info_s.get_rect(center=(int(center.x), int(center.y + 14))))
+        elif self.selected == "knife":
+            info_s = small.render(labels.get("knife", "Knife"), True, (210, 215, 225))
+            screen.blit(info_s, info_s.get_rect(center=(int(center.x), int(center.y + 14))))
+        else:
+            info_s = small.render(labels.get("none", "Unarmed"), True, (180, 185, 195))
+            screen.blit(info_s, info_s.get_rect(center=(int(center.x), int(center.y + 14))))
 
 
 class FleeingDriver:
@@ -4032,17 +4146,17 @@ def _interaction_text(language, key):
 def draw_interaction_prompt(
     screen, key, label, left_margin=20, bottom_margin=65, alpha=255
 ):
-    """Show one warm-toned contextual action on the lower-left side."""
+    """Show a modern contextual action prompt on the lower-left side."""
     alpha = max(0, min(255, int(alpha)))
     if alpha <= 0:
         return None
-    font = _cached_ui_font(None, 23)
-    key_font = _cached_ui_font(None, 22, bold=True)
-    label_surface = font.render(label, True, (250, 237, 220))
-    key_surface = key_font.render(key, True, (25, 15, 9))
-    key_size = 38
-    panel_height = 52
-    panel_width = label_surface.get_width() + key_size + 36
+    font = _cached_ui_font(None, 23, weight="medium")
+    key_font = _cached_ui_font(None, 22, weight="semibold")
+    label_surface = font.render(label, True, (245, 248, 252))
+    key_surface = key_font.render(key, True, (18, 16, 14))
+    key_size = 36
+    panel_height = 50
+    panel_width = label_surface.get_width() + key_size + 34
     panel = pygame.Rect(
         left_margin,
         screen.get_height() - bottom_margin - panel_height,
@@ -4057,16 +4171,22 @@ def draw_interaction_prompt(
         offset_x, offset_y = panel.x, panel.y
         panel.topleft = (0, 0)
 
-    pygame.draw.rect(target, (22, 15, 10), panel, border_radius=12)
-    pygame.draw.rect(target, (145, 84, 42), panel, 1, border_radius=12)
+    # glass panel
+    panel_surf = pygame.Surface((panel.width, panel.height), pygame.SRCALPHA)
+    panel_surf.fill((18, 22, 30, 210))
+    target.blit(panel_surf, panel.topleft)
+    pygame.draw.rect(target, (90, 105, 130), panel, 1, border_radius=12)
+    pygame.draw.rect(target, (212, 91, 18), (panel.x, panel.y, 3, panel.height), border_radius=12)
+
     key_rect = pygame.Rect(panel.x + 10, panel.centery - key_size // 2, key_size, key_size)
-    pygame.draw.rect(target, (228, 119, 31), key_rect, border_radius=8)
-    pygame.draw.rect(target, (255, 174, 75), key_rect, 1, border_radius=8)
+    pygame.draw.rect(target, (235, 242, 248), key_rect, border_radius=8)
+    pygame.draw.rect(target, (255, 255, 255), key_rect, 1, border_radius=8)
+    pygame.draw.rect(target, (212, 91, 18), key_rect, 1, border_radius=8)
     target.blit(
         key_surface,
         key_surface.get_rect(center=(key_rect.centerx, key_rect.centery + 1)),
     )
-    label_rect = label_surface.get_rect(midleft=(key_rect.right + 12, panel.centery))
+    label_rect = label_surface.get_rect(midleft=(key_rect.right + 10, panel.centery))
     target.blit(label_surface, label_rect)
 
     if alpha < 255:

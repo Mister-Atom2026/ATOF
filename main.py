@@ -5,8 +5,8 @@ import pygame
 
 from settings_manager import load_settings, load_statistics, save_settings
 
-VERSION = "0.9.0-alpha.3"
-RELEASE_NAME = "Alpha 3"
+VERSION = "0.9.0-alpha.4"
+RELEASE_NAME = "Alpha 4"
 APP_SETTINGS = load_settings()
 
 import constants
@@ -43,11 +43,16 @@ COLOR_BG = (0, 0, 0)
 COLOR_WHITE = (255, 255, 255)
 COLOR_ORANGE = (212, 91, 18)
 COLOR_BROWN = (60, 40, 30)
-font_path = str(engine._FONT_PATH)
+def _menu_font_path(weight="regular"):
+    try:
+        return str(engine._resolve_font_path(weight))
+    except Exception:
+        return str(engine._FONT_PATH)
+
 try:
-    logo_font = pygame.font.Font(font_path, 150)
-    menu_font = pygame.font.Font(font_path, 70)
-    settings_font = pygame.font.Font(font_path, 42)
+    logo_font = pygame.font.Font(_menu_font_path("bold"), 150)
+    menu_font = pygame.font.Font(_menu_font_path("semibold"), 70)
+    settings_font = pygame.font.Font(_menu_font_path("regular"), 42)
 except (pygame.error, OSError):
     logo_font = pygame.font.Font(None, 150)
     menu_font = pygame.font.Font(None, 70)
@@ -57,9 +62,9 @@ except (pygame.error, OSError):
 def rebuild_fonts():
     global logo_font, menu_font, settings_font
     try:
-        logo_font = pygame.font.Font(font_path, min(150, max(80, HEIGHT // 6)))
-        menu_font = pygame.font.Font(font_path, min(70, max(40, HEIGHT // 10)))
-        settings_font = pygame.font.Font(font_path, min(42, max(24, HEIGHT // 17)))
+        logo_font = pygame.font.Font(_menu_font_path("bold"), min(150, max(80, HEIGHT // 6)))
+        menu_font = pygame.font.Font(_menu_font_path("semibold"), min(70, max(40, HEIGHT // 10)))
+        settings_font = pygame.font.Font(_menu_font_path("regular"), min(42, max(24, HEIGHT // 17)))
     except (pygame.error, OSError):
         logo_font = pygame.font.Font(None, min(150, max(80, HEIGHT // 6)))
         menu_font = pygame.font.Font(None, min(70, max(40, HEIGHT // 10)))

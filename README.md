@@ -261,6 +261,13 @@ Both effects were shortened/volume-adjusted and converted for in-game use under 
 - “Observing the Star” by yd, downloaded from [OpenGameArt.org](https://opengameart.org/content/another-space-background-track), marked CC0 1.0.
 - “Freeway Fumes” and “Detour” by [Zane Little Music](https://zanelittle.com/), downloaded from [OpenGameArt.org](https://opengameart.org/content/freeway-fumes) and [OpenGameArt.org](https://opengameart.org/content/detour), both marked CC0 1.0.
 
+## Pre-release 0.9.0 Alpha 4
+
+- **Cross-platform UI font:** bundled **Inter** (SIL OFL 1.1, with `OFL.txt`) and switched UI/game font loading to the bundled font files for consistent rendering on Windows, macOS, and Linux (with safe fallback).
+- **Weapon wheel / quick selection:** redesigned the weapon wheel with a modern glass/sector look, clearer active selection, center info, and ammo labels while keeping the existing selection algorithm and organization (`wheel_open`, `atan2` sector selection, `wheel_slots`, MMB controls).
+- **UI polish:** modernized contextual interaction prompts for better contrast and consistency with the current HUD style.
+- **Research:** added `docs/alpha4_ui_research.md` summarizing GTA 5/6 and modern game UI patterns plus font selection/integration guidelines used for Alpha 4.
+
 ## Pre-release 0.9.0 Alpha 3
 
 - **Radar/HUD:** redesigned the minimap radar with a modern glass look, improved depth/highlights, and prettier, smoother health and hunger status bars.

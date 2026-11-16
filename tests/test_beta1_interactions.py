@@ -139,7 +139,7 @@ class BetaOneInteractionTests(unittest.TestCase):
         self.assertEqual(panel.left, 20)
         self.assertLess(panel.right, screen.get_width() // 2)
         self.assertLess(key_rect.right, label_rect.left)
-        self.assertEqual(screen.get_at((key_rect.centerx, key_rect.centery))[:3], (228, 119, 31))
+        self.assertEqual(screen.get_at((key_rect.centerx, key_rect.centery))[:3], (235, 242, 248))
 
     def test_phone_and_speedometer_are_drawn_left_of_the_radar(self):
         screen = pygame.Surface((800, 600))
