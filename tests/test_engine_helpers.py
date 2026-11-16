@@ -17,6 +17,16 @@ class HelperFunctionTests(unittest.TestCase):
         self.assertFalse(engine.is_at_sleep_spot('CITY', engine.HOUSE_SLEEP_SPOT))
         self.assertFalse(engine.is_at_sleep_spot('HOUSE', (0, 0)))
 
+    def test_layered_renderer_zoom_keeps_ui_on_top(self):
+        calls = []
+        renderer = engine.LayeredRenderer()
+        renderer.begin_frame()
+        renderer.submit(engine.RenderLayer.BACKGROUND, lambda: calls.append('bg'))
+        renderer.submit(engine.RenderLayer.WORLD, lambda: calls.append('world'))
+        renderer.submit(engine.RenderLayer.UI, lambda: calls.append('ui'))
+        renderer.render(world_zoom=1.25, focus=(0, 0))
+        self.assertEqual(calls, ['bg', 'world', 'ui'])
+
     def test_format_gps_distance(self):
         s = engine._format_gps_distance(50)
         self.assertIsInstance(s, str)

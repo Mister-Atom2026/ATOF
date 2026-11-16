@@ -860,8 +860,30 @@ class LayeredRenderer:
         self._commands.append((layer, self._sequence, draw))
         self._sequence += 1
 
-    def render(self) -> None:
-        for _layer, _sequence, draw in sorted(self._commands):
+    def render(self, *, world_zoom=1.0, focus=None) -> None:
+        """Draw layers; optionally zoom the world around a screen-space focus."""
+        commands = sorted(self._commands)
+        if world_zoom <= 1.0 or focus is None:
+            for _layer, _sequence, draw in commands:
+                draw()
+            return
+
+        world_commands = [cmd for cmd in commands if cmd[0] < RenderLayer.UI]
+        ui_commands = [cmd for cmd in commands if cmd[0] >= RenderLayer.UI]
+        for _layer, _sequence, draw in world_commands:
+            draw()
+
+        surface = pygame.display.get_surface()
+        width, height = surface.get_size()
+        zoomed_w = max(width, int(width * world_zoom))
+        zoomed_h = max(height, int(height * world_zoom))
+        zoomed = pygame.transform.smoothscale(surface, (zoomed_w, zoomed_h))
+        focus_x, focus_y = focus
+        crop_x = max(0, min(int(focus_x * world_zoom - width / 2), zoomed_w - width))
+        crop_y = max(0, min(int(focus_y * world_zoom - height / 2), zoomed_h - height))
+        surface.blit(zoomed, (0, 0), pygame.Rect(crop_x, crop_y, width, height))
+
+        for _layer, _sequence, draw in ui_commands:
             draw()
 
 
@@ -4737,6 +4759,8 @@ def consume_fridge_food(survival, stock, index):
     stock[index] -= 1
     return restored
 
+CITY_CAMERA_ZOOM = 1.25  # a slight focus boost, ~25% of the interior close-up feel
+
 INTERIOR_CAMERA_ZOOM = 4.0
 _INTERIOR_SCALED_CACHE: dict[tuple[int, float], pygame.Surface] = {}
 
@@ -6322,7 +6346,10 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
         frame_renderer.submit(RenderLayer.BACKGROUND, draw_city_background)
         frame_renderer.submit(RenderLayer.WORLD, draw_city_world)
         frame_renderer.submit(RenderLayer.LIGHTING, draw_city_lighting)
-        frame_renderer.render()
+        frame_renderer.render(
+            world_zoom=CITY_CAMERA_ZOOM,
+            focus=camera.world_to_screen((car if in_car else atom).pos),
+        )
 
     def park_vehicle_with_fade():
         nonlocal car, in_car
@@ -8089,7 +8116,14 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
 
             frame_renderer.submit(RenderLayer.BACKGROUND, draw_gunshop_background)
             frame_renderer.submit(RenderLayer.UI, draw_gunshop_ui)
-        frame_renderer.render()
+        city_focus = (
+            camera.world_to_screen((car if in_car else atom).pos)
+            if game_state == "CITY" else None
+        )
+        frame_renderer.render(
+            world_zoom=CITY_CAMERA_ZOOM if city_focus is not None else 1.0,
+            focus=city_focus,
+        )
 
         # Story UI hooks (tracker/toasts/dialogue/journal). No-ops without content/state.
         if story_runtime is not None and not tutorial_mode:
