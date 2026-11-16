@@ -4729,14 +4729,18 @@ def consume_fridge_food(survival, stock, index):
     stock[index] -= 1
     return restored
 
-def draw_house_scene(screen, house_visual, house_info, atom_h, small_font, t):
-    """Draw the house interior."""
-    screen.fill((10, 10, 10))
-    h_rect = house_visual.get_rect(center=(WIDTH // 2, HEIGHT // 2))
-    screen.blit(house_visual, h_rect)
+def house_camera(atom_pos, screen_size):
+    """Follow camera for the house: keep Atom centered, never rescale the map."""
+    return float(atom_pos[0]) - screen_size[0] / 2, float(atom_pos[1]) - screen_size[1] / 2
 
-    # Draw the character relative to the house center.
-    atom_h.draw(screen, h_rect.x, h_rect.y)
+
+def draw_house_scene(screen, house_visual, house_info, atom_h, small_font, t):
+    """Draw the house interior at its original size, focused on Atom."""
+    screen.fill((10, 10, 10))
+    cam_x, cam_y = house_camera(atom_h.pos, screen.get_size())
+    offset_x, offset_y = -cam_x, -cam_y
+    screen.blit(house_visual, (offset_x, offset_y))
+    atom_h.draw(screen, offset_x, offset_y)
 
 def handle_car_logic(atom, car, in_car):
     """Handle entering and leaving the car with the F key."""
