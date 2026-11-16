@@ -1221,7 +1221,7 @@ from engine_radio import (
 
 
 class GameRadio(_EngineGameRadio):
-    """Engine-compatible radio wrapper enforcing menu-only in-game playback."""
+    """Engine-compatible radio wrapper that wires in the game audio settings."""
 
     def __init__(self, settings, *, monotonic_clock=None, allow_playback=True, in_game=False):
         super().__init__(
@@ -5728,7 +5728,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
     wake_fade_started = None
     scene_transition = SceneTransition(duration=0.8)
     manual_headlights = False
-    radio = GameRadio(settings, allow_playback=True, in_game=True, audio_settings=settings)
+    radio = GameRadio(settings, allow_playback=True, in_game=True)
 
     # tutorial uses normal new-game spawn/state (in house), no forced overrides
 

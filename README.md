@@ -3,11 +3,18 @@ Game About Mister Atom
 
 ## Versions
 
+- **v0.9.1-alpha.8 — Alpha 8:** startup crash fix for the in-game radio constructor.
 - **v0.9.1-alpha.7 — Alpha 7:** parked car collisions and the starter pistol restored.
 - **v0.9.1-alpha.6 — Alpha 6:** in-game radio restored with a radio HUD widget.
 - **v0.9.0-alpha.6 — Alpha 6:** car theft/traffic preservation, readable prompts, plain radar, vehicle physics, fines/bribes, UI polish.
 - **v0.9.0-alpha.5 — Alpha 5:** menu-only music, 12-step tutorial, trunk access rules, glass UI, quest/story foundation.
 - **v0.9.0-alpha.4 — Alpha 4:** bundled Inter font, modern weapon wheel, prompt polish (tag corrected to `85c61df`).
+
+## Pre-release 0.9.1 Alpha 8
+
+### Fixed
+
+- **Startup crash with the in-game radio.** The launcher passed an audio-settings argument that the engine radio wrapper does not accept, so starting a game failed with `TypeError: GameRadio.__init__() got an unexpected keyword argument 'audio_settings'`. The wrapper already wires audio settings internally; the extra argument is removed. A regression test now constructs the radio the same way the game does.
 
 ## Pre-release 0.9.1 Alpha 7
 

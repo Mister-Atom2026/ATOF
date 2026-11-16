@@ -189,6 +189,13 @@ class SurvivalAndRadioTests(unittest.TestCase):
 
         self.assertEqual(radio.track_name, "rooms for music.")
 
+    def test_engine_radio_accepts_in_game_construction(self):
+        radio = engine.GameRadio(
+            {"music_volume": 50}, allow_playback=True, in_game=True
+        )
+        self.assertTrue(radio.in_game)
+        self.assertTrue(radio.allow_playback)
+
     def test_radio_plays_while_in_game(self):
         radio = engine.GameRadio({}, monotonic_clock=lambda: 0.0, allow_playback=True, in_game=True)
         music = pygame.mixer.music
