@@ -1,6 +1,14 @@
 # ATOF
 Game About Mister Atom
 
+## Versions
+
+- **v0.9.1-alpha.7 — Alpha 7:** parked car collisions and the starter pistol restored.
+- **v0.9.1-alpha.6 — Alpha 6:** in-game radio restored with a radio HUD widget.
+- **v0.9.0-alpha.6 — Alpha 6:** car theft/traffic preservation, readable prompts, plain radar, vehicle physics, fines/bribes, UI polish.
+- **v0.9.0-alpha.5 — Alpha 5:** menu-only music, 12-step tutorial, trunk access rules, glass UI, quest/story foundation.
+- **v0.9.0-alpha.4 — Alpha 4:** bundled Inter font, modern weapon wheel, prompt polish (tag corrected to `85c61df`).
+
 ## Pre-release 0.9.1 Alpha 7
 
 ### Fixed
