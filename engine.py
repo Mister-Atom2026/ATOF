@@ -26,6 +26,7 @@ import traffic
 import engine_interactions as _engine_interactions
 import engine_quest_hooks as _engine_quest_hooks
 import engine_tutorial as _engine_tutorial
+import engine_ui as _engine_ui
 
 _log = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ WORLD_HEIGHT = _constants.WORLD_HEIGHT
 HOUSE_SLEEP_SPOT = _constants.HOUSE_SLEEP_SPOT
 HOUSE_ENTRY_SPOT = _constants.HOUSE_ENTRY_SPOT
 GUNSHOP_POS = pygame.Vector2(10027, 4902)
+HOUSE_POS = (7738, 2325)
 GUNSHOP_RADIUS = 80
 GUNSHOP_EXIT_SPOT = pygame.Vector2(352, 0)
 GUNSHOP_EXIT_RADIUS = 40
@@ -338,6 +340,14 @@ _STORY_UI_TRANSLATIONS = {
         "story_objective_failed": "Failed",
         "story_distance": "{value} m",
         "story_continue": "Esc/Back: close",
+        "quick_nav_title": "Quick Navigation",
+        "poi_objective": "Current objective",
+        "poi_home": "Home",
+        "poi_gunshop": "Gun Shop",
+        "poi_garage": "Garage",
+        "poi_clear": "Clear GPS destination",
+        "poi_close": "Close",
+        "poi_hint": "↑/↓ choose · Enter set · Esc close",
     },
     "Українська": {
         "story_objectives": "Цілі",
@@ -348,6 +358,14 @@ _STORY_UI_TRANSLATIONS = {
         "story_objective_failed": "Провалено",
         "story_distance": "{value} м",
         "story_continue": "Esc/Back: закрити",
+        "quick_nav_title": "Швидка навігація",
+        "poi_objective": "Поточна ціль",
+        "poi_home": "Дім",
+        "poi_gunshop": "Збройовий магазин",
+        "poi_garage": "Гараж",
+        "poi_clear": "Прибрати точку GPS",
+        "poi_close": "Закрити",
+        "poi_hint": "↑/↓ вибір · Enter поставити · Esc закрити",
     },
     "Русский": {
         "story_objectives": "Цели",
@@ -358,6 +376,14 @@ _STORY_UI_TRANSLATIONS = {
         "story_objective_failed": "Провалено",
         "story_distance": "{value} м",
         "story_continue": "Esc/Back: закрыть",
+        "quick_nav_title": "Быстрая навигация",
+        "poi_objective": "Текущая цель",
+        "poi_home": "Дом",
+        "poi_gunshop": "Оружейный магазин",
+        "poi_garage": "Гараж",
+        "poi_clear": "Убрать точку GPS",
+        "poi_close": "Закрыть",
+        "poi_hint": "↑/↓ выбор · Enter поставить · Esc закрыть",
     },
     "Español": {
         "story_objectives": "Objetivos",
@@ -368,6 +394,14 @@ _STORY_UI_TRANSLATIONS = {
         "story_objective_failed": "Fallido",
         "story_distance": "{value} m",
         "story_continue": "Esc/Back: cerrar",
+        "quick_nav_title": "Navegación rápida",
+        "poi_objective": "Objetivo actual",
+        "poi_home": "Casa",
+        "poi_gunshop": "Armería",
+        "poi_garage": "Garaje",
+        "poi_clear": "Borrar destino GPS",
+        "poi_close": "Cerrar",
+        "poi_hint": "↑/↓ elegir · Enter marcar · Esc cerrar",
     },
     "Deutsch": {
         "story_objectives": "Ziele",
@@ -378,6 +412,14 @@ _STORY_UI_TRANSLATIONS = {
         "story_objective_failed": "Fehlgeschlagen",
         "story_distance": "{value} m",
         "story_continue": "Esc/Back: schließen",
+        "quick_nav_title": "Schnellnavigation",
+        "poi_objective": "Aktuelles Ziel",
+        "poi_home": "Haus",
+        "poi_gunshop": "Waffenladen",
+        "poi_garage": "Garage",
+        "poi_clear": "GPS-Ziel löschen",
+        "poi_close": "Schließen",
+        "poi_hint": "↑/↓ auswählen · Enter setzen · Esc schließen",
     },
     "Français": {
         "story_objectives": "Objectifs",
@@ -388,8 +430,130 @@ _STORY_UI_TRANSLATIONS = {
         "story_objective_failed": "Échoué",
         "story_distance": "{value} m",
         "story_continue": "Échap/Retour : fermer",
+        "quick_nav_title": "Navigation rapide",
+        "poi_objective": "Objectif actuel",
+        "poi_home": "Maison",
+        "poi_gunshop": "Armurerie",
+        "poi_garage": "Garage",
+        "poi_clear": "Effacer la destination GPS",
+        "poi_close": "Fermer",
+        "poi_hint": "↑/↓ choisir · Entrée définir · Échap fermer",
     },
 }
+
+
+def _quick_location_entries(*, house_pos=None, gunshop_pos=None, garage_pos=None,
+                            story_runtime=None):
+    """Build GTA-style quick-navigation entries as ``(id, position, label_key)``."""
+    entries = []
+    tracker = getattr(story_runtime, "tracker_state", None) if story_runtime is not None else None
+    primary = tracker.primary_objective() if tracker is not None else None
+    if primary is not None and primary.target_position is not None:
+        target = primary.target_position
+        entries.append(("objective", (float(target[0]), float(target[1])), "poi_objective"))
+    for entry_id, pos, label_key in (
+        ("home", house_pos, "poi_home"),
+        ("gunshop", gunshop_pos, "poi_gunshop"),
+        ("garage", garage_pos, "poi_garage"),
+    ):
+        if pos is not None:
+            entries.append((entry_id, (float(pos[0]), float(pos[1])), label_key))
+    entries.append(("clear", None, "poi_clear"))
+    entries.append(("close", None, "poi_close"))
+    return entries
+
+
+def quick_locations_menu(screen, font, small_font, settings, trans_dict, languages, gps, *,
+                         house_pos=None, gunshop_pos=None, garage_pos=None,
+                         story_runtime=None, controls=None, fade_in=False):
+    """GTA-style quick navigation: pick a landmark and set the GPS waypoint."""
+    clock = pygame.time.Clock()
+    selected = 0
+    needs_fade = fade_in
+
+    def hit(event, key):
+        return controls.matches(event, key) if controls is not None else event.key == key
+
+    while True:
+        language = languages[settings["lang_idx"]] if languages else "English"
+        text = trans_dict.get(language, trans_dict.get("English", {}))
+        entries = _quick_location_entries(
+            house_pos=house_pos, gunshop_pos=gunshop_pos, garage_pos=garage_pos,
+            story_runtime=story_runtime,
+        )
+        selected = max(0, min(selected, len(entries) - 1))
+
+        dim = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+        dim.fill((0, 0, 0, 120))
+        screen.blit(dim, (0, 0))
+
+        panel = pygame.Rect(0, 0, 520, 132 + len(entries) * 54)
+        panel.center = (screen.get_width() // 2, screen.get_height() // 2)
+        _engine_ui.draw_glass_panel(screen, panel)
+
+        title = font.render(text.get("quick_nav_title", "Quick Navigation"), True, (245, 230, 200))
+        screen.blit(title, (panel.x + 24, panel.y + 16))
+
+        rows = []
+        for index, (_entry_id, _pos, label_key) in enumerate(entries):
+            row = pygame.Rect(panel.x + 18, panel.y + 58 + index * 54, panel.width - 36, 46)
+            rows.append(row)
+            active = index == selected
+            pygame.draw.rect(screen, (60, 45, 35) if active else (35, 40, 50), row, border_radius=8)
+            if active:
+                pygame.draw.rect(screen, (212, 91, 18), row, 1, border_radius=8)
+            label = text.get(label_key, label_key)
+            surface = small_font.render(label, True, (255, 255, 255) if active else (200, 205, 215))
+            screen.blit(surface, (row.x + 14, row.centery - surface.get_height() // 2))
+
+        hint = small_font.render(
+            text.get("poi_hint", "↑/↓ choose · Enter set · Esc close"), True, (180, 190, 205)
+        )
+        screen.blit(hint, (panel.centerx - hint.get_width() // 2, panel.bottom - 28))
+
+        if needs_fade:
+            fade_menu_in(screen)
+            needs_fade = False
+        else:
+            pygame.display.flip()
+
+        def apply_selection():
+            entry_id, pos, _label_key = entries[selected]
+            if entry_id == "clear":
+                if gps is not None:
+                    gps.clear_destination()
+            elif pos is not None and gps is not None:
+                gps.set_destination(pos)
+            play_menu_sound("click")
+
+        for event in pygame.event.get():
+            if controls is not None:
+                controls.process_event(event)
+            if event.type == pygame.QUIT:
+                return "EXIT"
+            if event.type == pygame.KEYDOWN:
+                if hit(event, pygame.K_UP) or hit(event, pygame.K_w):
+                    selected = (selected - 1) % len(entries)
+                    play_menu_sound("hover")
+                elif hit(event, pygame.K_DOWN) or hit(event, pygame.K_s):
+                    selected = (selected + 1) % len(entries)
+                    play_menu_sound("hover")
+                elif hit(event, pygame.K_ESCAPE) or hit(event, pygame.K_TAB):
+                    return "BACK"
+                elif hit(event, pygame.K_RETURN) or hit(event, pygame.K_KP_ENTER) or hit(event, pygame.K_e):
+                    if entries[selected][0] == "close":
+                        return "BACK"
+                    apply_selection()
+                    return "SET"
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                for index, row in enumerate(rows):
+                    if row.collidepoint(event.pos):
+                        selected = index
+                        if entries[selected][0] == "close":
+                            return "BACK"
+                        apply_selection()
+                        return "SET"
+        clock.tick(FPS)
 
 
 def _get_minimap_background(bg_img, scaled_size):
@@ -5062,6 +5226,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
     traffic_timer = 0
     traffic_state = "RED"  # RED pauses route N; GREEN pauses route A1.
     frame_count = 0
+    last_quest_gps_key = None
     keyboard = KeyboardState()
     # Spawn the configured traffic and police at game start.
     npc_cars = traffic.init_traffic(_constants.NPC_TRAFFIC_LIMIT)
@@ -6583,6 +6748,22 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             _quest_hook_logger.debug("story/quest update hook failed", exc_info=True)
             story_snapshot = None
 
+        # GTA-style: keep GPS pointed at the current story objective when it changes.
+        if story_runtime is not None:
+            try:
+                tracker = getattr(story_runtime, "tracker_state", None)
+                primary = tracker.primary_objective() if tracker is not None else None
+                target = (
+                    (float(primary.target_position[0]), float(primary.target_position[1]))
+                    if primary is not None and primary.target_position is not None else None
+                )
+                objective_key = (getattr(primary, "id", ""), target)
+                if target is not None and objective_key != last_quest_gps_key:
+                    if story_runtime.sync_gps_to_primary_objective(gps):
+                        last_quest_gps_key = objective_key
+            except Exception:
+                _log.debug("story objective GPS sync failed", exc_info=True)
+
         frame_count += frame_scale
         if frame_count >= 60:
             traffic.analyze_traffic_jams(npc_cars)
@@ -6663,7 +6844,8 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             if event.type == pygame.KEYDOWN:
                 entered_house_this_event = False
                 # --- Phone controls ---
-                if keyboard.matches(event, pygame.K_m):
+                phone_key = settings.get("keys", {}).get("phone", pygame.K_p)
+                if keyboard.matches(event, pygame.K_m) or keyboard.matches(event, phone_key):
                     phone_active = not phone_active
                     current_app = 0
                     phone_click_sfx.play()  # Play a sound when M opens or closes the phone.
@@ -6711,6 +6893,23 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                             phone_settings["case_idx"] = phone_color_keys[event.key]
                             save_phone_settings(phone_settings)
                             phone_click_sfx.play()
+                if not phone_active and keyboard.matches(event, pygame.K_k):
+                    quick_locations_menu(
+                        screen, game_font, small_font, settings, translations, languages, gps,
+                        house_pos=HOUSE_POS, gunshop_pos=GUNSHOP_POS,
+                        garage_pos=_constants.GARAGE_POS, story_runtime=story_runtime,
+                        controls=keyboard,
+                    )
+                    if tutorial:
+                        tutorial["map_opened"] = True
+                        if gps and getattr(gps, "destination", None) is not None:
+                            tutorial["map_marker_set"] = True
+                    continue
+                if not phone_active and keyboard.matches(event, pygame.K_j):
+                    if story_runtime is not None:
+                        story_runtime.journal_open = not story_runtime.journal_open
+                        play_menu_sound("click")
+                    continue
                 if event.key == pygame.K_F3:
                     show_debug = not show_debug
                 if event.key == pygame.K_TAB:
@@ -6736,6 +6935,10 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                         if gps and getattr(gps, "destination", None) is not None:
                             tutorial["map_marker_set"] = True
                 if event.key == pygame.K_ESCAPE:
+                    if story_runtime is not None and getattr(story_runtime, "journal_open", False):
+                        story_runtime.journal_open = False
+                        play_menu_sound("click")
+                        continue
                     radio_was_playing = radio.is_playing
                     radio.pause()
                     res = pause_menu(

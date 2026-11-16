@@ -2,6 +2,7 @@
 import os
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
 os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
@@ -134,3 +135,57 @@ class LocalizationCompletenessTests(unittest.TestCase):
             self.assertFalse(missing, f'{lang} missing {missing}')
             for key in keys:
                 self.assertTrue(labels[key], f'{lang}.{key} empty')
+
+    def test_quick_nav_keys_for_all_languages(self):
+        keys = (
+            'quick_nav_title', 'poi_objective', 'poi_home', 'poi_gunshop',
+            'poi_garage', 'poi_clear', 'poi_close', 'poi_hint',
+        )
+        for lang in engine.SUPPORTED_LANGUAGES:
+            labels = engine._STORY_UI_TRANSLATIONS[lang]
+            for key in keys:
+                self.assertTrue(labels.get(key), f'{lang}.{key} missing')
+
+    def test_quick_location_entries(self):
+        entries = engine._quick_location_entries(
+            house_pos=(1, 2), gunshop_pos=(3, 4), garage_pos=(5, 6)
+        )
+        self.assertEqual(
+            [entry[0] for entry in entries],
+            ['home', 'gunshop', 'garage', 'clear', 'close'],
+        )
+        self.assertEqual(entries[0][1], (1.0, 2.0))
+
+    def test_quick_location_entries_include_story_objective(self):
+        class _Primary:
+            id = 'obj1'
+            target_position = (10.0, 20.0)
+
+        class _Tracker:
+            def primary_objective(self):
+                return _Primary()
+
+        class _Runtime:
+            tracker_state = _Tracker()
+
+        entries = engine._quick_location_entries(story_runtime=_Runtime())
+        self.assertEqual(entries[0][0], 'objective')
+        self.assertEqual(entries[0][1], (10.0, 20.0))
+
+    def test_quick_locations_menu_closes_on_escape(self):
+        screen = pygame.display.get_surface()
+        font = pygame.font.Font(None, 24)
+        settings = {'lang_idx': 0}
+        translations = {
+            lang: dict(engine._STORY_UI_TRANSLATIONS[lang])
+            for lang in engine.SUPPORTED_LANGUAGES
+        }
+        gps = engine.GPS()
+        event = pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE)
+        with patch('pygame.event.get', side_effect=[[event]]):
+            result = engine.quick_locations_menu(
+                screen, font, font, settings, translations,
+                engine.SUPPORTED_LANGUAGES, gps,
+                house_pos=(1, 2), gunshop_pos=(3, 4), garage_pos=(5, 6),
+            )
+        self.assertEqual(result, 'BACK')

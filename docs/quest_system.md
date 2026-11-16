@@ -114,6 +114,6 @@ Use `rewards` hooks and lifecycle hooks (`on_complete`, `on_fail`, objective `on
 1. Create a `story/` package or content modules with `QuestDef` data/conditions/hooks (still separate from engine loop logic).
 2. Yield/register those definitions from `open_world.iter_quest_definitions()` or a bootstrap function.
 3. Add focused `manager.emit(...)` calls at meaningful gameplay events (dialog, pickups, area enter/exit, mission triggers, combat outcomes) and/or enrich `QuestContext.game`.
-4. Add UI/journal presentation for `active/completed/failed` quests and objective progress. Story UI labels (`ui_story.STORY_UI_KEYS`) are already localized for all six languages in `engine._STORY_UI_TRANSLATIONS`; pass them through `StoryRuntime.labels` or the engine `t` dict.
+4. Add UI/journal presentation for `active/completed/failed` quests and objective progress. Story UI labels (`ui_story.STORY_UI_KEYS`) are already localized for all six languages in `engine._STORY_UI_TRANSLATIONS`; pass them through `StoryRuntime.labels` or the engine `t` dict. Player-facing hooks are wired: **K** opens the GTA-style quick-navigation menu (current objective / home / gun shop / garage / clear GPS), **J** toggles the journal (Esc closes it), and GPS is synchronized automatically when the primary quest objective changes.
 5. Implement reward hooks that call stable engine APIs (inventory, money, unlocks) and add tests for quest state transitions and save/load round-trips.
 6. Version/migrate quest save data if objective/quest IDs change in future content updates.
