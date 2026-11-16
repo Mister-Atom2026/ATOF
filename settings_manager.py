@@ -245,6 +245,7 @@ def load_game_save():
         "respect": _finite_number(values.get("respect"), minimum=_HONOR_MIN, maximum=_HONOR_MAX),
         "wanted_level": _bounded_int(values.get("wanted_level"), 0, 0, 5),
         "wanted_escape_timer": _finite_number(values.get("wanted_escape_timer"), maximum=100_000.0),
+        "wanted_fines": _bounded_int(values.get("wanted_fines"), 0, 0, 50_000),
         "game_state": values.get("game_state")
         if values.get("game_state") in ("CITY", "HOUSE", "GUNSHOP")
         else "CITY",

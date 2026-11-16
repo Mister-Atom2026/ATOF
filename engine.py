@@ -28,6 +28,7 @@ import engine_quest_hooks as _engine_quest_hooks
 import engine_tutorial as _engine_tutorial
 import engine_ui as _engine_ui
 import vehicle_preservation as _vehicle_preservation
+from wanted_system import WantedState
 
 _log = logging.getLogger(__name__)
 
@@ -1278,27 +1279,10 @@ def _get_house_icon() -> Optional[pygame.Surface]:
     return _house_icon
 
 
-class WantedLevel:
-    def __init__(self, level: int = 0, escape_timer: float = 0):
-        self.level = max(0, min(5, int(level)))
-        self.escape_timer = max(0.0, float(escape_timer))
+class WantedLevel(WantedState):
+    """Engine-facing wanted state (logic lives in :mod:`wanted_system`)."""
 
-    def raise_level(self, amount: int = 1) -> None:
-        self.level = min(5, self.level + max(1, int(amount)))
-        self.escape_timer = max(self.escape_timer, 1800.0 + self.level * 600.0)
-
-    def update(self, frame_scale: float, nearby_police: bool = False) -> None:
-        if self.level == 0 or nearby_police:
-            return
-        self.escape_timer = max(0.0, self.escape_timer - frame_scale)
-        if self.escape_timer == 0:
-            self.level -= 1
-            if self.level:
-                self.escape_timer = 1800.0 + self.level * 600.0
-
-    def clear(self) -> None:
-        self.level = 0
-        self.escape_timer = 0.0
+    pass
 
 
 class HonorAndRespect:
@@ -2893,8 +2877,9 @@ def draw_handgun(
     )
 
 
-def draw_player_status(screen, player, ammo, reserve_ammo, wanted_level, labels):
-    """Draw ammunition and wanted status on the upper-left side."""
+def draw_player_status(screen, player, ammo, reserve_ammo, wanted_level, labels,
+                       fine=0, bribe_cost=0, notice=""):
+    """Draw ammunition, wanted status and outstanding fines on the upper-left."""
     small_font = _cached_ui_font(None, 24)
 
     # The minimap now owns the health display, so keep these clear of it.
@@ -2909,6 +2894,17 @@ def draw_player_status(screen, player, ammo, reserve_ammo, wanted_level, labels)
     wanted_text = labels.get("wanted", "Wanted: {stars}").format(stars=stars)
     wanted_surface = small_font.render(wanted_text, True, (255, 190, 90))
     screen.blit(wanted_surface, (20, 279))
+
+    if fine:
+        fine_text = labels.get("fine", "Fine: {amount} ₭").format(amount=fine)
+        screen.blit(small_font.render(fine_text, True, (255, 120, 90)), (20, 306))
+    if bribe_cost:
+        bribe_text = labels.get("bribe_hint", "[B] Bribe police ({cost} ₭)").format(
+            cost=bribe_cost
+        )
+        screen.blit(small_font.render(bribe_text, True, (255, 215, 0)), (20, 333))
+    if notice:
+        screen.blit(small_font.render(notice, True, (160, 255, 160)), (20, 360))
 
 
 def _format_gps_distance(distance: float) -> str:
@@ -4765,11 +4761,11 @@ def update_combat_system(frame_scale, fleeing_drivers, hostile_officers, npc_car
                         hostile_officers.append(
                             HostileOfficer(hit_position + pygame.Vector2(35, 0))
                         )
-                        wanted.raise_level(2)
+                        wanted.raise_level(2, fine=1200, reason="damage")
                         honor_and_respect.change(honor=-12, respect=-7)
                     else:
                         fleeing_drivers.append(FleeingDriver(hit_position, atom.pos))
-                        wanted.raise_level(1)
+                        wanted.raise_level(1, fine=600, reason="damage")
                         honor_and_respect.change(honor=-10, respect=-6)
                 continue
 
@@ -4783,7 +4779,7 @@ def update_combat_system(frame_scale, fleeing_drivers, hostile_officers, npc_car
             )
             if hit_officer is not None:
                 hit_officer.take_damage(projectile.damage)
-                wanted.raise_level(1)
+                wanted.raise_level(1, fine=900, reason="assault")
                 continue
 
             hit_driver = next(
@@ -4797,7 +4793,7 @@ def update_combat_system(frame_scale, fleeing_drivers, hostile_officers, npc_car
             if hit_driver is not None:
                 hit_driver.take_damage(projectile.damage)
                 honor_and_respect.change(honor=-25, respect=-20)
-                wanted.raise_level(2)
+                wanted.raise_level(2, fine=700, reason="assault")
                 continue
         elif in_car:
             if car.pos.distance_squared_to(projectile.position) < 42**2:
@@ -4863,6 +4859,7 @@ def build_game_state_data(game_state, atom, atom_h, car, weapons, wanted,
         "respect": honor_and_respect.respect,
         "wanted_level": wanted.level,
         "wanted_escape_timer": wanted.escape_timer,
+        "wanted_fines": getattr(wanted, "fines", 0),
         "house_player": {
             "x": atom_h.pos.x,
             "y": atom_h.pos.y,
@@ -5206,7 +5203,7 @@ PHONE_TRANSLATIONS = {
     "English": {
         "bank": "Triple1 Bank", "history": "Recent transactions:",
         "start": "Starting balance", "guard": "By the guard", "bridge": "By the bridge",
-        "repair": "Repair", "nightstand": "Nightstand", "sofa": "On the sofa",
+        "repair": "Repair", "bribe": "Police bribe", "nightstand": "Nightstand", "sofa": "On the sofa",
         "settings_app": "Settings", "weather_app": "Weather", "weather_unknown": "No data",
         "phone_settings": "Phone settings", "phone_color": "Phone color",
         "choose_color": "Press 1–5 to choose", "colors": ["Black", "Silver", "Blue", "Gold", "Pink"],
@@ -5214,7 +5211,7 @@ PHONE_TRANSLATIONS = {
     "Українська": {
         "bank": "Банк Triple1", "history": "Останні транзакції:",
         "start": "Стартовий баланс", "guard": "Біля охоронця", "bridge": "Коло мосту",
-        "repair": "Ремонт", "nightstand": "Тумбочка", "sofa": "На дивані",
+        "repair": "Ремонт", "bribe": "Хабар поліції", "nightstand": "Тумбочка", "sofa": "На дивані",
         "settings_app": "Налаштування", "weather_app": "Погода", "weather_unknown": "Немає даних",
         "phone_settings": "Налаштування телефона", "phone_color": "Колір телефона",
         "choose_color": "Натисни 1–5, щоб вибрати", "colors": ["Чорний", "Сріблястий", "Синій", "Золотий", "Рожевий"],
@@ -5222,7 +5219,7 @@ PHONE_TRANSLATIONS = {
     "Русский": {
         "bank": "Банк Triple1", "history": "Последние транзакции:",
         "start": "Стартовый баланс", "guard": "У охранника", "bridge": "У моста",
-        "repair": "Ремонт", "nightstand": "Тумбочка", "sofa": "На диване",
+        "repair": "Ремонт", "bribe": "Взятка полиции", "nightstand": "Тумбочка", "sofa": "На диване",
         "settings_app": "Настройки", "weather_app": "Погода", "weather_unknown": "Нет данных",
         "phone_settings": "Настройки телефона", "phone_color": "Цвет телефона",
         "choose_color": "Нажми 1–5 для выбора", "colors": ["Чёрный", "Серебристый", "Синий", "Золотой", "Розовый"],
@@ -5230,7 +5227,7 @@ PHONE_TRANSLATIONS = {
     "Español": {
         "bank": "Banco Triple1", "history": "Transacciones recientes:",
         "start": "Saldo inicial", "guard": "Junto al guardia", "bridge": "Junto al puente",
-        "repair": "Reparación", "nightstand": "Mesita de noche", "sofa": "En el sofá",
+        "repair": "Reparación", "bribe": "Soborno policial", "nightstand": "Mesita de noche", "sofa": "En el sofá",
         "settings_app": "Ajustes", "weather_app": "Clima", "weather_unknown": "Sin datos",
         "phone_settings": "Ajustes del teléfono", "phone_color": "Color del teléfono",
         "choose_color": "Pulsa 1–5 para elegir", "colors": ["Negro", "Plateado", "Azul", "Dorado", "Rosa"],
@@ -5238,7 +5235,7 @@ PHONE_TRANSLATIONS = {
     "Deutsch": {
         "bank": "Triple1 Bank", "history": "Letzte Transaktionen:",
         "start": "Anfangsguthaben", "guard": "Beim Wachmann", "bridge": "Bei der Brücke",
-        "repair": "Reparatur", "nightstand": "Nachttisch", "sofa": "Auf dem Sofa",
+        "repair": "Reparatur", "bribe": "Polizei-Bestechung", "nightstand": "Nachttisch", "sofa": "Auf dem Sofa",
         "settings_app": "Einstellungen", "weather_app": "Wetter", "weather_unknown": "Keine Daten",
         "phone_settings": "Telefoneinstellungen", "phone_color": "Telefonfarbe",
         "choose_color": "1–5 zum Auswählen", "colors": ["Schwarz", "Silber", "Blau", "Gold", "Pink"],
@@ -5246,7 +5243,7 @@ PHONE_TRANSLATIONS = {
     "Français": {
         "bank": "Banque Triple1", "history": "Transactions récentes :",
         "start": "Solde initial", "guard": "Près du garde", "bridge": "Près du pont",
-        "repair": "Réparation", "nightstand": "Table de chevet", "sofa": "Sur le canapé",
+        "repair": "Réparation", "bribe": "Pot-de-vin policier", "nightstand": "Table de chevet", "sofa": "Sur le canapé",
         "settings_app": "Réglages", "weather_app": "Météo", "weather_unknown": "Aucune donnée",
         "phone_settings": "Réglages du téléphone", "phone_color": "Couleur du téléphone",
         "choose_color": "Appuie sur 1–5", "colors": ["Noir", "Argent", "Bleu", "Or", "Rose"],
@@ -5413,6 +5410,8 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
     total_earned = game_save.get("earned", 0) if game_save else 0
     total_spent = game_save.get("spent", 0) if game_save else 0
     money_history = [("+100", "start")] if not game_save else []
+    wanted_notice = ""
+    wanted_notice_until = 0.0
     shop_income_day = game_save.get("shop_income_day", 0) if game_save else 0
     # Keep track of collected treasures so they cannot be collected repeatedly.
     collected_treasures = set()
@@ -5465,6 +5464,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
     wanted = WantedLevel(
         game_save.get("wanted_level", 0) if game_save else 0,
         game_save.get("wanted_escape_timer", 0) if game_save else 0,
+        game_save.get("wanted_fines", 0) if game_save else 0,
     )
     # --- Time and lighting ---
     game_time = game_save.get("game_time", 480.0) if game_save else 480.0
@@ -5613,6 +5613,10 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "stats_honor": "Honor: {value}", "stats_respect": "Respect: {value}",
             "player_hp": "HP: {current}/{maximum}", "ammo": "Ammo: {current}/{reserve}",
             "wanted": "Wanted: {stars}", "reload": "Reloaded", "empty_ammo": "Out of ammo",
+            "fine": "Fine: {amount} ₭", "bribe_hint": "[B] Bribe police ({cost} ₭)",
+            "bribe_done": "Bribe paid - wanted reduced ({cost} ₭)",
+            "bribe_no_money": "Not enough money for a bribe ({cost} ₭)",
+            "bribe_none": "Nothing to pay",
             "weapon_hint": "Mouse: move while armed | Left Shift: sprint | LMB: fire | R: reload",
             "none": "Unarmed", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "knife": "Knife", "empty_slot": "Empty",
             "steal_hint": "[F] Steal vehicle",
@@ -5638,6 +5642,10 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "stats_honor": "Честь: {value}", "stats_respect": "Повага: {value}",
             "player_hp": "ЗД: {current}/{maximum}", "ammo": "Патрони: {current}/{reserve}",
             "wanted": "Розшук: {stars}", "reload": "Перезаряджено", "empty_ammo": "Немає патронів",
+            "fine": "Штраф: {amount} ₭", "bribe_hint": "[B] Дати хабар ({cost} ₭)",
+            "bribe_done": "Хабар сплачено — розшук зменшено ({cost} ₭)",
+            "bribe_no_money": "Не вистачає грошей на хабар ({cost} ₭)",
+            "bribe_none": "Немає що сплачувати",
             "weapon_hint": "Миша: рух зі зброєю | Лівий Shift: біг | ЛКМ: стріляти | R: перезарядити",
             "none": "Без зброї", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "knife": "Ніж", "empty_slot": "Порожньо",
             "steal_hint": "[F] Викрасти авто",
@@ -5663,6 +5671,10 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "stats_honor": "Честь: {value}", "stats_respect": "Уважение: {value}",
             "player_hp": "ЗД: {current}/{maximum}", "ammo": "Патроны: {current}/{reserve}",
             "wanted": "Розыск: {stars}", "reload": "Перезаряжено", "empty_ammo": "Нет патронов",
+            "fine": "Штраф: {amount} ₭", "bribe_hint": "[B] Дать взятку ({cost} ₭)",
+            "bribe_done": "Взятка уплачена — розыск снижен ({cost} ₭)",
+            "bribe_no_money": "Не хватает денег на взятку ({cost} ₭)",
+            "bribe_none": "Нечего оплачивать",
             "weapon_hint": "Мышь: движение с оружием | Левый Shift: бег | ЛКМ: стрелять | R: перезарядить",
             "none": "Без оружия", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "knife": "Нож", "empty_slot": "Пусто",
             "steal_hint": "[F] Угнать авто",
@@ -5689,6 +5701,10 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "stats_honor": "Honor: {value}", "stats_respect": "Respeto: {value}",
             "player_hp": "Salud: {current}/{maximum}", "ammo": "Munición: {current}/{reserve}",
             "wanted": "Búsqueda: {stars}", "reload": "Recargado", "empty_ammo": "Sin munición",
+            "fine": "Multa: {amount} ₭", "bribe_hint": "[B] Sobornar a la policía ({cost} ₭)",
+            "bribe_done": "Soborno pagado: búsqueda reducida ({cost} ₭)",
+            "bribe_no_money": "No tienes suficiente dinero para sobornar ({cost} ₭)",
+            "bribe_none": "No hay nada que pagar",
             "weapon_hint": "Ratón: moverse armado | Mayús izq.: correr | Clic izq.: disparar | R: recargar",
             "none": "Sin arma", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "knife": "Cuchillo", "empty_slot": "Vacío",
             "steal_hint": "[F] Robar vehículo",
@@ -5715,6 +5731,10 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "stats_honor": "Ehre: {value}", "stats_respect": "Ansehen: {value}",
             "player_hp": "LP: {current}/{maximum}", "ammo": "Munition: {current}/{reserve}",
             "wanted": "Gesucht: {stars}", "reload": "Nachgeladen", "empty_ammo": "Keine Munition",
+            "fine": "Bußgeld: {amount} ₭", "bribe_hint": "[B] Polizei bestechen ({cost} ₭)",
+            "bribe_done": "Bestechung gezahlt – Gesucht-Stufe gesenkt ({cost} ₭)",
+            "bribe_no_money": "Nicht genug Geld für die Bestechung ({cost} ₭)",
+            "bribe_none": "Nichts zu bezahlen",
             "weapon_hint": "Maus: mit Waffe bewegen | Linke Umschalttaste: sprinten | Linksklick: schießen | R: nachladen",
             "none": "Keine Waffe", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "knife": "Messer", "empty_slot": "Leer",
             "steal_hint": "[F] Auto stehlen",
@@ -5741,6 +5761,10 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             "stats_honor": "Honneur : {value}", "stats_respect": "Respect : {value}",
             "player_hp": "Santé : {current}/{maximum}", "ammo": "Munitions : {current}/{reserve}",
             "wanted": "Recherché : {stars}", "reload": "Rechargé", "empty_ammo": "Plus de munitions",
+            "fine": "Amende : {amount} ₭", "bribe_hint": "[B] Corrompre la police ({cost} ₭)",
+            "bribe_done": "Pot-de-vin payé — recherche réduite ({cost} ₭)",
+            "bribe_no_money": "Pas assez d'argent pour le pot-de-vin ({cost} ₭)",
+            "bribe_none": "Rien à payer",
             "weapon_hint": "Souris : avancer armé | Maj gauche : courir | Clic gauche : tirer | R : recharger",
             "none": "Désarmé", "pistol": "Mathew 37", "shotgun": "Svityaz 111", "rifle": "Goida G-2", "knife": "Couteau", "empty_slot": "Vide",
             "steal_hint": "[F] Voler la voiture",
@@ -5963,11 +5987,11 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
         driver_position = stolen_position - forward * 35
         if stolen_police:
             hostile_officers.append(HostileOfficer(stolen_position + forward * 40))
-            wanted.raise_level(3)
+            wanted.raise_level(3, fine=1500, reason="theft")
             honor_and_respect.change(honor=-15, respect=-8)
         else:
             fleeing_drivers.append(FleeingDriver(driver_position, atom.pos))
-            wanted.raise_level(1)
+            wanted.raise_level(1, fine=800, reason="theft")
             honor_and_respect.change(honor=-8, respect=-5)
 
         # Only the singled-out NPC is retired.  Its sprite is replaced by the
@@ -6805,6 +6829,8 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
         _advance_game_time(game_minute_delta)
         survival.advance(game_minute_delta, atom)
         weather.update(frame_scale)
+        if wanted_notice and time.perf_counter() > wanted_notice_until:
+            wanted_notice = ""
 
         # Foundation hook: allow future quests/story UI to poll conditions each frame.
         story_snapshot = None
@@ -7006,6 +7032,33 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                 continue
             if event.type == pygame.KEYDOWN:
                 entered_house_this_event = False
+                # --- Bribe police: clear fines and lose one wanted star ---
+                if (
+                    game_state == "CITY"
+                    and not scene_transition.active
+                    and not phone_active
+                    and not fridge_menu_open
+                    and not weapons.wheel_open
+                    and not getattr(event, "repeat", False)
+                    and keyboard.matches(event, pygame.K_b)
+                ):
+                    cost = wanted.bribe_cost()
+                    if cost <= 0:
+                        wanted_notice = t.get("bribe_none", "Nothing to pay")
+                    else:
+                        paid, amount = wanted.bribe(money)
+                        if paid:
+                            money -= amount
+                            total_spent += amount
+                            money_history.append((f"-{amount}", "bribe"))
+                            wanted_notice = t.get(
+                                "bribe_done", "Bribe paid - wanted reduced ({cost} ₭)"
+                            ).format(cost=amount)
+                        else:
+                            wanted_notice = t.get(
+                                "bribe_no_money", "Not enough money for a bribe ({cost} ₭)"
+                            ).format(cost=cost)
+                    wanted_notice_until = time.perf_counter() + 2.5
                 # --- Phone controls ---
                 phone_key = settings.get("keys", {}).get("phone", pygame.K_p)
                 if keyboard.matches(event, pygame.K_m) or keyboard.matches(event, phone_key):
@@ -7283,7 +7336,12 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                     )
                     if hit is not None:
                         hit.is_alive = False
-                        wanted.raise_level(2 if getattr(hit, "is_police", False) else 1)
+                        is_police = getattr(hit, "is_police", False)
+                        wanted.raise_level(
+                            2 if is_police else 1,
+                            fine=1200 if is_police else 600,
+                            reason="assault",
+                        )
                         honor_and_respect.change(honor=-20, respect=-15)
                 else:
                     projectiles.extend(weapons.fire(atom.pos, target_position, game_audio))
@@ -7410,6 +7468,8 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                 if car.just_hit:
                     distance_since_crash = 0.0
                     current_drift_distance = 0.0
+                    # Property damage from a crash is recorded as a fine.
+                    wanted.add_fine(150, reason="damage")
                 else:
                     distance_since_crash += travelled
                     personal_records["distance_without_crash_m"] = max(
@@ -7598,6 +7658,9 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                     weapons.reserve_ammo,
                     wanted.level,
                     t,
+                    fine=wanted.fines,
+                    bribe_cost=wanted.bribe_cost(),
+                    notice=wanted_notice,
                 )
                 weapons.draw(screen, t)
                 draw_gta_minimap(
