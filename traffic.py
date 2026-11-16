@@ -417,6 +417,9 @@ class PoliceTrafficCar(TrafficCar):
 
     def update(self, col_mask, player_car, other_traffic, _traffic_state, frame_scale=1.0):
         if not self.is_alive:
+            # Match TrafficCar: run the wreck's death animation down so the
+            # respawn sweep can retire it at the right time.
+            self.death_timer = max(0.0, self.death_timer - frame_scale)
             return
         if self.is_arrested:
             self.current_speed = self.speed = 0

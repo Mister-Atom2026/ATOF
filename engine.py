@@ -27,6 +27,7 @@ import engine_interactions as _engine_interactions
 import engine_quest_hooks as _engine_quest_hooks
 import engine_tutorial as _engine_tutorial
 import engine_ui as _engine_ui
+import vehicle_preservation as _vehicle_preservation
 
 _log = logging.getLogger(__name__)
 
@@ -5735,18 +5736,15 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
 
     def nearby_traffic_car(
         position,
-        radius: float = 90,
+        radius: float = _vehicle_preservation.DEFAULT_NEARBY_RADIUS,
     ) -> traffic.TrafficCar | None:
+        # Only currently drivable traffic may be stolen: wrecks and cars that
+        # are being arrested must not be hijacked (and therefore must not be
+        # flagged dead by the hijack flow).
         candidates: list[traffic.TrafficCar] = [
-            npc for npc in npc_cars
-            if getattr(npc, "is_alive", True)
-            and npc.pos.distance_squared_to(position) <= radius * radius
+            npc for npc in npc_cars if _vehicle_preservation.is_hijackable(npc)
         ]
-        closest = min(
-            candidates,
-            key=lambda npc: npc.pos.distance_squared_to(position),
-            default=None,
-        )
+        closest = _vehicle_preservation.nearest_car(candidates, position, radius)
         if (
             closest is not None
             and closest.pos.distance_squared_to(position) < car.pos.distance_squared_to(position)
@@ -5756,8 +5754,13 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
 
     def hijack_traffic_car(npc):
         nonlocal car, in_car
-        if car not in parked_cars and not getattr(car, "is_police", False):
-            parked_cars.append(car)
+        # Guard the destructive part of the swap: a dead/arrested car must
+        # never be turned into the player's vehicle.
+        if not _vehicle_preservation.is_hijackable(npc):
+            return
+        # Keep the car we arrived in.  Stolen police cars used to be skipped
+        # here, leaving them with no sprite, collision or garage record at all.
+        _vehicle_preservation.preserve_previous_car(car, parked_cars)
         if tutorial:
             tutorial["stole_car"] = True
         stolen_position = pygame.Vector2(npc.pos)
@@ -5774,7 +5777,11 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             wanted.raise_level(1)
             honor_and_respect.change(honor=-8, respect=-5)
 
+        # Only the singled-out NPC is retired.  Its sprite is replaced by the
+        # player car at the same spot, so no wreck should be rendered for it.
         npc.is_alive = False
+        npc.death_timer = 0.0
+        npc.current_speed = npc.speed = 0.0
         replacement = Car(stolen_position.x, stolen_position.y)
         replacement.angle = stolen_angle
         replacement.vehicle_class = "stolen-police" if stolen_police else "stolen-sedan"
@@ -7179,12 +7186,21 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
             traffic_respawn_timer += max(0.0, frame_scale) / 60.0
             if traffic_respawn_timer >= _constants.NPC_RESPAWN_SECONDS:
                 traffic_respawn_timer = 0.0
-                npc_cars[:] = [
-                    npc for npc in npc_cars if getattr(npc, "is_alive", True)
-                ]
+                # Keep wrecks until their death timer expires; purging every
+                # dead NPC in one sweep makes neighbouring cars pop out of
+                # existence together with their sprites and collision masks.
+                npc_cars[:] = _vehicle_preservation.alive_or_fading(npc_cars)
                 missing_npcs = _constants.NPC_TRAFFIC_LIMIT - len(npc_cars)
                 if missing_npcs > 0:
-                    npc_cars.extend(traffic.init_traffic(missing_npcs))
+                    # Never drop a fresh car on top of one that is already
+                    # there - overlapping spawns read as cars "vanishing".
+                    fresh_cars = traffic.init_traffic(missing_npcs)
+                    npc_cars.extend(
+                        fresh for fresh in fresh_cars
+                        if not _vehicle_preservation.is_spawn_crowded(
+                            fresh.pos, npc_cars
+                        )
+                    )
             if in_car:
                 previous_car_pos = pygame.Vector2(car.pos)
                 car.update(
