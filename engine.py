@@ -27,6 +27,7 @@ import engine_interactions as _engine_interactions
 import engine_quest_hooks as _engine_quest_hooks
 import engine_tutorial as _engine_tutorial
 import engine_ui as _engine_ui
+import engine_ui_polish as _ui_polish
 import vehicle_preservation as _vehicle_preservation
 from wanted_system import WantedState
 
@@ -442,6 +443,80 @@ _STORY_UI_TRANSLATIONS = {
         "poi_hint": "↑/↓ choisir · Entrée définir · Échap fermer",
     },
 }
+
+# Objective chip + map legend vocabulary (see docs/ui_research_*.md).
+_UI_POLISH_TRANSLATIONS = {
+    "English": {
+        "story_objective_now": "Current objective",
+        "story_objective_updated": "Objective updated",
+        "map_legend": "Map legend",
+        "map_marker_player": "You",
+        "map_marker_home": "Home",
+        "map_marker_gunshop": "Gun shop",
+        "map_marker_garage": "Garage",
+        "map_marker_objective": "Mission target",
+        "map_marker_destination": "Your waypoint",
+    },
+    "Українська": {
+        "story_objective_now": "Поточна ціль",
+        "story_objective_updated": "Ціль оновлено",
+        "map_legend": "Легенда мапи",
+        "map_marker_player": "Ви",
+        "map_marker_home": "Дім",
+        "map_marker_gunshop": "Збройовий магазин",
+        "map_marker_garage": "Гараж",
+        "map_marker_objective": "Ціль місії",
+        "map_marker_destination": "Ваша точка",
+    },
+    "Русский": {
+        "story_objective_now": "Текущая цель",
+        "story_objective_updated": "Цель обновлена",
+        "map_legend": "Легенда карты",
+        "map_marker_player": "Вы",
+        "map_marker_home": "Дом",
+        "map_marker_gunshop": "Оружейный магазин",
+        "map_marker_garage": "Гараж",
+        "map_marker_objective": "Цель миссии",
+        "map_marker_destination": "Ваша точка",
+    },
+    "Español": {
+        "story_objective_now": "Objetivo actual",
+        "story_objective_updated": "Objetivo actualizado",
+        "map_legend": "Leyenda del mapa",
+        "map_marker_player": "Tú",
+        "map_marker_home": "Casa",
+        "map_marker_gunshop": "Armería",
+        "map_marker_garage": "Garaje",
+        "map_marker_objective": "Objetivo de misión",
+        "map_marker_destination": "Tu punto",
+    },
+    "Deutsch": {
+        "story_objective_now": "Aktuelles Ziel",
+        "story_objective_updated": "Ziel aktualisiert",
+        "map_legend": "Kartenlegende",
+        "map_marker_player": "Du",
+        "map_marker_home": "Haus",
+        "map_marker_gunshop": "Waffenladen",
+        "map_marker_garage": "Garage",
+        "map_marker_objective": "Missionsziel",
+        "map_marker_destination": "Dein Wegpunkt",
+    },
+    "Français": {
+        "story_objective_now": "Objectif actuel",
+        "story_objective_updated": "Objectif mis à jour",
+        "map_legend": "Légende de la carte",
+        "map_marker_player": "Vous",
+        "map_marker_home": "Maison",
+        "map_marker_gunshop": "Armurerie",
+        "map_marker_garage": "Garage",
+        "map_marker_objective": "Cible de mission",
+        "map_marker_destination": "Votre point",
+    },
+}
+
+# Keep one canonical table for story/UI keys (single source of truth).
+for _language, _labels in _UI_POLISH_TRANSLATIONS.items():
+    _STORY_UI_TRANSLATIONS[_language].update(_labels)
 
 
 def _quick_location_entries(*, house_pos=None, gunshop_pos=None, garage_pos=None,
@@ -4186,10 +4261,16 @@ def full_screen_map(
     gps: GPS | None = None,
     labels: Mapping[str, str] | None = None,
     gunshop_pos=None,
+    garage_pos=None,
     mission_markers=None,
     mission_labels: Mapping[str, str] | None = None,
+    show_legend: bool = True,
 ):
-    """Draw the zoomable full-screen map and its icons."""
+    """Draw the zoomable full-screen map and its icons.
+
+    Markers and the legend share one shape-coded vocabulary from
+    ``engine_ui_polish`` so the player never has to learn two symbol sets.
+    """
     house_icon = _get_house_icon()
 
     screen_width, screen_height = screen.get_size()
@@ -4286,21 +4367,20 @@ def full_screen_map(
         else:
             pygame.draw.circle(screen, (0, 0, 255), (hx, hy), int(10 * map_zoom))
 
-        # Gun shop marker.
+        # POI markers — silhouettes are shared with the radar overlay + legend.
         if gunshop_pos is not None:
             gx, gy = world_to_map(gunshop_pos[0], gunshop_pos[1])
-            g_size = max(8, int(10 * map_zoom))
-            pygame.draw.circle(screen, (20, 20, 20), (gx, gy), g_size + 2)
-            pygame.draw.circle(screen, (70, 180, 255), (gx, gy), g_size)
-            pygame.draw.circle(screen, (255, 255, 255), (gx, gy), g_size, 2)
-            gfont = _cached_ui_font(None, max(14, int(14 * map_zoom)))
-            glabel = gfont.render("G", True, (255, 255, 255))
-            screen.blit(glabel, glabel.get_rect(center=(gx, gy)))
+            _ui_polish.draw_marker_glyph(screen, (gx, gy), "gunshop",
+                                         radius=max(8, int(10 * map_zoom)))
+        if garage_pos is not None:
+            gx2, gy2 = world_to_map(garage_pos[0], garage_pos[1])
+            _ui_polish.draw_marker_glyph(screen, (gx2, gy2), "garage",
+                                         radius=max(8, int(10 * map_zoom)))
 
         # Player marker.
         px, py = world_to_map(target.pos.x, target.pos.y)
-        pygame.draw.circle(screen, (255, 0, 0), (px, py), int(8 * map_zoom))
-        pygame.draw.circle(screen, (255, 255, 255), (px, py), int(8 * map_zoom), 2)
+        _ui_polish.draw_marker_glyph(screen, (px, py), "player",
+                                     radius=max(6, int(8 * map_zoom)))
 
         distance: float | None = None
         destination: tuple[float, float] | None = None
@@ -4357,6 +4437,12 @@ def full_screen_map(
                 y = 60 + i * 28
                 screen.blit(bg, (20, y))
                 screen.blit(surf, (26, y + 3))
+
+        # Legend uses the exact glyphs drawn above (never a second vocabulary).
+        try:
+            _ui_polish.draw_map_legend(screen, text_labels, visible=show_legend)
+        except Exception:
+            _log.debug("full-map legend render failed", exc_info=True)
 
         pygame.display.flip()
         clock.tick(FPS)
@@ -5312,6 +5398,11 @@ def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_s
         # Position all text relative to display_rect.y.
         bank_label = font_small.render(labels["bank"], True, (255, 215, 0))
         screen.blit(bank_label, (display_rect.x + 15, display_rect.y + 40))
+        _ui_polish.draw_accent_rule(
+            screen, display_rect.x + 15,
+            display_rect.y + 43 + bank_label.get_height(),
+            min(120, bank_label.get_width() + 8), height=2,
+        )
 
         balance_surf = font_small.render(f"{money} ₭", True, (0, 255, 0))
         screen.blit(balance_surf, (display_rect.x + 15, display_rect.y + 75))
@@ -5333,6 +5424,11 @@ def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_s
             labels["phone_settings"], True, (255, 255, 255)
         )
         screen.blit(title, (display_rect.x + 15, display_rect.y + 45))
+        _ui_polish.draw_accent_rule(
+            screen, display_rect.x + 15,
+            display_rect.y + 48 + title.get_height(),
+            min(150, title.get_width() + 8), height=2,
+        )
 
         category = _cached_ui_font(None, 13, bold=True).render(
             labels["phone_color"], True, (190, 190, 190)
@@ -5360,6 +5456,11 @@ def draw_mobile_phone(screen, money, game_time, font_small, current_app, phone_s
             labels["weather_app"], True, (135, 205, 255)
         )
         screen.blit(title, (display_rect.x + 15, display_rect.y + 45))
+        _ui_polish.draw_accent_rule(
+            screen, display_rect.x + 15,
+            display_rect.y + 48 + title.get_height(),
+            min(150, title.get_width() + 8), height=2,
+        )
         weather_text = _cached_ui_font(None, 15, bold=True).render(
             weather_label or labels["weather_unknown"], True, (240, 240, 240)
         )
@@ -6192,7 +6293,14 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
         )
         title_text = selected_car.get("name", gt["vehicle"]) if selected_car else gt["empty"]
         title = game_font.render(title_text, True, (238, 164, 47))
-        screen.blit(title, title.get_rect(center=(screen.get_width() // 2, 55)))
+        title_rect = title.get_rect(center=(screen.get_width() // 2, 55))
+        screen.blit(title, title_rect)
+        _ui_polish.draw_accent_rule(
+            screen,
+            title_rect.centerx - min(160, title_rect.width // 2),
+            title_rect.bottom + 6,
+            min(320, max(80, title_rect.width)),
+        )
         engine_level = max(0, min(5, int(selected_car.get("engine_upgrade", 0)))) if selected_car else 0
         wheel_level = max(0, min(5, int(selected_car.get("wheel_upgrade", 0)))) if selected_car else 0
         preview = pygame.Surface((440, 300), pygame.SRCALPHA)
@@ -6560,6 +6668,8 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
 
             title_s = title_font.render(labels.get(title_key, title_fallback), True, (245, 220, 180))
             screen.blit(title_s, (panel.x + 20, panel.y + 14))
+            _ui_polish.draw_accent_rule(screen, panel.x + 20, title_s.get_height() + panel.y + 19,
+                                        min(280, title_s.get_width() + 8))
 
             col_gap = 14
             col_w = (panel.width - 40 - col_gap) // 2
@@ -7146,6 +7256,7 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
                         current_world_width, current_world_height,
                         controls=keyboard, gps=gps, labels=t,
                         gunshop_pos=GUNSHOP_POS,
+                        garage_pos=_constants.GARAGE_POS,
                         mission_markers=story_markers,
                         mission_labels=getattr(story_runtime, "labels", None) if story_runtime else None,
                     )
@@ -7866,7 +7977,17 @@ def run_open_world(screen, settings, *, continue_game=True, tutorial_mode=False)
         # Story UI hooks (tracker/toasts/dialogue/journal). No-ops without content/state.
         if story_runtime is not None and not tutorial_mode:
             try:
-                story_runtime.draw_hud(screen, t)
+                if game_state == "HOUSE":
+                    hud_player_pos = (atom_h.pos.x, atom_h.pos.y)
+                elif game_state == "GUNSHOP":
+                    hud_player_pos = (atom_g.pos.x, atom_g.pos.y)
+                else:
+                    hud_player_pos = (target.pos.x, target.pos.y)
+                story_runtime.draw_hud(
+                    screen, t,
+                    player_pos=hud_player_pos,
+                    distance_formatter=_format_gps_distance,
+                )
                 if getattr(story_runtime, "journal_open", False):
                     story_runtime.draw_journal(screen, t)
             except Exception:

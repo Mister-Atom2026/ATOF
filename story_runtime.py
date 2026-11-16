@@ -13,9 +13,11 @@ through the registry hooks below.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping, MutableMapping, Sequence
 
+import engine_ui_polish as _ui_polish
 import ui_story
 from quests import QuestContext, QuestManager, QuestState, create_default_manager
 
@@ -127,6 +129,8 @@ class StoryRuntime:
     quest_manager: QuestManager | None = None
     labels: MutableMapping[str, str] = field(default_factory=dict)
     tracker: ui_story.ObjectiveTrackerHUD = field(default_factory=ui_story.ObjectiveTrackerHUD)
+    objective_chip: _ui_polish.ObjectiveChip = field(default_factory=_ui_polish.ObjectiveChip)
+    objective_chip_visible: bool = True
     tracker_state: ui_story.QuestState | None = None
     journal_open: bool = False
     journal_selected: int = 0
@@ -292,8 +296,44 @@ class StoryRuntime:
 
     # --- UI drawing hooks (safe no-ops when there is nothing to show) ---
 
-    def draw_hud(self, screen: Any, labels: Mapping[str, str] | None = None) -> None:
+    def draw_hud(self, screen: Any, labels: Mapping[str, str] | None = None, *,
+                 player_pos: tuple[float, float] | None = None,
+                 distance_formatter: Callable[[float], str] | None = None) -> None:
+        """Draw the glanceable objective chip, toasts and dialogue.
+
+        HUD shows exactly one active objective (the journal keeps the full
+        list). A short toast acknowledges objective changes.
+        """
         merged = _merge_labels(self.labels, labels)
+        quest = self.tracker_state
+        primary = quest.primary_objective() if quest is not None else None
+
+        chip_text = None
+        chip_distance = None
+        if primary is not None and self.objective_chip_visible:
+            objective_id = f"{getattr(quest, 'quest_id', '')}:{primary.id}"
+            try:
+                if self.objective_chip.observe(objective_id):
+                    self.toasts.push(
+                        "story_objective_updated",
+                        ui_story.tr(merged, "story_objective_updated", "Objective updated"),
+                        kind="info",
+                    )
+            except Exception:
+                pass
+            chip_text = ui_story.tr(merged, primary.title_key, primary.title_default or primary.id)
+            if player_pos is not None and primary.target_position is not None:
+                try:
+                    value = math.hypot(
+                        float(primary.target_position[0]) - float(player_pos[0]),
+                        float(primary.target_position[1]) - float(player_pos[1]),
+                    )
+                    chip_distance = (
+                        distance_formatter(value) if distance_formatter else f"{value:.0f} m"
+                    )
+                except (TypeError, ValueError, IndexError):
+                    chip_distance = None
+
         try:
             self.toasts.draw(screen, merged)
         except Exception:
@@ -302,9 +342,16 @@ class StoryRuntime:
             self.dialogue.draw(screen, merged)
         except Exception:
             pass
-        if self.tracker_state is not None and self.tracker_state.active_objectives():
+
+        if chip_text:
             try:
-                self.tracker.draw(screen, self.tracker_state, merged, anchor="top_left")
+                self.objective_chip.draw(screen, chip_text, chip_distance, labels=merged)
+                return
+            except Exception:
+                pass
+        if quest is not None and quest.active_objectives():
+            try:
+                self.tracker.draw(screen, quest, merged, anchor="top_left")
             except Exception:
                 pass
 

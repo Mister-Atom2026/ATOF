@@ -15,6 +15,8 @@ from typing import Callable, Iterable, Mapping, MutableSequence, Sequence
 
 import pygame
 
+import engine_ui_polish as _ui_polish
+
 
 # Suggested translation keys (add to language tables when integrating).
 STORY_UI_KEYS = (
@@ -26,6 +28,15 @@ STORY_UI_KEYS = (
     "story_objective_failed",
     "story_distance",
     "story_continue",
+    "story_objective_now",
+    "story_objective_updated",
+    "map_legend",
+    "map_marker_player",
+    "map_marker_home",
+    "map_marker_gunshop",
+    "map_marker_garage",
+    "map_marker_objective",
+    "map_marker_destination",
 )
 
 
@@ -488,11 +499,24 @@ class MissionMarker:
 
 
 def draw_marker_icon(surface: pygame.Surface, center: tuple[int, int], *,
-                     color=(255, 112, 0), radius=9, selected=False) -> None:
-    """Draw a marker in the same visual language as engine GPS markers."""
+                     color=None, radius=9, selected=False, kind: str | None = None) -> None:
+    """Draw a marker with the shared shape-coded vocabulary.
+
+    ``kind`` selects the silhouette (objective/destination/ally/...); ``color``
+    only tints it. Falling back to the legacy circle keeps old callers working.
+    """
+    try:
+        _ui_polish.draw_marker_glyph(
+            surface, center, kind or "objective",
+            radius=radius, selected=selected, color_override=color,
+        )
+        return
+    except Exception:
+        pass
+    fill = tuple(color) if color else (255, 112, 0)
     pygame.draw.circle(surface, (15, 15, 15), center, radius + 3)
     pygame.draw.circle(surface, (255, 255, 255), center, radius + 1)
-    pygame.draw.circle(surface, color, center, radius)
+    pygame.draw.circle(surface, fill, center, radius)
     inner = (255, 255, 255) if not selected else (255, 230, 120)
     pygame.draw.circle(surface, inner, center, max(2, radius // 3))
 
@@ -580,7 +604,8 @@ def draw_mission_markers_minimap(screen: pygame.Surface, markers: Iterable[Missi
                 size, center, (radar_rect.x + ox, radar_rect.y + oy),
                 clamp_to_edge=True,
             )
-            draw_marker_icon(screen, pos, color=marker.color, radius=marker.radius)
+            draw_marker_icon(screen, pos, color=marker.color, radius=marker.radius,
+                             kind=getattr(marker, "kind", None), selected=bool(getattr(marker, "selected", False)))
     finally:
         screen.set_clip(clip_prev)
 
@@ -599,7 +624,8 @@ def draw_mission_markers_full_map(screen: pygame.Surface, markers: Iterable[Miss
             continue
         mx, my = world_to_map(*marker.position)
         radius = max(6, int(marker.radius * max(1.0, map_zoom * 0.8)))
-        draw_marker_icon(screen, (mx, my), color=marker.color, radius=radius)
+        draw_marker_icon(screen, (mx, my), color=marker.color, radius=radius,
+                         kind=getattr(marker, "kind", None), selected=bool(getattr(marker, "selected", False)))
         name = tr(labels, marker.label_key, marker.label_default or marker.id)
         if name:
             font = _font(max(14, int(14 * min(map_zoom, 2.0))))
