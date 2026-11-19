@@ -18,6 +18,7 @@ DATA_DIRECTORIES = (
 
 datas = [(str(ROOT / directory), directory) for directory in DATA_DIRECTORIES]
 datas.append((str(ROOT / "static.ttf"), "."))
+datas.append((str(ROOT / "6729032246362112.wav"), "."))
 hiddenimports = collect_submodules("cv2")
 
 a = Analysis(
