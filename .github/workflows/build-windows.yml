@@ -1,40 +1,90 @@
-name: Build Windows x64 executable
+name: Build Windows + Linux x64 binaries
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Tag for the beta release with binaries'
+        required: true
+        default: 'v0.9.1-beta.1'
   push:
     tags:
       - 'v0.9.*'
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.14 (x64)
-        uses: actions/setup-python@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
           architecture: x64
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-
-      - name: Build with PyInstaller
+      - name: Build
         run: python -m PyInstaller --noconfirm ATOF.spec
-
-      - name: Verify executable
+      - name: Verify
         run: |
           if (!(Test-Path "dist/ATOF.exe")) { throw "ATOF.exe was not produced" }
           Get-Item "dist/ATOF.exe" | Select-Object FullName, Length
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: ATOF-windows-x64
           path: dist/ATOF.exe
           if-no-files-found: error
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+          architecture: x64
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Build
+        run: python -m PyInstaller --noconfirm ATOF.spec
+      - name: Verify
+        run: |
+          test -f dist/ATOF || { echo "ATOF binary was not produced"; exit 1; }
+          chmod +x dist/ATOF
+          ls -lh dist/ATOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ATOF-linux-x64
+          path: dist/ATOF
+          if-no-files-found: error
+
+  release:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Prepare files
+        run: |
+          mkdir -p out
+          cp artifacts/ATOF-windows-x64/ATOF.exe out/ATOF-windows-x64.exe
+          cp artifacts/ATOF-linux-x64/ATOF out/ATOF-linux-x64
+          chmod +x out/ATOF-linux-x64
+          ls -lh out/
+      - name: Publish pre-release with binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          name: ATOF beta build (Windows + Linux x64)
+          prerelease: true
+          generate_release_notes: true
+          files: |
+            out/ATOF-windows-x64.exe
+            out/ATOF-linux-x64
