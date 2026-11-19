@@ -36,6 +36,7 @@ pygame.display.set_caption("ATOF")
 
 import engine
 import open_world
+import story_mission
 from video_intro import play_intro_videos
 LANGUAGES = list(engine.SUPPORTED_LANGUAGES)
 
@@ -92,6 +93,7 @@ translations = {
         "play": "Play",
         "settings": "Settings",
         "tutorial": "Tutorial",
+        "story_mission": "Story Mission",
         "additional_content": "Additional Content",
         "exit": "Exit",
         "hint": "[F] Enter Car",
@@ -130,6 +132,7 @@ translations = {
         "play": "Грати",
         "settings": "Налаштування",
         "tutorial": "Навчання",
+        "story_mission": "Сюжетна місія",
         "additional_content": "Додатковий контент",
         "exit": "Вихід",
         "hint": "[F] Сісти в авто",
@@ -168,6 +171,7 @@ translations = {
         "play": "Играть",
         "settings": "Настройки",
         "tutorial": "Обучение",
+        "story_mission": "Сюжетная миссия",
         "additional_content": "Дополнительный контент",
         "exit": "Выход",
         "hint": "[F] Сесть в авто",
@@ -206,6 +210,7 @@ translations = {
         "play": "Jugar",
         "settings": "Ajustes",
         "tutorial": "Tutorial",
+        "story_mission": "Story Mission",
         "additional_content": "Contenido adicional",
         "exit": "Salir",
         "hint": "[F] Subir al coche",
@@ -244,6 +249,7 @@ translations = {
         "play": "Spielen",
         "settings": "Einstellungen",
         "tutorial": "Tutorial",
+        "story_mission": "Story Mission",
         "additional_content": "Zusatzinhalte",
         "exit": "Beenden",
         "hint": "[F] Ins Auto steigen",
@@ -282,6 +288,7 @@ translations = {
         "play": "Jouer",
         "settings": "Paramètres",
         "tutorial": "Tutoriel",
+        "story_mission": "Mission histoire",
         "additional_content": "Contenu supplémentaire",
         "exit": "Quitter",
         "hint": "[F] Monter en voiture",
@@ -582,6 +589,15 @@ def activate_menu_option(index):
         return "BACK" if result != "EXIT" else "EXIT"
 
     if index == 3:
+        pygame.mixer.music.stop()
+        result = story_mission.run_story_mission(screen, APP_SETTINGS)
+        screen = pygame.display.get_surface()
+        rebuild_fonts()
+        engine.configure_audio(APP_SETTINGS)
+        load_and_play_menu_music()
+        return "BACK" if result != "EXIT" else "EXIT"
+
+    if index == 4:
         language = LANGUAGES[APP_SETTINGS["lang_idx"]]
         text = dict(translations[language])
         text["stats_title"] = text["last_session_stats"]
@@ -611,7 +627,7 @@ def main():
         while True:
             language = LANGUAGES[APP_SETTINGS["lang_idx"]]
             text = translations[language]
-            options = [text["play"], text["settings"], text.get("tutorial", "Tutorial"), text["additional_content"], text["exit"]]
+            options = [text["play"], text["settings"], text.get("tutorial", "Tutorial"), text.get("story_mission", "Story Mission"), text["additional_content"], text["exit"]]
 
             screen.fill(COLOR_BG)
             draw_logo()
