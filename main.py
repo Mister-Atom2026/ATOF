@@ -1,4 +1,5 @@
 import os
+import sys
 os.environ.setdefault("SDL_VIDEO_CENTERED", "1")
 
 import pygame
@@ -616,6 +617,15 @@ def activate_menu_option(index):
 
 def main():
     global screen, WIDTH, HEIGHT
+    if "--story" in sys.argv:
+        pygame.mixer.music.stop()
+        result = story_mission.run_story_mission(screen, APP_SETTINGS)
+        screen = pygame.display.get_surface()
+        WIDTH, HEIGHT = screen.get_size()
+        rebuild_fonts()
+        engine.configure_audio(APP_SETTINGS)
+        load_and_play_menu_music()
+        return
     selected_index = 0
     last_hover_key = None
     clock = pygame.time.Clock()
