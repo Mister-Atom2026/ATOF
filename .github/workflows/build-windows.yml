@@ -129,6 +129,11 @@ jobs:
     needs: build-linux
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve package version
+        run: |
+          RAW="${{ inputs.release_tag || github.ref_name }}"
+          RAW="${RAW#v}"
+          echo "DEB_VERSION=${RAW}" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
@@ -151,9 +156,9 @@ jobs:
           img = img.resize((256, 256), Image.LANCZOS)
           img.save('pkg/usr/share/icons/hicolor/256x256/apps/atof.png')
           PY
-          cat > pkg/DEBIAN/control <<'EOF'
+          cat > pkg/DEBIAN/control <<EOF
           Package: atof
-          Version: 0.9.1
+          Version: $DEB_VERSION
           Section: games
           Priority: optional
           Architecture: amd64
@@ -171,12 +176,12 @@ jobs:
           Categories=Game;
           Terminal=false
           EOF
-          dpkg-deb --build --root-owner-group pkg out/atof_0.9.1_amd64.deb
-          ls -lh out/atof_0.9.1_amd64.deb
+          dpkg-deb --build --root-owner-group pkg out/ATOF-linux-x64.deb
+          ls -lh out/ATOF-linux-x64.deb
       - uses: actions/upload-artifact@v4
         with:
           name: ATOF-linux-deb
-          path: out/atof_0.9.1_amd64.deb
+          path: out/ATOF-linux-x64.deb
           if-no-files-found: error
 
   release:
@@ -192,7 +197,7 @@ jobs:
           cp artifacts/ATOF-windows-x64/ATOF.exe out/ATOF-windows-x64.exe
           cp artifacts/ATOF-linux-x64/ATOF out/ATOF-linux-x64
           cp artifacts/ATOF-windows-installer/ATOF-setup.exe out/ATOF-setup.exe
-          cp artifacts/ATOF-linux-deb/atof_0.9.1_amd64.deb out/atof_0.9.1_amd64.deb
+          cp artifacts/ATOF-linux-deb/ATOF-linux-x64.deb out/ATOF-linux-x64.deb
           chmod +x out/ATOF-linux-x64
           ls -lh out/
       - name: Publish pre-release with installers
@@ -205,5 +210,5 @@ jobs:
           files: |
             out/ATOF-setup.exe
             out/ATOF-windows-x64.exe
-            out/atof_0.9.1_amd64.deb
+            out/ATOF-linux-x64.deb
             out/ATOF-linux-x64
