@@ -2,6 +2,7 @@
 
 import os
 import unittest
+from unittest.mock import patch
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
@@ -54,6 +55,29 @@ class StoryMissionDataTests(unittest.TestCase):
         self.assertEqual(mission.scene, 1)
         self.assertEqual(tuple(mission.pos), story_mission.ATOM_SPAWN)
         self.assertFalse(mission.dialogue_active)
+
+
+    def test_play_button_starts_mission_once_then_marks_done(self):
+        import main
+
+        previous = main.APP_SETTINGS.get("story_mission_done", False)
+        main.APP_SETTINGS["story_mission_done"] = False
+        try:
+            with (
+                patch.object(main.engine, "load_game_save", return_value=None),
+                patch.object(main.story_mission, "run_story_mission", return_value="BACK") as mission,
+                patch.object(main, "launch_open_world", return_value=True) as launch,
+                patch.object(main, "save_settings"),
+                patch.object(main, "load_and_play_menu_music"),
+                patch.object(main.engine, "configure_audio"),
+                patch.object(main, "rebuild_fonts"),
+            ):
+                self.assertTrue(main.start_open_world())
+            mission.assert_called_once()
+            launch.assert_called_once_with(continue_game=False)
+            self.assertTrue(main.APP_SETTINGS["story_mission_done"])
+        finally:
+            main.APP_SETTINGS["story_mission_done"] = previous
 
 
 if __name__ == "__main__":

@@ -12,10 +12,13 @@ import engine
 class PlayFlowTests(unittest.TestCase):
     def setUp(self):
         self.previous_language = main.APP_SETTINGS["lang_idx"]
+        self.previous_story_done = main.APP_SETTINGS.get("story_mission_done", False)
         main.APP_SETTINGS["lang_idx"] = engine.SUPPORTED_LANGUAGES.index("English")
+        main.APP_SETTINGS["story_mission_done"] = True
 
     def tearDown(self):
         main.APP_SETTINGS["lang_idx"] = self.previous_language
+        main.APP_SETTINGS["story_mission_done"] = self.previous_story_done
 
     def test_saved_game_starts_the_open_world(self):
         with (
