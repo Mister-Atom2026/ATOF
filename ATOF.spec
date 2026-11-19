@@ -4,6 +4,7 @@ from PyInstaller.utils.hooks import collect_submodules
 
 
 ROOT = Path(SPECPATH)
+ICON_PATH = ROOT / "icon.ico"
 DATA_DIRECTORIES = (
     "cars",
     "ch_home",
@@ -44,4 +45,5 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
+    icon=str(ICON_PATH) if ICON_PATH.exists() else None,
 )
