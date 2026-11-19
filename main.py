@@ -36,7 +36,6 @@ pygame.display.set_caption("ATOF")
 
 import engine
 import open_world
-import story_mission
 from video_intro import play_intro_videos
 LANGUAGES = list(engine.SUPPORTED_LANGUAGES)
 
@@ -546,20 +545,7 @@ def launch_open_world(continue_game):
 
 
 def start_open_world():
-    global screen, WIDTH, HEIGHT
     game_save = engine.load_game_save()
-    if not APP_SETTINGS.get("story_mission_done"):
-        pygame.mixer.music.stop()
-        result = story_mission.run_story_mission(screen, APP_SETTINGS)
-        screen = pygame.display.get_surface()
-        WIDTH, HEIGHT = screen.get_size()
-        rebuild_fonts()
-        engine.configure_audio(APP_SETTINGS)
-        APP_SETTINGS["story_mission_done"] = True
-        save_settings(APP_SETTINGS)
-        load_and_play_menu_music()
-        if result is False or result == "EXIT":
-            return False
     return launch_open_world(continue_game=game_save is not None)
 
 
